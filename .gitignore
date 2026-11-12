@@ -1,0 +1,20 @@
+# Credenziali e configurazione locale
+.env
+
+# File caricati dagli utenti: mai nel repository
+dati_caricati/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Django
+staticfiles/
+*.sqlite3
+
+# Editor e sistema
+.idea/
+.vscode/
+.DS_Store

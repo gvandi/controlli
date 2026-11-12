@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block contenuto %}
+<h1>Controlli</h1>
+<p class="tenue">
+  Ruoli assegnati:
+  {% if ruoli %}{{ ruoli|join:", " }}{% else %}nessuno{% endif %}{% if user.is_superuser %} (superutente){% endif %}
+</p>
+
+<div class="scheda">
+  <h2>Caricamento dati</h2>
+  <p class="tenue">Invio dei file da analizzare e loro conservazione sul server. In arrivo con il passo 2.</p>
+</div>
+
+<div class="scheda">
+  <h2>Analisi</h2>
+  <p class="tenue">Confronto con il gruppo e segnalazione delle anomalie. In arrivo con i passi 4 e 5.</p>
+</div>
+
+<div class="scheda">
+  <h2>Configurazione</h2>
+  {% if puo_entrare_in_admin and puo_configurare %}
+    <p>Tabelle di decodifica: attività economiche, classi dimensionali, forma giuridica, modello di business.</p>
+    <p><a class="bottone" href="{% url 'admin:app_list' 'decodifiche' %}">Apri le tabelle di decodifica</a></p>
+  {% else %}
+    <p class="tenue">Non hai i diritti per modificare la configurazione.</p>
+  {% endif %}
+</div>
+
+<div class="scheda">
+  <h2>Utenti e diritti</h2>
+  {% if puo_entrare_in_admin and puo_gestire_utenti %}
+    <p>Creazione e modifica degli utenti, assegnazione dei ruoli.</p>
+    <p><a class="bottone" href="{% url 'admin:app_list' 'utenti' %}">Gestisci gli utenti</a></p>
+  {% else %}
+    <p class="tenue">La gestione degli utenti è riservata all'amministratore.</p>
+  {% endif %}
+</div>
+{% endblock %}
