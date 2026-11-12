@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titolo %}Controlli{% endblock %}</title>
+  <style>
+    :root { --testo: #1c2430; --tenue: #5b6675; --bordo: #d9dee5; --sfondo: #f5f6f8; --accento: #1f4e79; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--testo); background: var(--sfondo); line-height: 1.5; }
+    header { background: #fff; border-bottom: 1px solid var(--bordo); padding: 0.75rem 1.5rem; display: flex; justify-content: space-between; align-items: center; }
+    header a.marchio { font-weight: 600; color: var(--accento); text-decoration: none; }
+    header form { display: inline; }
+    main { max-width: 60rem; margin: 2rem auto; padding: 0 1.5rem; }
+    .scheda { background: #fff; border: 1px solid var(--bordo); border-radius: 6px; padding: 1.25rem 1.5rem; margin-bottom: 1rem; }
+    .scheda h2 { margin: 0 0 0.25rem; font-size: 1.1rem; }
+    .tenue { color: var(--tenue); }
+    button, .bottone { font: inherit; background: var(--accento); color: #fff; border: 0; border-radius: 4px; padding: 0.45rem 0.9rem; cursor: pointer; text-decoration: none; display: inline-block; }
+    button.secondario { background: transparent; color: var(--accento); padding: 0; }
+    input[type=text], input[type=password] { font: inherit; width: 100%; padding: 0.45rem 0.6rem; border: 1px solid var(--bordo); border-radius: 4px; }
+    label { display: block; margin: 0.75rem 0 0.25rem; }
+    .errore { color: #a12622; }
+  </style>
+</head>
+<body>
+  <header>
+    <a class="marchio" href="{% url 'home' %}">Controlli</a>
+    {% if user.is_authenticated %}
+      <span>
+        <span class="tenue">{{ user.get_full_name|default:user.username }}</span>
+        &nbsp;
+        <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="secondario" type="submit">Esci</button></form>
+      </span>
+    {% endif %}
+  </header>
+  <main>
+    {% block contenuto %}{% endblock %}
+  </main>
+</body>
+</html>
