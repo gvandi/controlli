@@ -39,6 +39,19 @@ Elenco unico delle cose da fare. Ogni passo si chiude con questo file aggiornato
 - [ ] 11. Configurazione: regole e soglie versionate, modificabili dall'interfaccia
 - [ ] Più avanti: risoluzione delle identità, controlli sui documenti, analisi di rete e GNN
 
+## Ambienti e rilasci (RILASCIO.md, DECISIONI.md n. 32-37)
+
+- [ ] Nome dell'ambiente in `.env` (`CONTROLLI_AMBIENTE`) e fascia colorata sulle pagine
+      di sviluppo e collaudo
+- [ ] Numero di versione dell'applicazione, mostrato nella pagina di accesso
+- [ ] Avviso di aggiornamento in testa alle pagine, gestito dall'amministratore
+- [ ] Pagina di manutenzione
+- [ ] Elenco degli utenti collegati con ultimo accesso e chiusura della sessione
+- [ ] Diritto per le funzioni in prova
+- [ ] Copia di sicurezza di database e file caricati, con prova di ripristino
+- [ ] Preparare l'ambiente di collaudo
+- [ ] Fermare e riavviare in modo ordinato la coda dei documenti (dipende dal passo 8)
+
 ## Da fare sullo scheletro
 
 - [ ] Caricare la classificazione delle attività economiche dal file ufficiale
@@ -73,3 +86,5 @@ Elenco unico delle cose da fare. Ogni passo si chiude con questo file aggiornato
 - [ ] Quale regola definisce la popolazione analizzata (per esempio: tutte le aziende con COE attivo)?
 - [ ] Quale classificazione delle attività economiche è in uso (NACE o variante nazionale)?
 - [ ] Il codice e l'installazione devono stare su infrastruttura dell'amministrazione?
+- [ ] Chi esegue i rilasci in produzione e chi prova le versioni in collaudo?
+- [ ] Quanto preavviso serve agli utenti e in quali orari si può aggiornare?

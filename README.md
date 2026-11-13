@@ -7,7 +7,8 @@ quelle che se ne discostano.
 
 Stato: **passo 1, scheletro** (accesso, utenti, ruoli, tabelle di decodifica).
 I passi successivi sono in [TODO.md](TODO.md); le scelte fatte finora in
-[DECISIONI.md](DECISIONI.md).
+[DECISIONI.md](DECISIONI.md); ambienti e lista di controllo dei rilasci in
+[RILASCIO.md](RILASCIO.md).
 
 ## Requisiti
 
