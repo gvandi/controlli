@@ -39,3 +39,11 @@ admin.site.register(models.Clientela, DecodificaAdmin)
 admin.site.register(models.Stagionalita, DecodificaAdmin)
 admin.site.register(models.UsoContante, DecodificaAdmin)
 admin.site.register(models.OperativitaEstero, DecodificaAdmin)
+admin.site.register(models.TipoDocumento, DecodificaAdmin)
+admin.site.register(models.RuoloNelDocumento, DecodificaAdmin)
+
+
+@admin.register(models.TipoIdentificativo)
+class TipoIdentificativoAdmin(DecodificaAdmin):
+    list_display = ("codice", "descrizione", "paese", "prefissi", "espressione_controllo", "valida_al")
+    list_filter = ("paese",)

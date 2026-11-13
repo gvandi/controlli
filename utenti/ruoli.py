@@ -5,7 +5,7 @@ Un ruolo è un gruppo di Django. I diritti sono quelli standard di Django
 sullo stesso utente; l'amministratore può crearne altri dall'interfaccia.
 
 Caricatore dati e Analista non hanno ancora diritti: le loro funzioni arrivano
-con i passi 2-5 (vedi TODO.md).
+con i passi successivi (vedi TODO.md).
 """
 
 AMMINISTRATORE = "Amministratore"

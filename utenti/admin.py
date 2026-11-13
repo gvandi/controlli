@@ -2,6 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 
 from .models import Utente
+from django.utils.translation import gettext_lazy as _
 
 
 @admin.register(Utente)
@@ -9,6 +10,6 @@ class UtenteAdmin(UserAdmin):
     list_display = ("username", "last_name", "first_name", "email", "ruoli", "is_active", "is_staff")
     list_filter = ("is_active", "is_staff", "groups")
 
-    @admin.display(description="Ruoli")
+    @admin.display(description=_("Ruoli"))
     def ruoli(self, obj):
         return ", ".join(obj.nomi_ruoli()) or "-"

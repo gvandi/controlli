@@ -70,6 +70,34 @@ OPERATIVITA_ESTERO = [
     ("ENTRAMBI", "Importazione ed esportazione"),
 ]
 
+# (codice, descrizione, paese ISO, prefissi da togliere, espressione di controllo)
+# Il formato del COE (cinque cifre) è da confermare: vedi TODO.md.
+TIPI_IDENTIFICATIVO = [
+    ("COE", "Codice operatore economico (San Marino)", "SM", "COE,SM", r"\d{5}"),
+    ("PIVA_IT", "Partita IVA (Italia)", "IT", "IT", r"\d{11}"),
+    ("CF_IT", "Codice fiscale (Italia)", "IT", "", r"[A-Z0-9]{16}|\d{11}"),
+    ("VAT_UE", "Partita IVA di altro paese dell'Unione europea", "", "", r"[A-Z]{2}[A-Z0-9]{2,12}"),
+    ("ALTRO", "Altro identificativo", "", "", ""),
+]
+
+TIPI_DOCUMENTO = [
+    ("FATTURA", "Fattura"),
+    ("NOTA_CREDITO", "Nota di credito"),
+    ("DDT", "Documento di trasporto"),
+    ("CONTRATTO", "Contratto"),
+    ("DOGANA", "Dichiarazione doganale"),
+    ("ALTRO", "Altro documento"),
+]
+
+RUOLI_NEL_DOCUMENTO = [
+    ("EMITTENTE", "Emittente o cedente"),
+    ("DESTINATARIO", "Destinatario o cessionario"),
+    ("MITTENTE", "Mittente della merce"),
+    ("VETTORE", "Vettore"),
+    ("DESTINAZIONE", "Luogo di destinazione della merce"),
+    ("INTERMEDIARIO", "Intermediario"),
+]
+
 # Poche voci di esempio per provare la gerarchia. La classificazione completa va
 # caricata dal file ufficiale (TODO.md).
 # (codice, descrizione, livello, codice padre, contanti per natura, stagionale per natura)

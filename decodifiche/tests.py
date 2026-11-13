@@ -72,6 +72,40 @@ class ClassiTest(TestCase):
         self.assertEqual(models.ClasseDipendenti.per_valore(0, date(2025, 6, 1)).codice, "D0")
 
 
+class IdentificativiTest(TestCase):
+    def setUp(self):
+        carica()
+
+    def test_coe_scritto_in_modi_diversi_e_lo_stesso_valore(self):
+        coe = models.TipoIdentificativo.objects.get(codice="COE")
+        for scritto in ("12345", "SM12345", "SM 12345", "COE 12345", "coe-12345", " sm.12345 "):
+            with self.subTest(scritto=scritto):
+                self.assertEqual(coe.normalizza(scritto), "12345")
+                self.assertTrue(coe.accetta(scritto))
+
+    def test_coe_non_valido(self):
+        coe = models.TipoIdentificativo.objects.get(codice="COE")
+        for scritto in ("", "1234", "123456", "12A45", "SM"):
+            with self.subTest(scritto=scritto):
+                self.assertFalse(coe.accetta(scritto))
+
+    def test_partita_iva_italiana(self):
+        piva = models.TipoIdentificativo.objects.get(codice="PIVA_IT")
+        self.assertEqual(piva.normalizza("IT 01234567890"), "01234567890")
+        self.assertTrue(piva.accetta("IT01234567890"))
+        self.assertTrue(piva.accetta("01234567890"))
+        self.assertFalse(piva.accetta("0123456789"))
+
+    def test_tipo_senza_controllo_accetta_ogni_valore_non_vuoto(self):
+        altro = models.TipoIdentificativo.objects.get(codice="ALTRO")
+        self.assertTrue(altro.accetta("ABC-99/x"))
+        self.assertFalse(altro.accetta("  "))
+
+    def test_tipi_di_documento_e_ruoli_caricati(self):
+        self.assertEqual(models.TipoDocumento.objects.count(), len(dati.TIPI_DOCUMENTO))
+        self.assertEqual(models.RuoloNelDocumento.objects.count(), len(dati.RUOLI_NEL_DOCUMENTO))
+
+
 class AttivitaTest(TestCase):
     def setUp(self):
         carica()

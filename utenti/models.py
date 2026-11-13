@@ -1,4 +1,5 @@
 from django.contrib.auth.models import AbstractUser
+from django.utils.translation import gettext_lazy as _
 
 
 class Utente(AbstractUser):
@@ -10,8 +11,8 @@ class Utente(AbstractUser):
     """
 
     class Meta(AbstractUser.Meta):
-        verbose_name = "utente"
-        verbose_name_plural = "utenti"
+        verbose_name = _("utente")
+        verbose_name_plural = _("utenti")
 
     def nomi_ruoli(self):
         """Nomi dei ruoli (gruppi) assegnati all'utente, in ordine alfabetico."""
