@@ -1,8 +1,11 @@
-<!DOCTYPE html>
-<html lang="it">
+{% load i18n %}{% get_current_language as LANGUAGE_CODE %}<!DOCTYPE html>
+{# translate="no" e il meta "notranslate" disattivano la traduzione automatica del browser: #}
+{# in alcuni browser invia il testo della pagina a server esterni (DECISIONI.md, n. 30). #}
+<html lang="{{ LANGUAGE_CODE|default:'it' }}" translate="no">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="google" content="notranslate">
   <title>{% block titolo %}Controlli{% endblock %}</title>
   <style>
     :root { --testo: #1c2430; --tenue: #5b6675; --bordo: #d9dee5; --sfondo: #f5f6f8; --accento: #1f4e79; }
@@ -22,14 +25,14 @@
     .errore { color: #a12622; }
   </style>
 </head>
-<body>
+<body class="notranslate">
   <header>
     <a class="marchio" href="{% url 'home' %}">Controlli</a>
     {% if user.is_authenticated %}
       <span>
         <span class="tenue">{{ user.get_full_name|default:user.username }}</span>
         &nbsp;
-        <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="secondario" type="submit">Esci</button></form>
+        <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="secondario" type="submit">{% translate "Esci" %}</button></form>
       </span>
     {% endif %}
   </header>

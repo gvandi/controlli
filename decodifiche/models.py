@@ -8,6 +8,7 @@ import re
 
 from django.db import models
 from django.db.models import Q
+from django.utils.translation import gettext_lazy as _
 
 
 class Decodifica(models.Model):
@@ -15,9 +16,9 @@ class Decodifica(models.Model):
 
     codice = models.CharField(max_length=20)
     descrizione = models.CharField(max_length=255)
-    ordine = models.PositiveSmallIntegerField(default=0, help_text="Ordine di visualizzazione")
-    valida_dal = models.DateField(null=True, blank=True, help_text="Vuoto: valida da sempre")
-    valida_al = models.DateField(null=True, blank=True, help_text="Vuoto: ancora valida")
+    ordine = models.PositiveSmallIntegerField(default=0, help_text=_("Ordine di visualizzazione"))
+    valida_dal = models.DateField(null=True, blank=True, help_text=_("Vuoto: valida da sempre"))
+    valida_al = models.DateField(null=True, blank=True, help_text=_("Vuoto: ancora valida"))
 
     class Meta:
         abstract = True
@@ -60,9 +61,9 @@ class ClasseIntervallo(DecodificaSemplice):
     (DECISIONI.md, n. 10).
     """
 
-    minimo = models.DecimalField(max_digits=16, decimal_places=2, help_text="Incluso")
+    minimo = models.DecimalField(max_digits=16, decimal_places=2, help_text=_("Incluso"))
     massimo = models.DecimalField(
-        max_digits=16, decimal_places=2, null=True, blank=True, help_text="Escluso. Vuoto: nessun limite"
+        max_digits=16, decimal_places=2, null=True, blank=True, help_text=_("Escluso. Vuoto: nessun limite")
     )
 
     class Meta(DecodificaSemplice.Meta):
@@ -84,14 +85,14 @@ class AttivitaEconomica(Decodifica):
     """Classificazione delle attività economiche (NACE o variante nazionale, es. ATECO)."""
 
     class Livello(models.TextChoices):
-        SEZIONE = "sezione", "Sezione"
-        DIVISIONE = "divisione", "Divisione (2 cifre)"
-        GRUPPO = "gruppo", "Gruppo (3 cifre)"
-        CLASSE = "classe", "Classe (4 cifre)"
-        DETTAGLIO = "dettaglio", "Dettaglio nazionale"
+        SEZIONE = "sezione", _("Sezione")
+        DIVISIONE = "divisione", _("Divisione (2 cifre)")
+        GRUPPO = "gruppo", _("Gruppo (3 cifre)")
+        CLASSE = "classe", _("Classe (4 cifre)")
+        DETTAGLIO = "dettaglio", _("Dettaglio nazionale")
 
     versione_classificazione = models.CharField(
-        max_length=30, help_text="Esempio: ATECO 2025, NACE Rev. 2.1"
+        max_length=30, help_text=_("Esempio: ATECO 2025, NACE Rev. 2.1")
     )
     livello = models.CharField(max_length=10, choices=Livello.choices)
     padre = models.ForeignKey(
@@ -100,18 +101,18 @@ class AttivitaEconomica(Decodifica):
         blank=True,
         on_delete=models.PROTECT,
         related_name="figli",
-        help_text="Voce di livello superiore: serve per allargare il gruppo di confronto",
+        help_text=_("Voce di livello superiore: serve per allargare il gruppo di confronto"),
     )
     contanti_per_natura = models.BooleanField(
-        default=False, help_text="Valore predefinito del settore, modificabile sulla singola azienda"
+        default=False, help_text=_("Valore predefinito del settore, modificabile sulla singola azienda")
     )
     stagionale_per_natura = models.BooleanField(
-        default=False, help_text="Valore predefinito del settore, modificabile sulla singola azienda"
+        default=False, help_text=_("Valore predefinito del settore, modificabile sulla singola azienda")
     )
 
     class Meta(Decodifica.Meta):
-        verbose_name = "attività economica"
-        verbose_name_plural = "attività economiche"
+        verbose_name = _("attività economica")
+        verbose_name_plural = _("attività economiche")
         ordering = ["versione_classificazione", "codice"]
         constraints = [
             models.UniqueConstraint(
@@ -130,28 +131,28 @@ class AttivitaEconomica(Decodifica):
 
 class ClasseDipendenti(ClasseIntervallo):
     class Meta(ClasseIntervallo.Meta):
-        verbose_name = "classe di dipendenti"
-        verbose_name_plural = "classi di dipendenti"
+        verbose_name = _("classe di dipendenti")
+        verbose_name_plural = _("classi di dipendenti")
 
 
 class ClasseFatturato(ClasseIntervallo):
     class Meta(ClasseIntervallo.Meta):
-        verbose_name = "classe di fatturato"
-        verbose_name_plural = "classi di fatturato"
+        verbose_name = _("classe di fatturato")
+        verbose_name_plural = _("classi di fatturato")
 
 
 class FormaGiuridica(DecodificaSemplice):
     class Meta(DecodificaSemplice.Meta):
-        verbose_name = "forma giuridica"
-        verbose_name_plural = "forme giuridiche"
+        verbose_name = _("forma giuridica")
+        verbose_name_plural = _("forme giuridiche")
 
 
 class PosizioneGruppo(DecodificaSemplice):
     """Posizione dell'azienda in un gruppo societario. Distinta dalla forma giuridica."""
 
     class Meta(DecodificaSemplice.Meta):
-        verbose_name = "posizione nel gruppo"
-        verbose_name_plural = "posizioni nel gruppo"
+        verbose_name = _("posizione nel gruppo")
+        verbose_name_plural = _("posizioni nel gruppo")
 
 
 # Modello di business: quattro attributi indipendenti (DECISIONI.md, n. 7).
@@ -159,26 +160,26 @@ class PosizioneGruppo(DecodificaSemplice):
 
 class Clientela(DecodificaSemplice):
     class Meta(DecodificaSemplice.Meta):
-        verbose_name = "clientela"
-        verbose_name_plural = "modello di business: clientela"
+        verbose_name = _("clientela")
+        verbose_name_plural = _("modello di business: clientela")
 
 
 class Stagionalita(DecodificaSemplice):
     class Meta(DecodificaSemplice.Meta):
-        verbose_name = "stagionalità"
-        verbose_name_plural = "modello di business: stagionalità"
+        verbose_name = _("stagionalità")
+        verbose_name_plural = _("modello di business: stagionalità")
 
 
 class UsoContante(DecodificaSemplice):
     class Meta(DecodificaSemplice.Meta):
-        verbose_name = "uso del contante"
-        verbose_name_plural = "modello di business: uso del contante"
+        verbose_name = _("uso del contante")
+        verbose_name_plural = _("modello di business: uso del contante")
 
 
 class OperativitaEstero(DecodificaSemplice):
     class Meta(DecodificaSemplice.Meta):
-        verbose_name = "operatività con l'estero"
-        verbose_name_plural = "modello di business: operatività con l'estero"
+        verbose_name = _("operatività con l'estero")
+        verbose_name_plural = _("modello di business: operatività con l'estero")
 
 
 # Soggetti e documenti (DECISIONI.md, n. 13-16).
@@ -193,22 +194,22 @@ class TipoIdentificativo(DecodificaSemplice):
     """
 
     paese = models.CharField(
-        max_length=2, blank=True, help_text="Codice ISO a due lettere. Vuoto: valido per più paesi"
+        max_length=2, blank=True, help_text=_("Codice ISO a due lettere. Vuoto: valido per più paesi")
     )
     prefissi = models.CharField(
         max_length=100,
         blank=True,
-        help_text="Prefissi da togliere nella normalizzazione, separati da virgola. Esempio: COE,SM",
+        help_text=_("Prefissi da togliere nella normalizzazione, separati da virgola. Esempio: COE,SM"),
     )
     espressione_controllo = models.CharField(
         max_length=200,
         blank=True,
-        help_text="Espressione regolare applicata al valore normalizzato. Vuoto: nessun controllo",
+        help_text=_("Espressione regolare applicata al valore normalizzato. Vuoto: nessun controllo"),
     )
 
     class Meta(DecodificaSemplice.Meta):
-        verbose_name = "tipo di identificativo"
-        verbose_name_plural = "tipi di identificativo fiscale"
+        verbose_name = _("tipo di identificativo")
+        verbose_name_plural = _("tipi di identificativo fiscale")
 
     def normalizza(self, valore):
         """Toglie spazi, punteggiatura e prefissi noti; porta in maiuscolo."""
@@ -236,13 +237,13 @@ class TipoDocumento(DecodificaSemplice):
     """Tipo di documento: fattura, DDT, nota di credito, contratto e simili."""
 
     class Meta(DecodificaSemplice.Meta):
-        verbose_name = "tipo di documento"
-        verbose_name_plural = "tipi di documento"
+        verbose_name = _("tipo di documento")
+        verbose_name_plural = _("tipi di documento")
 
 
 class RuoloNelDocumento(DecodificaSemplice):
     """Ruolo con cui un soggetto compare in un documento: emittente, destinatario, vettore."""
 
     class Meta(DecodificaSemplice.Meta):
-        verbose_name = "ruolo nel documento"
-        verbose_name_plural = "ruoli nel documento"
+        verbose_name = _("ruolo nel documento")
+        verbose_name_plural = _("ruoli nel documento")

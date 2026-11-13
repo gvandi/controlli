@@ -42,6 +42,11 @@ class AccessoTest(TestCase):
         risposta = self.client.get(reverse("home"))
         self.assertRedirects(risposta, f"{reverse('login')}?next=/")
 
+    def test_traduzione_automatica_del_browser_disattivata(self):
+        risposta = self.client.get(reverse("login"))
+        self.assertContains(risposta, 'translate="no"')
+        self.assertContains(risposta, '<meta name="google" content="notranslate">')
+
     def test_home_dopo_accesso(self):
         get_user_model().objects.create_user("mario", password="una-password-lunga")
         self.client.login(username="mario", password="una-password-lunga")

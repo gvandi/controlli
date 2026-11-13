@@ -109,7 +109,12 @@ LOGOUT_REDIRECT_URL = "login"
 SESSION_COOKIE_AGE = 30 * 60
 SESSION_SAVE_EVERY_REQUEST = True
 
+# Lingua unica: italiano. I testi dell'interfaccia sono marcati come traducibili;
+# per aggiungere una lingua basta elencarla qui e fornire la traduzione in locale/
+# (DECISIONI.md, n. 29).
 LANGUAGE_CODE = "it"
+LANGUAGES = [("it", "Italiano")]
+LOCALE_PATHS = [BASE_DIR / "locale"]
 TIME_ZONE = "Europe/Rome"
 USE_I18N = True
 USE_TZ = True

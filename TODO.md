@@ -33,6 +33,7 @@ Elenco unico delle cose da fare. Ogni passo si chiude con questo file aggiornato
   - [ ] verifica: ogni valore estratto deve comparire nel testo; sotto soglia, revisione manuale
   - [ ] tag da vocabolario controllato, più tag proposti da promuovere
   - [ ] risultati versionati per motore OCR, modello e versione
+  - [ ] documenti in più lingue: almeno italiano e inglese (DECISIONI.md, n. 31)
 - [ ] 9. Primo calcolo: due o tre indici, gruppi con la regola versione 1, Z-score robusto
 - [ ] 10. Schermata di analisi: elenco ordinato e scheda dell'azienda con la spiegazione
 - [ ] 11. Configurazione: regole e soglie versionate, modificabili dall'interfaccia
@@ -47,6 +48,8 @@ Elenco unico delle cose da fare. Ogni passo si chiude con questo file aggiornato
 - [ ] Registro degli accessi e delle operazioni
 - [ ] Decidere se l'amministratore degli utenti può vedere i dati delle aziende
 - [ ] Cifra di controllo della partita IVA italiana (ora si verifica solo la lunghezza)
+- [x] Testi dell'interfaccia marcati come traducibili; traduzione automatica del browser disattivata
+- [ ] Ogni nuova pagina: `{% load i18n %}` e testi dentro `{% translate %}`; nel codice Python, `gettext_lazy`
 
 ## Punti aperti sulla riservatezza
 

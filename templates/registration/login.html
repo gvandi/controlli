@@ -1,19 +1,20 @@
 {% extends "base.html" %}
-{% block titolo %}Accesso - Controlli{% endblock %}
+{% load i18n %}
+{% block titolo %}{% translate "Accesso" %} - Controlli{% endblock %}
 {% block contenuto %}
 <div class="scheda" style="max-width: 24rem; margin: 3rem auto;">
-  <h2>Accesso</h2>
+  <h2>{% translate "Accesso" %}</h2>
   {% if form.errors %}
-    <p class="errore">Nome utente o password non corretti.</p>
+    <p class="errore">{% translate "Nome utente o password non corretti." %}</p>
   {% endif %}
   <form method="post">
     {% csrf_token %}
-    <label for="id_username">Nome utente</label>
+    <label for="id_username">{% translate "Nome utente" %}</label>
     <input type="text" name="username" id="id_username" autocomplete="username" autofocus required>
-    <label for="id_password">Password</label>
+    <label for="id_password">{% translate "Password" %}</label>
     <input type="password" name="password" id="id_password" autocomplete="current-password" required>
     <input type="hidden" name="next" value="{{ next }}">
-    <p><button type="submit">Entra</button></p>
+    <p><button type="submit">{% translate "Entra" %}</button></p>
   </form>
 </div>
 {% endblock %}
