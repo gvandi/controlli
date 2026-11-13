@@ -21,6 +21,9 @@ class Command(BaseCommand):
         self._semplici(models.Stagionalita, dati.STAGIONALITA)
         self._semplici(models.UsoContante, dati.USO_CONTANTE)
         self._semplici(models.OperativitaEstero, dati.OPERATIVITA_ESTERO)
+        self._semplici(models.TipoDocumento, dati.TIPI_DOCUMENTO)
+        self._semplici(models.RuoloNelDocumento, dati.RUOLI_NEL_DOCUMENTO)
+        self._tipi_identificativo()
         self._attivita()
 
     def _riepilogo(self, modello, create):
@@ -49,6 +52,23 @@ class Command(BaseCommand):
             )
             create += creata
         self._riepilogo(modello, create)
+
+    def _tipi_identificativo(self):
+        create = 0
+        righe = enumerate(dati.TIPI_IDENTIFICATIVO, start=1)
+        for ordine, (codice, descrizione, paese, prefissi, espressione) in righe:
+            _, creata = models.TipoIdentificativo.objects.get_or_create(
+                codice=codice,
+                defaults={
+                    "descrizione": descrizione,
+                    "ordine": ordine,
+                    "paese": paese,
+                    "prefissi": prefissi,
+                    "espressione_controllo": espressione,
+                },
+            )
+            create += creata
+        self._riepilogo(models.TipoIdentificativo, create)
 
     def _attivita(self):
         versione = dati.VERSIONE_ATTIVITA_ESEMPIO

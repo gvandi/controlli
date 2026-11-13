@@ -4,6 +4,8 @@ Tutte condividono gli stessi campi di base: codice, descrizione, ordine e
 intervallo di validità. Un valore non più in uso si chiude con "valida al" e non
 si cancella, così la storia resta leggibile (DECISIONI.md, n. 5).
 """
+import re
+
 from django.db import models
 from django.db.models import Q
 
@@ -177,3 +179,70 @@ class OperativitaEstero(DecodificaSemplice):
     class Meta(DecodificaSemplice.Meta):
         verbose_name = "operatività con l'estero"
         verbose_name_plural = "modello di business: operatività con l'estero"
+
+
+# Soggetti e documenti (DECISIONI.md, n. 13-16).
+
+
+class TipoIdentificativo(DecodificaSemplice):
+    """Tipo di identificativo fiscale di un soggetto.
+
+    Un soggetto può avere più identificativi, di tipo e paese diversi: COE per
+    San Marino, partita IVA per l'Italia, altri per gli altri paesi. Il valore
+    si confronta dopo la normalizzazione, così "SM 12345" e "12345" coincidono.
+    """
+
+    paese = models.CharField(
+        max_length=2, blank=True, help_text="Codice ISO a due lettere. Vuoto: valido per più paesi"
+    )
+    prefissi = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Prefissi da togliere nella normalizzazione, separati da virgola. Esempio: COE,SM",
+    )
+    espressione_controllo = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Espressione regolare applicata al valore normalizzato. Vuoto: nessun controllo",
+    )
+
+    class Meta(DecodificaSemplice.Meta):
+        verbose_name = "tipo di identificativo"
+        verbose_name_plural = "tipi di identificativo fiscale"
+
+    def normalizza(self, valore):
+        """Toglie spazi, punteggiatura e prefissi noti; porta in maiuscolo."""
+        testo = re.sub(r"[^0-9A-Za-z]", "", valore or "").upper()
+        prefissi = sorted(
+            (p.strip().upper() for p in self.prefissi.split(",") if p.strip()), key=len, reverse=True
+        )
+        for prefisso in prefissi:
+            if testo.startswith(prefisso) and len(testo) > len(prefisso):
+                testo = testo[len(prefisso):]
+                break
+        return testo
+
+    def accetta(self, valore):
+        """Vero se il valore, una volta normalizzato, rispetta il formato del tipo."""
+        normalizzato = self.normalizza(valore)
+        if not normalizzato:
+            return False
+        if not self.espressione_controllo:
+            return True
+        return re.fullmatch(self.espressione_controllo, normalizzato) is not None
+
+
+class TipoDocumento(DecodificaSemplice):
+    """Tipo di documento: fattura, DDT, nota di credito, contratto e simili."""
+
+    class Meta(DecodificaSemplice.Meta):
+        verbose_name = "tipo di documento"
+        verbose_name_plural = "tipi di documento"
+
+
+class RuoloNelDocumento(DecodificaSemplice):
+    """Ruolo con cui un soggetto compare in un documento: emittente, destinatario, vettore."""
+
+    class Meta(DecodificaSemplice.Meta):
+        verbose_name = "ruolo nel documento"
+        verbose_name_plural = "ruoli nel documento"
