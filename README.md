@@ -1,9 +1,9 @@
 # controlli
 applicativo controlli per UAE
 
-Applicazione web multiutente per l'analisi AML delle transazioni commerciali:
-confronta ogni azienda con le aziende che svolgono la stessa attività e segnala
-quelle che se ne discostano.
+Applicazione web multiutente per i controlli commerciali dell'Ufficio Attività
+Economiche: legge fatture e documenti di trasporto, confronta ogni azienda con le
+aziende che svolgono la stessa attività e segnala quelle che se ne discostano.
 
 Stato: **passo 1, scheletro** (accesso, utenti, ruoli, tabelle di decodifica).
 I passi successivi sono in [TODO.md](TODO.md); le scelte fatte finora in
