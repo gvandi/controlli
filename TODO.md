@@ -11,22 +11,41 @@ Elenco unico delle cose da fare. Ogni passo si chiude con questo file aggiornato
 
 ## Passi di sviluppo
 
+L'analisi lavora su due livelli (DECISIONI.md, n. 46-47). Il livello 1 usa dati
+disponibili per tutte le aziende e si costruisce per primo.
+
 - [x] 1. Scheletro: accesso, utenti, ruoli, amministratore, tabelle di decodifica
-- [x] 1c. Tabelle di decodifica per soggetti e documenti: tipi di identificativo, tipi di documento, ruoli nel documento
+- [x] 1c. Tabelle di decodifica per soggetti e documenti: tipi di identificativo, tipi di
+      documento, ruoli nel documento
+
+### Livello 1: selezione, su tutte le aziende
+
 - [ ] 2. Anagrafica unica dei soggetti e loro identificativi fiscali (DECISIONI.md, n. 13-14)
-- [ ] 3. Fascicoli d'indagine e visibilità: va fatto prima del caricamento, perché ogni
-      pagina che elenca file o documenti deve già rispettarla (DECISIONI.md, n. 17-19)
-- [ ] 4. Caricamento: invio del file, salvataggio sul server, scheda del file, natura del
-      file (estratto di dati o documenti), visibilità, stato di elaborazione
-      (ricevuto, in coda, elaborato, errore)
-- [ ] 5. Generatore di dati sintetici (soggetti, bilanci, fatture e DDT finti con le loro
-      righe, con irregolarità inserite apposta: triangolazioni, fatture senza merce,
-      vendite fuori licenza)
-- [ ] 6. Importazione dei dati della Camera di Commercio: soggetti, ATECO, oggetto sociale,
+- [ ] 3. Importazione dei dati della Camera di Commercio: soggetti, ATECO, oggetto sociale,
       soci, amministratori e cariche, dipendenti, bilanci XBRL, verbali di assemblea
-- [ ] 7. Importazione degli elenchi di documenti: documento, righe, soggetti con ruolo,
+- [ ] 4. Importazione di import ed export: per azienda, trimestre, verso, paese, importo,
+      classe di merce da 0 a 9; tabella di decodifica delle classi di merce e loro
+      corrispondenza con i settori ATECO (DECISIONI.md, n. 51)
+- [ ] 5. Generatore di dati sintetici di livello 1: aziende, bilanci, import ed export, con
+      profili di triangolazione e di false fatturazioni inseriti apposta
+- [ ] 6. Indici di livello 1 (margine, export su import, struttura rispetto ai volumi, scarti
+      tra fonti, paesi, cambi societari), gruppi con la regola versione 1, Z-score robusto
+- [ ] 7. Elenco delle segnalazioni e scheda dell'azienda con gruppo, indici e spiegazione
+- [ ] 8. Verifica dell'attendibilità della classe di merce: quota nella classe residuale,
+      stabilità nel tempo, coerenza con l'ATECO (DECISIONI.md, n. 52). Il confronto con le
+      fatture arriva dopo il passo 15
+- [ ] 9. Configurazione: regole, soglie e classificazioni versionate, modificabili
+      dall'interfaccia
+
+### Livello 2: approfondimento, sulle aziende prese in carico
+
+- [ ] 10. Fascicoli d'indagine e visibilità; valutazione della segnalazione; origine del
+      controllo all'apertura; esito con tipo di irregolarità (DECISIONI.md, n. 17-19, 42, 50)
+- [ ] 11. Caricamento, sempre dentro un fascicolo: invio del file, salvataggio sul server,
+      scheda del file, natura del file, stato di elaborazione (DECISIONI.md, n. 48)
+- [ ] 12. Importazione degli elenchi di documenti: documento, righe, soggetti con ruolo,
       collegamenti tra documenti, confronto tra copie dello stesso documento
-- [ ] 8. Elaborazione fuori linea dei documenti (DECISIONI.md, n. 21-28):
+- [ ] 13. Elaborazione fuori linea dei documenti (DECISIONI.md, n. 21-28):
   - [ ] coda di elaborazione continua a bassa priorità, con finestra notturna per i carichi grossi
   - [ ] riconoscimento della natura del file: XML, PDF con testo, immagine
   - [ ] divisione degli elenchi in documenti singoli
@@ -36,18 +55,20 @@ Elenco unico delle cose da fare. Ogni passo si chiude con questo file aggiornato
   - [ ] tag da vocabolario controllato, più tag proposti da promuovere
   - [ ] risultati versionati per motore OCR, modello e versione
   - [ ] documenti in più lingue: almeno italiano e inglese (DECISIONI.md, n. 31)
-- [ ] 9. Classificazione dei prodotti (DECISIONI.md, n. 40-41): tabella gerarchica delle
+- [ ] 14. Classificazione dei prodotti (DECISIONI.md, n. 40-41): tabella gerarchica delle
       categorie, corrispondenza con ATECO e licenze, classificazione delle righe, revisione
       manuale che diventa regola, paniere dell'azienda
-- [ ] 10. Primo calcolo sui documenti: due o tre indici (ricarico, bilancio delle quantità,
-      vendite fuori licenza), gruppi con la regola versione 1, Z-score robusto.
-      Una versione ridotta su dati sintetici può essere anticipata
-- [ ] 11. Schermata di analisi: elenco ordinato e scheda dell'azienda con spiegazione, paniere,
-      documenti
-- [ ] 12. Segnalazioni, valutazione ed esiti; ritorno dell'esito all'analisi (DECISIONI.md, n. 42)
-- [ ] 13. Rilievi degli ufficiali: verbale firmato conservato intatto, dati del rilievo,
+- [ ] 15. Indici di livello 2 sui documenti: ricarico, bilancio delle quantità, catena
+      DDT-fattura, destinazione della merce, vendite fuori licenza. Si confrontano con il
+      dichiarato, con i riferimenti e con i rilievi, non con le aziende simili
+- [ ] 16. Rilievi degli ufficiali: verbale firmato conservato intatto, dati del rilievo,
       documenti raccolti, confronto tra rilevato, dichiarato e pubblicizzato (DECISIONI.md, n. 43)
-- [ ] 14. Configurazione: regole, soglie e classificazioni versionate, modificabili dall'interfaccia
+
+### Tra i due livelli
+
+- [ ] 17. Proiezione degli esiti sul livello 1 e indicazione dei settori su cui dirigere gli
+      approfondimenti (DECISIONI.md, n. 49-50). Richiede origine del controllo, esiti anche
+      negativi e una quota di controlli casuali
 - [ ] Più avanti: risoluzione delle identità, rete degli scambi, Isolation Forest, GNN
 
 ## Ambienti e rilasci (RILASCIO.md, DECISIONI.md n. 32-37)
@@ -95,7 +116,14 @@ Elenco unico delle cose da fare. Ogni passo si chiude con questo file aggiornato
 - [ ] Quanti documenti al giorno e di quante pagine? Decide macchina e tempi dell'elaborazione
 - [ ] Quale macchina è disponibile per OCR e modello locale (scheda grafica, memoria)?
 - [ ] In che formato e con quale frequenza la Camera di Commercio espone i dati?
-- [ ] I documenti disponibili coprono tutte le aziende o solo quelle già oggetto di controllo?
+- [x] I documenti disponibili coprono tutte le aziende o solo quelle già oggetto di controllo?
+      Risposta: Camera di Commercio e import-export per tutte; fatture, DDT e rilievi solo
+      per quelle prese in carico
+- [ ] I dati di import ed export comprendono gli scambi con l'Italia?
+- [ ] Quale classificazione è il codice di merce da 0 a 9, e chi lo assegna?
+- [ ] Esiste un archivio dei controlli passati con il loro esito, da caricare come base per
+      la proiezione?
+- [ ] L'ufficio può riservare una quota di controlli a settori scelti a caso?
 - [ ] Le fatture riportano la modalità di pagamento?
 - [ ] Per i prodotti si adotta una nomenclatura esistente o una tabella propria?
 - [ ] Chi definisce quali categorie di prodotto sono ammesse da ciascuna licenza?
