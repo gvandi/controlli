@@ -39,6 +39,26 @@ Elenco unico delle cose da fare. Ogni passo si chiude con questo file aggiornato
 - [ ] 11. Configurazione: regole e soglie versionate, modificabili dall'interfaccia
 - [ ] Più avanti: risoluzione delle identità, controlli sui documenti, analisi di rete e GNN
 
+## Prototipo grafo (`prototipo_grafo/`, versione 16)
+
+- [x] Prototipo su dati simulati: GNN con punteggi per tipo di irregolarità, archivio su
+      database, libreria di interrogazione, server MCP per la chat, report e mappa
+- [x] Prova di cablaggio fra le parti (`python -m unittest prove.prova_cablaggio`, senza PyTorch)
+- [ ] Prima esecuzione completa su una macchina con PyTorch: `calcolo.py`, la mappa e
+      `server_mcp.py` non sono mai stati eseguiti (in fase di scrittura mancavano le librerie)
+- [ ] Fissare le versioni in `prototipo_grafo/requirements.txt` dopo la prima esecuzione
+- [ ] Collegare il server MCP alla chat di Unsloth Studio e misurare quante volte il modello
+      sceglie lo strumento giusto (30-50 domande con risposta attesa)
+- [ ] Decidere se le spiegazioni restano in coda o vanno calcolate al momento della domanda
+- [ ] Sostituire i dati simulati con quelli estratti dai documenti (dopo i passi 6-8)
+- [ ] Etichette dai verbali ispettivi: estrazione proposta dal modello, con citazione del
+      testo, e conferma dell'analista prima dell'uso in addestramento
+- [ ] Integrazione nell'applicativo: schema su modelli Django e PostgreSQL; chiave interna
+      del soggetto al posto dell'identificativo fiscale (DECISIONI.md, n. 14)
+- [ ] Riservatezza: la chat del prototipo non conosce utenti né fascicoli; prima dell'uso in
+      gruppo le interrogazioni devono rispettare la visibilità (DECISIONI.md, n. 17-19)
+- [ ] Punteggio non supervisionato su tutta la popolazione (passo 9) come feature della GNN
+
 ## Da fare sullo scheletro
 
 - [ ] Caricare la classificazione delle attività economiche dal file ufficiale

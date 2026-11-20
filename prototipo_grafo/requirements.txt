@@ -1,0 +1,18 @@
+# Dipendenze del prototipo, separate da quelle dell'applicativo Django.
+# Le versioni non sono fissate: il prototipo non è ancora stato eseguito per intero
+# (vedi TODO.md). Fissarle dopo la prima esecuzione completa.
+
+# calcolo.py
+torch
+torch_geometric
+scikit-learn
+numpy
+
+# mappa.py
+networkx
+pyvis
+
+# server_mcp.py
+mcp[cli]
+
+# contratto.py, scrittura.py, interrogazione.py e le prove: solo libreria standard
