@@ -55,6 +55,7 @@ python manage.py test
 | `utenti/` | Utente, ruoli e diritti |
 | `decodifiche/` | Tabelle di decodifica (attività, classi dimensionali, forma giuridica, modello di business) |
 | `templates/` | Pagine HTML |
+| `prototipo_grafo/` | Prototipo su dati simulati: GNN, punteggi di rischio e interrogazione da chat. Separato dall'applicativo Django, con le proprie dipendenze: vedi [prototipo_grafo/README.md](prototipo_grafo/README.md) |
 | `dati_caricati/` | File caricati dagli utenti. **Esclusa dal repository** |
 
 ## Regole del repository
