@@ -122,6 +122,9 @@ class ProvaCablaggio(unittest.TestCase):
         for nome, funzione in interrogazione.STRUMENTI.items():
             self.assertEqual(funzione.__name__, nome)  # il server registra il nome della funzione
             self.assertTrue(funzione.__doc__)  # la descrizione è ciò che legge la chat
+            # il lucchetto non deve nascondere i parametri che la chat deve compilare
+            import inspect
+            self.assertNotIn("args", inspect.signature(funzione).parameters)
 
     def test_gli_strumenti_rispondono(self):
         nodo = next(n for n in range(N_NODI) if self.vicini[n])
@@ -130,6 +133,18 @@ class ProvaCablaggio(unittest.TestCase):
         self.assertIn("Connessione diretta fra A e B: SI", interrogazione.relazione(nodo, altro))
         self.assertIn("Controparti dirette", interrogazione.vicinato(nodo))
         self.assertIn("Punteggi calcolati il", interrogazione.spiegazione(nodo))
+
+    def test_gli_strumenti_funzionano_da_altri_thread(self):
+        # mcp 2.x esegue le funzioni in thread di lavoro: la connessione aperta
+        # nel thread principale deve restare utilizzabile, anche in parallelo
+        from concurrent.futures import ThreadPoolExecutor
+        nodi = [n for n in range(N_NODI) if self.vicini[n]][:8]
+        attesi = [interrogazione.vicinato(n) for n in nodi]
+        with ThreadPoolExecutor(max_workers=4) as esecutori:
+            ottenuti = list(esecutori.map(interrogazione.vicinato, nodi * 5))
+            classifiche = list(esecutori.map(interrogazione.classifica, [3] * 20))
+        self.assertEqual(ottenuti, attesi * 5)
+        self.assertEqual(len(set(classifiche)), 1)
 
     def test_parametri_non_ammessi_producono_un_messaggio(self):
         self.assertIn("non riconosciuto", interrogazione.classifica(3, tipo="inventato"))

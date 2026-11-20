@@ -1,6 +1,6 @@
 # Registro delle novità
 
-Versione corrente: 16
+Versione corrente: 17
 
 Elenco completo delle novità rispetto alla versione 12 (ultimo file unico di partenza).
 È l'UNICO posto in cui le novità si scrivono a mano: `aggiorna_intestazioni.py` ricopia
@@ -22,6 +22,7 @@ le voci 13-15 sono assegnate alla parte in cui quel codice si trova oggi.
 - [16] (contratto) Nuova tabella richiesta_spiegazione: coda delle spiegazioni chieste dalle interrogazioni.
 - [16] (contratto) Eccezione ArchivioIncompatibile e forma documentata della spiegazione.
 - [16] (contratto) Percorsi dei file modificabili con le variabili d'ambiente CONTROLLI_DB e CONTROLLI_MODELLO.
+- [17] (contratto) connetti() apre la connessione con check_same_thread=False, perché il server esegue gli strumenti in un thread diverso da quello che ha aperto l'archivio.
 
 ## calcolo
 
@@ -63,11 +64,14 @@ le voci 13-15 sono assegnate alla parte in cui quel codice si trova oggi.
 - [16] (interrogazione) genera_contesto_investigativo() riceve il tipo di irregolarità al posto degli indicatori e li legge da sé.
 - [16] (interrogazione) consulta(domanda) e uso da riga di comando, con smistamento a parole chiave.
 - [16] (interrogazione) Rimossi chiama_llm, smista_domanda, estrai_json, valida_smistamento, interroga_graph_rag e i relativi prompt: scelta dello strumento e stesura della risposta passano alla chat (istruzioni in prompt_di_sistema.txt).
+- [17] (interrogazione) Gli strumenti vengono eseguiti uno alla volta (_in_esclusiva): con mcp 2.x le funzioni sono chiamate da thread di lavoro e la connessione al database è una sola.
 
 ## server
 
 - [16] (server) Nuovo server MCP (server_mcp.py) che registra i quattro strumenti della libreria, per usare Unsloth Studio come chat.
 - [16] (server) All'avvio apre l'archivio: se non combacia con il codice il server non parte.
+- [17] (server) Compatibile con la libreria mcp 1.x (FastMCP) e 2.x (MCPServer): con la 2.x la versione 16 non partiva (ModuleNotFoundError).
+- [17] (server) Strumenti registrati con add_tool() e trasporto stdio indicato in modo esplicito.
 
 ## mappa
 

@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   interrogazione.py  -  progetto controlli_grafo, VERSIONE 16
+#   interrogazione.py  -  progetto controlli_grafo, VERSIONE 17
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: interrogazione
@@ -40,6 +40,8 @@
 #   [16] Rimossi chiama_llm, smista_domanda, estrai_json, valida_smistamento,
 #        interroga_graph_rag e i relativi prompt: scelta dello strumento e stesura della
 #        risposta passano alla chat (istruzioni in prompt_di_sistema.txt).
+#   [17] Gli strumenti vengono eseguiti uno alla volta (_in_esclusiva): con mcp 2.x le funzioni
+#        sono chiamate da thread di lavoro e la connessione al database è una sola.
 #
 # <<< NOVITA
 """
@@ -56,9 +58,11 @@ Importa solo contratto.py. Prova dalla riga di comando, senza chat:
 """
 
 import datetime
+import functools
 import json
 import re
 import sys
+import threading
 
 from . import contratto
 from .contratto import DESCRIZIONE_POPOLAZIONE, POPOLAZIONI, TIPI_IRREGOLARITA
@@ -662,6 +666,22 @@ def contesto_vicinato(nodo):
 # legge per decidere quale strumento chiamare: fanno parte del contratto
 # (contratto.NOMI_STRUMENTI). I parametri vengono controllati qui; un valore non
 # ammesso produce un messaggio in chiaro, mai un errore del programma.
+_lucchetto = threading.RLock()
+
+
+def _in_esclusiva(funzione):
+    """
+    Fa eseguire uno strumento alla volta. Il server MCP può chiamare gli
+    strumenti da più thread, ma la connessione al database è una sola.
+    functools.wraps conserva nome, parametri e descrizione letti dalla chat.
+    """
+    @functools.wraps(funzione)
+    def protetta(*args, **kwargs):
+        with _lucchetto:
+            return funzione(*args, **kwargs)
+    return protetta
+
+
 def _errore_tipo(tipo):
     if tipo and tipo not in TIPI_IRREGOLARITA:
         return f"Tipo di irregolarità non riconosciuto: '{tipo}'. Valori ammessi: {', '.join(TIPI_IRREGOLARITA)}."
@@ -675,6 +695,7 @@ def _errore_societa(*numeri):
     return None
 
 
+@_in_esclusiva
 def classifica(n: int = 3, tipo: str = "", popolazione: str = "non_ispezionate") -> str:
     """Elenca le aziende con il punteggio di rischio più alto. Da usare per domande come
     "quali sono le aziende più rischiose" o "dove conviene dirigere i controlli".
@@ -696,6 +717,7 @@ def classifica(n: int = 3, tipo: str = "", popolazione: str = "non_ispezionate")
     return contesto_classifica(n, tipo or None, popolazione)
 
 
+@_in_esclusiva
 def relazione(societa_a: int, societa_b: int, tipo: str = "") -> str:
     """Descrive il rapporto fra due società: connessione diretta, documenti scambiati,
     intermediari comuni, punteggi di rischio. Da usare quando la domanda cita due società.
@@ -709,6 +731,7 @@ def relazione(societa_a: int, societa_b: int, tipo: str = "") -> str:
     return genera_contesto_investigativo(int(societa_a), int(societa_b), tipo or None)
 
 
+@_in_esclusiva
 def spiegazione(societa: int, tipo: str = "") -> str:
     """Spiega perché una società è considerata a rischio: punteggi, caratteristiche e
     relazioni che hanno pesato di più. Da usare per domande come "perché la società 12 è a rischio".
@@ -720,6 +743,7 @@ def spiegazione(societa: int, tipo: str = "") -> str:
     return contesto_spiegazione(int(societa), tipo or None)
 
 
+@_in_esclusiva
 def vicinato(societa: int) -> str:
     """Elenca le controparti commerciali di una società con i documenti scambiati, e conta i
     soggetti raggiungibili in due passi. Da usare per domande come "con chi commercia la società 12".

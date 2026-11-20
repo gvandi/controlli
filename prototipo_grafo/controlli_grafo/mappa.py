@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   mappa.py  -  progetto controlli_grafo, VERSIONE 16
+#   mappa.py  -  progetto controlli_grafo, VERSIONE 17
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: mappa
