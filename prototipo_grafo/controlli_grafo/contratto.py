@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   contratto.py  -  progetto controlli_grafo, VERSIONE 16
+#   contratto.py  -  progetto controlli_grafo, VERSIONE 17
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: contratto
@@ -21,6 +21,8 @@
 #   [16] Eccezione ArchivioIncompatibile e forma documentata della spiegazione.
 #   [16] Percorsi dei file modificabili con le variabili d'ambiente CONTROLLI_DB e
 #        CONTROLLI_MODELLO.
+#   [17] connetti() apre la connessione con check_same_thread=False, perché il server esegue gli
+#        strumenti in un thread diverso da quello che ha aperto l'archivio.
 #
 # <<< NOVITA
 """
@@ -41,7 +43,7 @@ import sqlite3
 # 1. VERSIONI
 # =====================================================================
 # Un solo numero di versione per tutto il progetto (lo stesso di NOVITA.md)
-VERSIONE_CODICE = "16"
+VERSIONE_CODICE = "17"
 
 # Va aumentata a ogni modifica di SCHEMA_DB: la libreria di interrogazione
 # rifiuta di aprire un archivio scritto con uno schema diverso.
@@ -183,6 +185,9 @@ class ArchivioIncompatibile(RuntimeError):
 
 def connetti(percorso=None):
     """Apre una connessione al database (senza creare né modificare tabelle)."""
-    conn = sqlite3.connect(percorso or percorso_db())
+    # check_same_thread=False: il server MCP esegue gli strumenti in un thread
+    # diverso da quello che ha aperto l'archivio. L'uso in esclusiva è garantito
+    # dal lucchetto di interrogazione.py.
+    conn = sqlite3.connect(percorso or percorso_db(), check_same_thread=False)
     conn.row_factory = sqlite3.Row
     return conn

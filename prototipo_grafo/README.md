@@ -1,4 +1,4 @@
-# controlli_grafo - versione 16
+# controlli_grafo - versione 17
 
 Componente grafo del progetto controlli UAE: una GNN assegna a ogni azienda un punteggio
 di rischio per tipo di irregolarità; i risultati si interrogano da una chat.
@@ -52,7 +52,7 @@ File prodotti nella cartella di lavoro: `controlli_grafo.sqlite`, `modello_grafo
 
 ## Collegare la chat (Unsloth Studio)
 
-1. Installare la libreria: `pip install "mcp[cli]"`.
+1. Installare la libreria: `pip install "mcp[cli]"` (versione 1 o 2).
 2. Nelle impostazioni MCP di Studio aggiungere un server con comando
    `python -m controlli_grafo.server_mcp`, cartella di lavoro = `prototipo_grafo`.
 3. Incollare `prompt_di_sistema.txt` come prompt di sistema della chat.
