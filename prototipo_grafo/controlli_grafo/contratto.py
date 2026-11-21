@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   contratto.py  -  progetto controlli_grafo, VERSIONE 17
+#   contratto.py  -  progetto controlli_grafo, VERSIONE 18
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: contratto
@@ -43,7 +43,7 @@ import sqlite3
 # 1. VERSIONI
 # =====================================================================
 # Un solo numero di versione per tutto il progetto (lo stesso di NOVITA.md)
-VERSIONE_CODICE = "17"
+VERSIONE_CODICE = "18"
 
 # Va aumentata a ogni modifica di SCHEMA_DB: la libreria di interrogazione
 # rifiuta di aprire un archivio scritto con uno schema diverso.

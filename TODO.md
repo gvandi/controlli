@@ -39,7 +39,7 @@ Elenco unico delle cose da fare. Ogni passo si chiude con questo file aggiornato
 - [ ] 11. Configurazione: regole e soglie versionate, modificabili dall'interfaccia
 - [ ] Più avanti: risoluzione delle identità, controlli sui documenti, analisi di rete e GNN
 
-## Prototipo grafo (`prototipo_grafo/`, versione 17)
+## Prototipo grafo (`prototipo_grafo/`, versione 18)
 
 - [x] Prototipo su dati simulati: GNN con punteggi per tipo di irregolarità, archivio su
       database, libreria di interrogazione, server MCP per la chat, report e mappa
@@ -50,6 +50,11 @@ Elenco unico delle cose da fare. Ogni passo si chiude con questo file aggiornato
 - [ ] Collegare il server MCP alla chat di Unsloth Studio e misurare quante volte il modello
       sceglie lo strumento giusto (30-50 domande con risposta attesa)
 - [ ] Decidere se le spiegazioni restano in coda o vanno calcolate al momento della domanda
+- [x] Riconoscimento delle società per nome, con elenco dei candidati quando il nome è ambiguo
+- [ ] Ricerca per nome sui dati reali: va fatta con una query sull'anagrafica unica dei soggetti
+      (ora l'elenco dei nomi è tenuto in memoria) e deve rispettare la visibilità dei fascicoli
+- [ ] Decidere come versionare i dati nel database (versione del calcolo e versione dei dati)
+- [ ] Sessioni di più analisti: la mappa non deve essere un file con nome fisso
 - [ ] Sostituire i dati simulati con quelli estratti dai documenti (dopo i passi 6-8)
 - [ ] Etichette dai verbali ispettivi: estrazione proposta dal modello, con citazione del
       testo, e conferma dell'analista prima dell'uso in addestramento

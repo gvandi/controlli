@@ -1,4 +1,4 @@
-# controlli_grafo - versione 17
+# controlli_grafo - versione 18
 
 Componente grafo del progetto controlli UAE: una GNN assegna a ogni azienda un punteggio
 di rischio per tipo di irregolarità; i risultati si interrogano da una chat.
@@ -57,6 +57,19 @@ File prodotti nella cartella di lavoro: `controlli_grafo.sqlite`, `modello_grafo
    `python -m controlli_grafo.server_mcp`, cartella di lavoro = `prototipo_grafo`.
 3. Incollare `prompt_di_sistema.txt` come prompt di sistema della chat.
 4. Spuntare il server nel menu MCP della chat.
+
+## Nomi delle aziende
+
+L'ispettore può indicare una società con il nome (anche solo una parte), con il numero o con il
+numero di iscrizione. I nomi vengono da `elenco_aziende.json`, che va messo nella cartella
+`prototipo_grafo` **prima** di lanciare il calcolo: il calcolo li copia nella tabella `azienda`
+e da lì li leggono le interrogazioni. Senza il file le aziende si chiamano "Azienda simulata N".
+
+Formato del file: `{"12": {"nome_Azienda": "Edil Rossi S.r.l.", "nr_iscrizione_reg_società": "COE 00012"}}`,
+dove la chiave è il numero della società.
+
+Se un nome corrisponde a più società, o a nessuna, lo strumento non sceglie: restituisce i
+candidati e la chat chiede all'ispettore quale intende.
 
 ## I contratti: cosa tiene cablate le parti
 

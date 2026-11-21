@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   interrogazione.py  -  progetto controlli_grafo, VERSIONE 17
+#   interrogazione.py  -  progetto controlli_grafo, VERSIONE 18
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: interrogazione
@@ -42,6 +42,19 @@
 #        risposta passano alla chat (istruzioni in prompt_di_sistema.txt).
 #   [17] Gli strumenti vengono eseguiti uno alla volta (_in_esclusiva): con mcp 2.x le funzioni
 #        sono chiamate da thread di lavoro e la connessione al database è una sola.
+#   [18] L'ispettore può indicare una società per nome, anche parziale, per numero o per numero
+#        di iscrizione: nuova risolvi_societa(), con normalizza_nome() e nucleo_nome()
+#        (maiuscole, accenti, punteggiatura e forma giuridica non contano).
+#   [18] Un nome che corrisponde a più società, o a nessuna, non viene mai indovinato: lo
+#        strumento restituisce l'elenco dei candidati o dei nomi simili, e decide l'ispettore.
+#   [18] Gli strumenti relazione, spiegazione e vicinato ricevono la società come testo (nome o
+#        numero) invece che come numero intero.
+#   [18] Tutti i testi indicano ogni società con numero, nome e numero di iscrizione (nuova
+#        etichetta()); una nota chiede alla chat di citarli nella risposta.
+#   [18] I nomi si leggono dalla tabella azienda, riempita dal calcolo a partire da
+#        elenco_aziende.json: il file non viene letto durante le interrogazioni.
+#   [18] consulta() riconosce nella domanda anche i nomi completi delle società, nell'ordine in
+#        cui compaiono (estrai_nodi_dalla_domanda).
 #
 # <<< NOVITA
 """
@@ -58,11 +71,13 @@ Importa solo contratto.py. Prova dalla riga di comando, senza chat:
 """
 
 import datetime
+import difflib
 import functools
 import json
 import re
 import sys
 import threading
+import unicodedata
 
 from . import contratto
 from .contratto import DESCRIZIONE_POPOLAZIONE, POPOLAZIONI, TIPI_IRREGOLARITA
@@ -132,6 +147,7 @@ def chiudi():
     if _conn is not None:
         _conn.close()
     _conn, _versione = None, None
+    _indice_nomi_memoria["versione"] = None
 
 
 def _db():
@@ -462,8 +478,159 @@ def richiedi_spiegazione(nodo, indice_tipo):
 
 
 # =====================================================================
+# 1b. RICONOSCIMENTO DELLE SOCIETÀ (per nome, numero o iscrizione)
+# =====================================================================
+# L'ispettore può indicare una società con il nome, anche parziale. I nomi si
+# leggono dalla tabella azienda, che il processo di calcolo riempie da
+# elenco_aziende.json: il file NON viene letto qui, così nomi e punteggi
+# appartengono sempre alla stessa esecuzione.
+#
+# Regola di prudenza: un nome che corrisponde a più società, o a nessuna, non
+# viene mai "indovinato". Si restituisce l'elenco dei candidati e decide l'ispettore.
+FORME_GIURIDICHE = {
+    "srl", "srls", "spa", "sas", "snc", "sapa", "sa", "scarl", "scrl", "scpa",
+    "coop", "ltd", "gmbh", "ag", "inc", "llc", "sarl",
+}
+MAX_CANDIDATI_ELENCATI = 8
+
+_indice_nomi_memoria = {"versione": None, "voci": []}
+
+
+def normalizza_nome(testo):
+    """Minuscole, senza accenti né punteggiatura: "Edil Rossi S.r.l." -> "edil rossi srl"."""
+    testo = unicodedata.normalize("NFKD", str(testo)).encode("ascii", "ignore").decode()
+    testo = testo.lower().replace(".", "")
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", testo).split())
+
+
+def nucleo_nome(nome_normalizzato):
+    """Toglie la forma giuridica in coda: "edil rossi srl" -> "edil rossi"."""
+    parole = nome_normalizzato.split()
+    while len(parole) > 1 and parole[-1] in FORME_GIURIDICHE:
+        parole.pop()
+    return " ".join(parole)
+
+
+def _indice_nomi():
+    """Elenco delle società dell'esecuzione corrente con i nomi già normalizzati."""
+    _db()
+    if _indice_nomi_memoria["versione"] != _versione:
+        righe = _db().execute(
+            "SELECT n.indice_nodo, a.id_fiscale, a.nome, a.nr_iscrizione FROM nodo_azienda n "
+            "JOIN azienda a ON a.id_fiscale = n.id_fiscale WHERE n.versione_modello = ? "
+            "ORDER BY n.indice_nodo",
+            (_versione,),
+        ).fetchall()
+        voci = []
+        for riga in righe:
+            normalizzato = normalizza_nome(riga["nome"])
+            voci.append(
+                {
+                    "nodo": riga["indice_nodo"],
+                    "nome": riga["nome"],
+                    "nr_iscrizione": riga["nr_iscrizione"],
+                    "normalizzato": normalizzato,
+                    "nucleo": nucleo_nome(normalizzato),
+                    "codici": {
+                        normalizza_nome(valore)
+                        for valore in (riga["nr_iscrizione"], riga["id_fiscale"])
+                        if valore
+                    },
+                }
+            )
+        _indice_nomi_memoria["versione"] = _versione
+        _indice_nomi_memoria["voci"] = voci
+    return _indice_nomi_memoria["voci"]
+
+
+def etichetta(nodo):
+    """Come una società viene scritta nei testi: numero, nome e numero di iscrizione."""
+    dati = dati_azienda(nodo)
+    testo = f'Società {nodo} "{dati["nome"]}"'
+    if dati["nr_iscrizione"]:
+        testo += f" (iscrizione {dati['nr_iscrizione']})"
+    return testo
+
+
+def _contiene_parole(testo, parole):
+    """True se 'parole' compare in 'testo' come parole intere."""
+    return re.search(rf"(?<!\w){re.escape(parole)}(?!\w)", testo) is not None
+
+
+def _elenco_candidati(voci):
+    righe = [f"  - {etichetta(voce['nodo'])}" for voce in voci[:MAX_CANDIDATI_ELENCATI]]
+    if len(voci) > MAX_CANDIDATI_ELENCATI:
+        righe.append(f"  - ... e altre {len(voci) - MAX_CANDIDATI_ELENCATI}")
+    return "\n".join(righe)
+
+
+def risolvi_societa(riferimento):
+    """
+    Trova la società indicata dall'ispettore. Accetta il numero della società
+    (12, "12", "società 12"), il numero di iscrizione, il nome completo o una
+    sua parte ("Edil Rossi", "edil rossi srl", "Rossi").
+
+    Restituisce (nodo, None) se la società è una sola, altrimenti (None, messaggio)
+    con i candidati fra cui scegliere. Non sceglie mai al posto dell'ispettore.
+    """
+    if isinstance(riferimento, bool) or riferimento is None:
+        return None, "Indicare una società: nome oppure numero."
+    testo = str(riferimento).strip()
+    if not testo:
+        return None, "Indicare una società: nome oppure numero."
+
+    voci = _indice_nomi()
+    normalizzato = normalizza_nome(testo)
+
+    # 1. Numero della società: 12, "12", "società 12", "#12"
+    trovato = re.fullmatch(r"(?:(?:societa|nodo|azienda|soggetto|impresa)\s+)?(\d+)", normalizzato)
+    if trovato and esiste(int(trovato.group(1))):
+        return int(trovato.group(1)), None
+
+    # 2. Numero di iscrizione o identificativo fiscale
+    per_codice = [voce for voce in voci if normalizzato and normalizzato in voce["codici"]]
+    if len(per_codice) == 1:
+        return per_codice[0]["nodo"], None
+
+    if trovato:  # era un numero, ma non corrisponde a nulla
+        return None, f"La società {trovato.group(1)} non è presente nell'archivio."
+    if not normalizzato:
+        return None, f"'{testo}' non contiene un nome o un numero riconoscibile."
+
+    # 3. Nome completo (con o senza forma giuridica), poi parte del nome a parole intere
+    nucleo = nucleo_nome(normalizzato)
+    candidati = [v for v in voci if normalizzato == v["normalizzato"] or nucleo == v["nucleo"]]
+    if not candidati:
+        candidati = [v for v in voci if _contiene_parole(v["normalizzato"], nucleo)]
+    if len(candidati) == 1:
+        return candidati[0]["nodo"], None
+    if len(candidati) > 1:
+        return None, (
+            f"Il nome '{testo}' corrisponde a {len(candidati)} società. "
+            "Chiedere all'ispettore quale intende e ripetere con il nome completo o con il numero:\n"
+            + _elenco_candidati(candidati)
+        )
+
+    # 4. Nessuna corrispondenza: si propongono i nomi simili, senza sceglierne uno
+    simili = difflib.get_close_matches(nucleo, sorted({v["nucleo"] for v in voci}), n=3, cutoff=0.75)
+    if simili:
+        proposte = [v for v in voci if v["nucleo"] in simili]
+        return None, (
+            f"Nessuna società con il nome '{testo}'. Nomi simili presenti nell'archivio "
+            "(chiedere conferma all'ispettore prima di usarne uno):\n" + _elenco_candidati(proposte)
+        )
+    return None, f"Nessuna società con il nome '{testo}' è presente nell'archivio."
+
+
+# =====================================================================
 # 2. CONTESTI (il testo che viene dato al modello di linguaggio)
 # =====================================================================
+NOTA_NUMERI = (
+    "Ogni società è indicata con numero, nome e numero di iscrizione; nelle frasi "
+    "'A vende a B' compaiono i soli numeri. Nella risposta citare sempre nome e iscrizione.\n"
+)
+
+
 def intestazione_dati():
     """Dichiara a quale calcolo risalgono i punteggi."""
     esecuzione = leggi_esecuzione()
@@ -508,7 +675,7 @@ def tipo_da_spiegare(nodo, tipo_richiesto=None):
 def formatta_indicatori(indicatori):
     """Trasforma l'output reale di GNNExplainer in testo."""
     testo = (
-        f"Spiegazione GNNExplainer per la Società {indicatori['nodo']}, "
+        f"Spiegazione GNNExplainer per la {etichetta(indicatori['nodo'])}, "
         f"irregolarità '{indicatori['tipo_irregolarita']}'.\n"
         "Features più influenti:\n"
     )
@@ -536,7 +703,7 @@ def indicatori_o_richiesta(nodo, indice_tipo):
         return formatta_indicatori(indicatori)
     richiedi_spiegazione(nodo, indice_tipo)
     return (
-        f"Spiegazione GNNExplainer NON ancora calcolata per la Società {nodo}, irregolarità "
+        f"Spiegazione GNNExplainer NON ancora calcolata per la {etichetta(nodo)}, irregolarità "
         f"'{TIPI_IRREGOLARITA[indice_tipo]}'. La richiesta è stata registrata e sarà elaborata dal "
         "processo di calcolo: per ora sono disponibili solo i punteggi, non le cause.\n"
     )
@@ -548,6 +715,7 @@ def contesto_classifica(n, tipo, popolazione):
 
     testo = "--- CLASSIFICA DI RISCHIO CALCOLATA DAL GRAFO DI COMPLIANCE ---\n"
     testo += intestazione_dati()
+    testo += NOTA_NUMERI
     testo += f"Popolazione confrontata: {DESCRIZIONE_POPOLAZIONE[popolazione]}\n"
     testo += f"Irregolarità considerata: {tipo if tipo else 'qualsiasi (per ogni azienda il tipo con punteggio più alto)'}\n"
     testo += (
@@ -560,7 +728,7 @@ def contesto_classifica(n, tipo, popolazione):
     for voce in classifica:
         diretti = vicini_diretti(voce["nodo"])
         testo += (
-            f"{voce['posizione']}. Società {voce['nodo']} | irregolarità: {voce['tipo']} "
+            f"{voce['posizione']}. {etichetta(voce['nodo'])} | irregolarità: {voce['tipo']} "
             f"| punteggio GNN: {voce['punteggio']*100:.2f}% | percentile: {voce['percentile']:.1f} "
             f"| soglia di decisione {'superata' if voce['sopra_soglia'] else 'NON superata'}\n"
             f"   Stato noto: {voce['stato']}\n"
@@ -581,9 +749,10 @@ def genera_contesto_investigativo(nodo_a, nodo_b, tipo=None):
 
     testo = "--- CONTESTO ESTRATTO DAL GRAFO DI COMPLIANCE ---\n"
     testo += intestazione_dati()
+    testo += NOTA_NUMERI
     for sigla, nodo in (("A", nodo_a), ("B", nodo_b)):
         testo += (
-            f"Soggetto {sigla}: Società {nodo}\n"
+            f"Soggetto {sigla}: {etichetta(nodo)}\n"
             f"  Stato noto: {stato_compliance(nodo)}\n"
             f"  Punteggi di rischio GNN: {descrivi_rischi(nodo)}\n"
         )
@@ -600,7 +769,7 @@ def genera_contesto_investigativo(nodo_a, nodo_b, tipo=None):
         testo += "Nodi intermediari collegati sia ad A sia a B (possibile percorso a 2 passi):\n"
         for inter in intermediari:
             testo += (
-                f"  - Società {inter} | {verso_relazione(nodo_a, inter)} ({descrivi_documenti(nodo_a, inter)}); "
+                f"  - {etichetta(inter)} | {verso_relazione(nodo_a, inter)} ({descrivi_documenti(nodo_a, inter)}); "
                 f"{verso_relazione(inter, nodo_b)} ({descrivi_documenti(inter, nodo_b)})\n"
                 f"    Stato noto: {stato_compliance(inter)}\n"
                 f"    Punteggi di rischio GNN: {descrivi_rischi(inter)}\n"
@@ -621,7 +790,8 @@ def contesto_spiegazione(nodo, tipo=None):
 
     testo = "--- SPIEGAZIONE DEL RISCHIO ESTRATTA DAL GRAFO DI COMPLIANCE ---\n"
     testo += intestazione_dati()
-    testo += f"Soggetto: Società {nodo}\n"
+    testo += NOTA_NUMERI
+    testo += f"Soggetto: {etichetta(nodo)}\n"
     testo += f"  Stato noto: {stato_compliance(nodo)}\n"
     testo += f"  Punteggi di rischio GNN: {descrivi_rischi(nodo)}\n"
     testo += (
@@ -639,12 +809,13 @@ def contesto_vicinato(nodo):
 
     testo = "--- RELAZIONI COMMERCIALI ESTRATTE DAL GRAFO DI COMPLIANCE ---\n"
     testo += intestazione_dati()
-    testo += f"Soggetto: Società {nodo} | Stato noto: {stato_compliance(nodo)}\n"
+    testo += NOTA_NUMERI
+    testo += f"Soggetto: {etichetta(nodo)} | Stato noto: {stato_compliance(nodo)}\n"
     testo += f"Controparti dirette ({len(diretti)}):\n"
     for vicino in diretti:
         migliore = max(punteggi_nodo(vicino), key=lambda voce: voce["punteggio"])
         testo += (
-            f"  - Società {vicino} | {verso_relazione(nodo, vicino)} | {descrivi_documenti(nodo, vicino)}\n"
+            f"  - {etichetta(vicino)} | {verso_relazione(nodo, vicino)} | {descrivi_documenti(nodo, vicino)}\n"
             f"    Stato noto: {stato_compliance(vicino)} "
             f"| punteggio GNN più alto: {migliore['punteggio']*100:.2f}% ({migliore['tipo']})\n"
         )
@@ -653,7 +824,7 @@ def contesto_vicinato(nodo):
     testo += f"Soggetti raggiungibili in 2 passi: {len(indiretti)}\n"
     testo += (
         "Fra questi, con irregolarità accertate: "
-        + (", ".join(f"Società {v}" for v in indiretti_irregolari) or "nessuno")
+        + (", ".join(etichetta(v) for v in indiretti_irregolari) or "nessuno")
         + "\n"
     )
     return testo
@@ -688,11 +859,15 @@ def _errore_tipo(tipo):
     return None
 
 
-def _errore_societa(*numeri):
-    for numero in numeri:
-        if not esiste(numero):
-            return f"La società {numero} non è presente nell'archivio."
-    return None
+def _risolvi_tutte(*riferimenti):
+    """Risolve più società: (elenco dei nodi, None) oppure (None, primo messaggio di errore)."""
+    nodi = []
+    for riferimento in riferimenti:
+        nodo, messaggio = risolvi_societa(riferimento)
+        if messaggio:
+            return None, messaggio
+        nodi.append(nodo)
+    return nodi, None
 
 
 @_in_esclusiva
@@ -718,40 +893,47 @@ def classifica(n: int = 3, tipo: str = "", popolazione: str = "non_ispezionate")
 
 
 @_in_esclusiva
-def relazione(societa_a: int, societa_b: int, tipo: str = "") -> str:
+def relazione(societa_a: str, societa_b: str, tipo: str = "") -> str:
     """Descrive il rapporto fra due società: connessione diretta, documenti scambiati,
     intermediari comuni, punteggi di rischio. Da usare quando la domanda cita due società.
-    societa_a, societa_b: numeri identificativi delle due società.
+    societa_a, societa_b: nome dell'azienda come scritto dall'ispettore (anche parziale),
+    oppure il suo numero.
     tipo: lasciare vuoto, oppure il tipo di irregolarità su cui concentrare la spiegazione."""
-    errore = _errore_tipo(tipo) or _errore_societa(societa_a, societa_b)
+    errore = _errore_tipo(tipo)
     if errore:
         return errore
-    if int(societa_a) == int(societa_b):
+    nodi, errore = _risolvi_tutte(societa_a, societa_b)
+    if errore:
+        return errore
+    if nodi[0] == nodi[1]:
         return "Indicare due società diverse."
-    return genera_contesto_investigativo(int(societa_a), int(societa_b), tipo or None)
+    return genera_contesto_investigativo(nodi[0], nodi[1], tipo or None)
 
 
 @_in_esclusiva
-def spiegazione(societa: int, tipo: str = "") -> str:
+def spiegazione(societa: str, tipo: str = "") -> str:
     """Spiega perché una società è considerata a rischio: punteggi, caratteristiche e
-    relazioni che hanno pesato di più. Da usare per domande come "perché la società 12 è a rischio".
-    societa: numero identificativo della società.
+    relazioni che hanno pesato di più. Da usare per domande come "perché la Edil Rossi è a rischio".
+    societa: nome dell'azienda come scritto dall'ispettore (anche parziale), oppure il suo numero.
     tipo: lasciare vuoto per l'irregolarità con il punteggio più alto, oppure indicarne una."""
-    errore = _errore_tipo(tipo) or _errore_societa(societa)
+    errore = _errore_tipo(tipo)
     if errore:
         return errore
-    return contesto_spiegazione(int(societa), tipo or None)
+    nodi, errore = _risolvi_tutte(societa)
+    if errore:
+        return errore
+    return contesto_spiegazione(nodi[0], tipo or None)
 
 
 @_in_esclusiva
-def vicinato(societa: int) -> str:
+def vicinato(societa: str) -> str:
     """Elenca le controparti commerciali di una società con i documenti scambiati, e conta i
-    soggetti raggiungibili in due passi. Da usare per domande come "con chi commercia la società 12".
-    societa: numero identificativo della società."""
-    errore = _errore_societa(societa)
+    soggetti raggiungibili in due passi. Da usare per domande come "con chi commercia la Edil Rossi".
+    societa: nome dell'azienda come scritto dall'ispettore (anche parziale), oppure il suo numero."""
+    nodi, errore = _risolvi_tutte(societa)
     if errore:
         return errore
-    return contesto_vicinato(int(societa))
+    return contesto_vicinato(nodi[0])
 
 
 STRUMENTI = {
@@ -776,23 +958,40 @@ NOMI_COLLETTIVI = r"(?:aziende|societ[àa]|soggetti|imprese|nodi)"
 MESSAGGIO_NON_SUPPORTATA = (
     "Domanda non riconosciuta. Posso rispondere a: classifica delle aziende più rischiose, "
     "relazione fra due società, spiegazione del rischio di una società, controparti di una società "
-    "(indicando le società con il loro numero, es. 'società 12')."
+    "(indicando le società con il nome completo oppure con il numero, es. 'società 12')."
 )
 
 
 def estrai_nodi_dalla_domanda(domanda):
     """
-    Estrae dalla domanda i numeri delle società citate (es. "società 12").
-    Con i dati reali andrà sostituita da una risoluzione per nome o identificativo fiscale.
+    Estrae dalla domanda le società citate, nell'ordine in cui compaiono: per
+    numero ("società 12") oppure per nome, completo e a parole intere ("Edil Rossi").
+    Un nome parziale o ambiguo qui non viene riconosciuto: lo gestisce
+    risolvi_societa() quando è la chat a passarlo a uno strumento.
     """
-    trovati = []
-    for testo_numero in re.findall(
-        r"(?:societ[àa]|nodo|azienda|soggetto|impresa)\s+#?(\d+)", domanda, flags=re.IGNORECASE
-    ):
-        nodo = int(testo_numero)
-        if nodo not in trovati:
-            trovati.append(nodo)
-    return trovati
+    testo = normalizza_nome(domanda)
+    trovati = []  # (posizione nel testo, nodo)
+
+    # Prima i nomi, dal più lungo: così "Edil Rossi" non viene scambiato per "Rossi"
+    voci = sorted(_indice_nomi(), key=lambda voce: -len(voce["nucleo"]))
+    for voce in voci:
+        if len(voce["nucleo"]) < 4:
+            continue
+        corrispondenza = re.search(rf"(?<!\w){re.escape(voce['nucleo'])}(?!\w)", testo)
+        if corrispondenza:
+            trovati.append((corrispondenza.start(), voce["nodo"]))
+            # la parte riconosciuta viene cancellata, per non riusarla
+            testo = testo[: corrispondenza.start()] + " " * len(corrispondenza.group()) + testo[corrispondenza.end():]
+
+    for corrispondenza in re.finditer(r"(?:societa|nodo|azienda|soggetto|impresa)\s+(\d+)", testo):
+        if esiste(int(corrispondenza.group(1))):
+            trovati.append((corrispondenza.start(), int(corrispondenza.group(1))))
+
+    nodi = []
+    for _, nodo in sorted(trovati):
+        if nodo not in nodi:
+            nodi.append(nodo)
+    return nodi
 
 
 def smista_con_regole(domanda):

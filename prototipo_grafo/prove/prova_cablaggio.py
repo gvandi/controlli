@@ -59,7 +59,13 @@ class ProvaCablaggio(unittest.TestCase):
         conn = scrittura.apri_in_scrittura(cls.percorso)
         scrittura.salva_dati_simulati(
             conn, cls.archi, cls.ha_etichetta, cls.y,
-            {"7": {"nome_Azienda": "L'Oro <srl>", "nr_iscrizione_reg_società": "X1"}},
+            {
+                "7": {"nome_Azienda": "L'Oro <srl>", "nr_iscrizione_reg_società": "X1"},
+                "8": {"nome_Azienda": "Edil Rossi S.r.l.", "nr_iscrizione_reg_società": "COE 00008"},
+                "9": {"nome_Azienda": "Rossi Trasporti SpA", "nr_iscrizione_reg_società": "COE 00009"},
+                "10": {"nome_Azienda": "Bianchi & Figli snc", "nr_iscrizione_reg_società": "COE 00010"},
+                "11": {"nome_Azienda": "Società Agricola Montefeltro", "nr_iscrizione_reg_società": "COE 00011"},
+            },
         )
         scrittura.salva_esecuzione(conn, "prova-1", cls.punteggi, cls.soglie, {"esempio": {"pr_auc": 0.3}})
         conn.close()
@@ -159,6 +165,68 @@ class ProvaCablaggio(unittest.TestCase):
         self.assertIn("RELAZIONI COMMERCIALI", interrogazione.consulta(f"Con chi commercia la società {nodo}?"))
         self.assertIn("SPIEGAZIONE", interrogazione.consulta(f"Perché la società {nodo} è a rischio?"))
         self.assertEqual(interrogazione.consulta("Che tempo fa?"), interrogazione.MESSAGGIO_NON_SUPPORTATA)
+
+    # ------------------------------------------------------------ nomi delle aziende
+    def test_una_societa_si_indica_in_molti_modi(self):
+        risolvi = interrogazione.risolvi_societa
+        for riferimento in (8, "8", "società 8", "Società #8", "Edil Rossi S.r.l.", "edil rossi srl",
+                            "EDIL ROSSI", "Edil  Rossi s.r.l", "COE 00008", "coe 00008"):
+            self.assertEqual(risolvi(riferimento), (8, None), riferimento)
+        self.assertEqual(risolvi("Bianchi"), (10, None))             # parte del nome
+        self.assertEqual(risolvi("montefeltro"), (11, None))
+        self.assertEqual(risolvi("Societa agricola Montefeltro"), (11, None))  # senza accento
+        self.assertEqual(risolvi("L'Oro"), (7, None))
+        self.assertEqual(risolvi("Azienda simulata 25"), (25, None))  # nome generato dalla simulazione
+
+    def test_un_nome_ambiguo_o_sconosciuto_non_viene_indovinato(self):
+        nodo, messaggio = interrogazione.risolvi_societa("Rossi")
+        self.assertIsNone(nodo)
+        self.assertIn("corrisponde a 2 società", messaggio)
+        self.assertIn("Edil Rossi S.r.l.", messaggio)
+        self.assertIn("Rossi Trasporti SpA", messaggio)
+
+        nodo, messaggio = interrogazione.risolvi_societa("Edil Rosi")     # errore di battitura
+        self.assertIsNone(nodo)
+        self.assertIn("Nomi simili", messaggio)
+        self.assertIn("Edil Rossi S.r.l.", messaggio)
+
+        self.assertEqual(interrogazione.risolvi_societa("Verdi Costruzioni")[0], None)
+        self.assertIn("non è presente", interrogazione.risolvi_societa("999999")[1])
+        self.assertIsNone(interrogazione.risolvi_societa("")[0])
+        # "Ross" non è una parola intera di nessun nome: nessuna corrispondenza parziale
+        self.assertIsNone(interrogazione.risolvi_societa("Ross")[0])
+
+        # lo strumento restituisce il messaggio, non un errore del programma
+        self.assertIn("corrisponde a 2 società", interrogazione.vicinato("Rossi"))
+        self.assertIn("corrisponde a 2 società", interrogazione.relazione("Bianchi", "Rossi"))
+
+    def test_gli_strumenti_accettano_il_nome_e_lo_riportano_con_l_iscrizione(self):
+        self.assertEqual(interrogazione.vicinato("Edil Rossi"), interrogazione.vicinato(8))
+        self.assertEqual(interrogazione.spiegazione("bianchi & figli"), interrogazione.spiegazione(10))
+        self.assertEqual(interrogazione.relazione("Edil Rossi", "Bianchi"), interrogazione.relazione(8, 10))
+        self.assertIn("due società diverse", interrogazione.relazione("Edil Rossi", "8"))
+
+        testo = interrogazione.vicinato("Edil Rossi")
+        self.assertIn('Società 8 "Edil Rossi S.r.l." (iscrizione COE 00008)', testo)
+        testo = interrogazione.relazione("Edil Rossi", "Rossi Trasporti")
+        self.assertIn('Soggetto A: Società 8 "Edil Rossi S.r.l." (iscrizione COE 00008)', testo)
+        self.assertIn('Soggetto B: Società 9 "Rossi Trasporti SpA" (iscrizione COE 00009)', testo)
+        # ogni voce della classifica riporta il nome
+        for riga in interrogazione.classifica(5).splitlines():
+            if riga[:2] in ("1.", "2.", "3.", "4.", "5."):
+                self.assertRegex(riga, r'^\d\. Società \d+ ".+"')
+
+    def test_consulta_riconosce_i_nomi_nella_domanda(self):
+        estrai = interrogazione.estrai_nodi_dalla_domanda
+        self.assertEqual(estrai("Con chi commercia la Edil Rossi?"), [8])
+        self.assertEqual(estrai("Che rapporto c'è fra Rossi Trasporti e la Edil Rossi srl?"), [9, 8])
+        self.assertEqual(estrai("Che rapporto c'è fra Bianchi & Figli e la società 8?"), [10, 8])
+        self.assertEqual(estrai("Quali sono le 3 aziende più rischiose?"), [])
+        self.assertEqual(interrogazione.consulta("Con chi commercia la Edil Rossi?"), interrogazione.vicinato(8))
+        self.assertEqual(
+            interrogazione.consulta("Che rapporto c'è fra Rossi Trasporti e la Edil Rossi srl?"),
+            interrogazione.relazione(9, 8),
+        )
 
     # ------------------------------------------------------------ coda delle spiegazioni
     def test_spiegazione_mancante_va_in_coda_e_poi_viene_letta(self):
