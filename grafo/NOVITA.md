@@ -1,6 +1,6 @@
 # Registro delle novità
 
-Versione corrente: 18
+Versione corrente: 19.0
 
 Elenco completo delle novità rispetto alla versione 12 (ultimo file unico di partenza).
 È l'UNICO posto in cui le novità si scrivono a mano: `aggiorna_intestazioni.py` ricopia
@@ -10,6 +10,8 @@ Formato di una voce: `- [versione] (parte) testo`, su una sola riga.
 Parti: `contratto`, `calcolo`, `interrogazione`, `server`, `mappa`.
 Fino alla versione 15 il programma era un solo file (`fac_simile_addestramento_gat_ver.NN.py`):
 le voci 13-15 sono assegnate alla parte in cui quel codice si trova oggi.
+Dalla 16 alla 18 era un prototipo autonomo su SQLite (cartella `prototipo_grafo`); dalla 19 è
+l'app Django `grafo` dell'applicativo, su PostgreSQL.
 
 ## contratto
 
@@ -25,6 +27,12 @@ le voci 13-15 sono assegnate alla parte in cui quel codice si trova oggi.
 - [17] (contratto) connetti() apre la connessione con check_same_thread=False, perché il server esegue gli strumenti in un thread diverso da quello che ha aperto l'archivio.
 - [18] (contratto) Nuova tabella feature con le descrizioni degli indicatori (da dizionario_descrizioni.json); VERSIONE_SCHEMA passa a 3: l'archivio va ricreato rieseguendo il calcolo.
 - [18] (contratto) Nuovo strumento indicatore in NOMI_STRUMENTI; nuove costanti FEATURES_PER_SPIEGAZIONE (10) e FEATURES_NEL_CONTESTO (5).
+- [19] (contratto) Lo schema del database non sta più qui: è in models.py e nelle migrazioni Django (PostgreSQL). Tolti SCHEMA_DB, connetti(), percorso_db(), percorso_modello().
+- [19] (contratto) Quattro versioni distinte in formato PEP 440: progetto (VERSIONE_CODICE 19.0), schema (VERSIONE_SCHEMA 4.0), calcolo (VERSIONE_CALCOLO 1.0), dati (contatore nel database).
+- [19] (contratto) I lettori dichiarano cosa gli serve invece di pretendere una versione identica: SCHEMA_RICHIESTO e CALCOLO_ACCETTATO con l'operatore ~= ; nuove funzioni compatibile() e documento_leggibile().
+- [19] (contratto) Schema 4.0: chiave interna del soggetto (Soggetto), fotografie dei dati (VersioneDati) e risultati per coppia calcolo/dati (Esecuzione); la versione dello schema la scrivono le migrazioni nella tabella grafo_info.
+- [19] (contratto) Documenti JSON auto-descrittivi: SCHEMA_SPIEGAZIONE "spiegazione/1.0" e SPIEGAZIONE_ACCETTATA.
+- [19] (contratto) Le regole complete sono in COMPATIBILITA.md, con la lista di controllo per le modifiche di schema.
 
 ## calcolo
 
@@ -48,6 +56,11 @@ le voci 13-15 sono assegnate alla parte in cui quel codice si trova oggi.
 - [18] (calcolo) Il dizionario delle descrizioni viene caricato nel database (salva_dizionario_indicatori) a ogni calcolo.
 - [18] (calcolo) Ogni spiegazione conserva 10 indicatori invece di 3, per rendere utile la ricerca per indicatore.
 - [18] (calcolo) Il messaggio per uno schema diverso dice di eliminare il file e rieseguire il calcolo.
+- [19] (calcolo) scrittura.py usa i modelli Django: registra_dati_simulati(), registra_esecuzione(), salva_spiegazione(), richieste_pendenti(), esecuzione_piu_recente(), nodi_dei_soggetti().
+- [19] (calcolo) Nulla viene più cancellato a ogni avvio: dati nuovi aggiungono una fotografia, dati identici riusano quella esistente (impronta), e solo il ricalcolo della stessa coppia calcolo/dati la sostituisce.
+- [19] (calcolo) Le spiegazioni si salvano come documenti auto-descrittivi che nominano i soggetti con la chiave interna, non con l'indice del nodo (documento_spiegazione).
+- [19] (calcolo) Un file di modello per ogni coppia calcolo/dati, nella cartella dati_grafo insieme ai file JSON in ingresso (calcolo_cartella.py).
+- [19] (calcolo) Si avvia con python manage.py grafo_calcolo (--spiegazioni per la sola coda).
 
 ## interrogazione
 
@@ -76,6 +89,13 @@ le voci 13-15 sono assegnate alla parte in cui quel codice si trova oggi.
 - [18] (interrogazione) Nuovo strumento indicatore(termine, societa): cerca gli indicatori per parola della descrizione (cerca_indicatori) e dice per quali società pesano di più (contesto_indicatore), fra le spiegazioni già calcolate.
 - [18] (interrogazione) consulta() riconosce nella domanda i nomi delle società e la ricerca di un indicatore; gli strumenti accettano per la società sia un numero sia un testo.
 - [18] (interrogazione) Nei testi le features si chiamano indicatori; il contesto ne riporta i primi 5.
+- [19] (interrogazione) Letture riscritte per PostgreSQL: passano tutte da _righe(), unico punto di contatto con il database, e usano la connessione di Django.
+- [19] (interrogazione) Lettore tollerante: accetta gli schemi che soddisfano SCHEMA_RICHIESTO, nomina le colonne una per una, ignora tabelle, colonne e campi JSON sconosciuti (_normalizza_spiegazione).
+- [19] (interrogazione) apri() sceglie la coppia calcolo/dati: la fotografia più recente fra i calcoli accettati, oppure una coppia precisa (parametri o variabili GRAFO_VERSIONE_CALCOLO e GRAFO_VERSIONE_DATI); ogni 60 secondi ricontrolla se ne esiste una più recente.
+- [19] (interrogazione) Il numero di una società è la chiave interna del soggetto, stabile fra fotografie e calcoli (prima: l'indice del nodo).
+- [19] (interrogazione) I testi dichiarano la coppia in uso ("calcolo 1.0 / dati 2"); nuove esecuzioni_disponibili() ed etichetta_esecuzione().
+- [19] (interrogazione) La versione del progetto non produce più avvisi: è solo provenienza.
+- [19] (interrogazione) Si prova senza chat con python manage.py grafo_consulta "domanda".
 
 ## server
 
@@ -84,6 +104,7 @@ le voci 13-15 sono assegnate alla parte in cui quel codice si trova oggi.
 - [17] (server) Compatibile con la libreria mcp 1.x (FastMCP) e 2.x (MCPServer): con la 2.x la versione 16 non partiva (ModuleNotFoundError).
 - [17] (server) Strumenti registrati con add_tool() e trasporto stdio indicato in modo esplicito.
 - [18] (server) Registra anche il quinto strumento, indicatore (nessuna modifica al codice: l'elenco viene da contratto.py).
+- [19] (server) Si avvia con python manage.py grafo_server_mcp, che carica le impostazioni dell'applicativo.
 
 ## mappa
 
@@ -98,3 +119,5 @@ le voci 13-15 sono assegnate alla parte in cui quel codice si trova oggi.
 - [16] (mappa) Il tooltip degli archi riporta verso commerciale e documenti scambiati; il report dichiara la data dei punteggi.
 - [16] (mappa) Se la spiegazione del soggetto manca, il report lo segnala e la mette in coda.
 - [18] (mappa) Il report mostra i primi 3 indicatori dei 10 ora conservati in ogni spiegazione.
+- [19] (mappa) Il file della mappa porta nel nome soggetto e coppia calcolo/dati e viene scritto in dati_grafo: mappe diverse non si sovrascrivono.
+- [19] (mappa) Si può scegliere il soggetto: python manage.py grafo_mappa --soggetto "nome o numero".

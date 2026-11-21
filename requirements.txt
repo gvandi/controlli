@@ -1,2 +1,4 @@
 Django>=5.2,<5.3
 psycopg[binary]>=3.2,<4
+# Confronto delle versioni (PEP 440) nell'app grafo: vedi grafo/COMPATIBILITA.md
+packaging>=24

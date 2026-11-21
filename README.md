@@ -55,7 +55,7 @@ python manage.py test
 | `utenti/` | Utente, ruoli e diritti |
 | `decodifiche/` | Tabelle di decodifica (attività, classi dimensionali, forma giuridica, modello di business) |
 | `templates/` | Pagine HTML |
-| `prototipo_grafo/` | Prototipo su dati simulati: GNN, punteggi di rischio e interrogazione da chat. Separato dall'applicativo Django, con le proprie dipendenze: vedi [prototipo_grafo/README.md](prototipo_grafo/README.md) |
+| `grafo/` | Analisi di rete (prototipo su dati simulati): GNN, punteggi di rischio e interrogazione da chat. Usa il database dell'applicativo; PyTorch serve solo al comando di calcolo: vedi [grafo/README.md](grafo/README.md) e [grafo/COMPATIBILITA.md](grafo/COMPATIBILITA.md) |
 | `dati_caricati/` | File caricati dagli utenti. **Esclusa dal repository** |
 
 ## Regole del repository

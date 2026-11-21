@@ -1,0 +1,16 @@
+# Dipendenze di calcolo, mappa e server MCP dell'app grafo.
+# NON servono all'applicativo web né alle prove (python manage.py test grafo).
+# Le versioni non sono fissate: fissarle dopo la prima esecuzione completa (vedi TODO.md).
+
+# calcolo.py
+torch
+torch_geometric
+scikit-learn
+numpy
+
+# mappa.py
+networkx
+pyvis
+
+# server_mcp.py (versione 1 o 2)
+mcp[cli]

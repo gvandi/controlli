@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   interrogazione.py  -  progetto controlli_grafo, VERSIONE 18
+#   interrogazione.py  -  app grafo, VERSIONE 19.0
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: interrogazione
@@ -55,247 +55,337 @@
 #   [18] consulta() riconosce nella domanda i nomi delle società e la ricerca di un indicatore;
 #        gli strumenti accettano per la società sia un numero sia un testo.
 #   [18] Nei testi le features si chiamano indicatori; il contesto ne riporta i primi 5.
+#   [19] Letture riscritte per PostgreSQL: passano tutte da _righe(), unico punto di contatto
+#        con il database, e usano la connessione di Django.
+#   [19] Lettore tollerante: accetta gli schemi che soddisfano SCHEMA_RICHIESTO, nomina le
+#        colonne una per una, ignora tabelle, colonne e campi JSON sconosciuti
+#        (_normalizza_spiegazione).
+#   [19] apri() sceglie la coppia calcolo/dati: la fotografia più recente fra i calcoli
+#        accettati, oppure una coppia precisa (parametri o variabili GRAFO_VERSIONE_CALCOLO e
+#        GRAFO_VERSIONE_DATI); ogni 60 secondi ricontrolla se ne esiste una più recente.
+#   [19] Il numero di una società è la chiave interna del soggetto, stabile fra fotografie e
+#        calcoli (prima: l'indice del nodo).
+#   [19] I testi dichiarano la coppia in uso ("calcolo 1.0 / dati 2"); nuove
+#        esecuzioni_disponibili() ed etichetta_esecuzione().
+#   [19] La versione del progetto non produce più avvisi: è solo provenienza.
+#   [19] Si prova senza chat con python manage.py grafo_consulta "domanda".
 #
 # <<< NOVITA
 """
 LIBRERIA DI INTERROGAZIONE: tutto ciò che serve per rispondere a una domanda
-leggendo il database. Non usa PyTorch, non conosce modello né grafo.
+leggendo il database PostgreSQL dell'applicativo. Non usa PyTorch, non conosce
+modello né grafo. È un LETTORE TOLLERANTE: vedi sezione 0 e COMPATIBILITA.md.
 
-Tre livelli, dal basso verso l'alto:
+Quattro livelli, dal basso verso l'alto:
+  0. ACCESSO      _righe(): unico punto di contatto con il database
   1. LETTURE      una funzione = una query (classifica_rischio, vicini_diretti, ...)
   2. CONTESTI     compongono il testo da dare al modello di linguaggio
   3. STRUMENTI    le cinque funzioni esposte alla chat, con controllo dei parametri
 
-Importa solo contratto.py. Prova dalla riga di comando, senza chat:
-    python -m controlli_grafo.interrogazione "Quali sono le 3 aziende più rischiose?"
+Importa contratto.py e la connessione di Django (non i modelli). Prova senza chat:
+    python manage.py grafo_consulta "Quali sono le 3 aziende più rischiose?"
 """
 
-import datetime
 import difflib
 import functools
 import json
+import os
 import re
-import sys
 import threading
+import time
 import unicodedata
 from typing import Union
+
+from django.db import connection
 
 from . import contratto
 from .contratto import DESCRIZIONE_POPOLAZIONE, POPOLAZIONI, TIPI_IRREGOLARITA
 
-_conn = None  # connessione al database
-_versione = None  # esecuzione del modello su cui lavorano le interrogazioni
+# Esecuzione su cui lavorano le interrogazioni: {id, versione_dati_id, numero_dati,
+# versione_calcolo, versione_codice, calcolata_il, soglie}
+_esecuzione = None
+_aperta_alle = 0.0
+
+# Ogni quanti secondi si ricontrolla se esiste un'esecuzione più recente
+# (il calcolo notturno ne aggiunge una mentre server e chat restano accesi)
+SECONDI_DI_VALIDITA = 60
 
 
 # =====================================================================
-# 0. APERTURA E CONTROLLO DI COMPATIBILITÀ
+# 0. ACCESSO AL DATABASE, APERTURA E CONTROLLO DI COMPATIBILITÀ
 # =====================================================================
-def apri(percorso=None):
+# LETTORE TOLLERANTE: tutte le letture passano da _righe(), nominano una per una
+# le colonne che usano e ignorano tabelle e colonne che non conoscono. Per questo
+# l'archivio può ricevere espansioni (schema 4.1, 4.2...) senza toccare questo file.
+def _righe(sql, parametri=None):
+    """Esegue una lettura e restituisce le righe come dizionari {colonna: valore}."""
+    with connection.cursor() as cursore:
+        cursore.execute(sql, parametri or {})
+        colonne = [colonna[0] for colonna in cursore.description]
+        return [dict(zip(colonne, riga)) for riga in cursore.fetchall()]
+
+
+def _esegui(sql, parametri=None):
+    """Esegue una scrittura (la libreria ne fa una sola: la coda delle spiegazioni)."""
+    with connection.cursor() as cursore:
+        cursore.execute(sql, parametri or {})
+
+
+def _json(valore):
+    """Un campo JSON arriva come testo o già decodificato, secondo il connettore."""
+    return json.loads(valore) if isinstance(valore, str) else valore
+
+
+def _data_leggibile(momento):
+    """Data e ora nel fuso del computer, al minuto."""
+    if hasattr(momento, "astimezone"):
+        return momento.astimezone().strftime("%Y-%m-%d %H:%M")
+    return str(momento)[:16]
+
+
+def esecuzioni_disponibili():
+    """Tutte le esecuzioni presenti, dalla fotografia dei dati più recente alla più vecchia."""
+    righe = _righe(
+        "SELECT e.id, e.versione_calcolo, e.versione_codice, e.calcolata_il, e.tassonomia, "
+        "e.soglie, e.versione_dati_id, v.numero AS numero_dati "
+        "FROM grafo_esecuzione e JOIN grafo_versione_dati v ON v.id = e.versione_dati_id "
+        "ORDER BY v.numero DESC, e.calcolata_il DESC"
+    )
+    for riga in righe:
+        riga["tassonomia"] = _json(riga["tassonomia"])
+        riga["soglie"] = _json(riga["soglie"])
+    return righe
+
+
+def apri(versione_calcolo=None, numero_dati=None):
     """
-    Apre l'archivio e si aggancia all'esecuzione più recente. Si rifiuta di
-    partire se l'archivio non combacia con questa versione del codice: meglio
-    un errore chiaro di una risposta calcolata su dati letti male.
+    Sceglie l'esecuzione su cui lavorare e controlla la compatibilità.
+
+    Senza parametri: fra le esecuzioni di un calcolo compatibile con
+    contratto.CALCOLO_ACCETTATO, quella sulla fotografia dei dati più recente.
+    Con i parametri (o con le variabili d'ambiente GRAFO_VERSIONE_CALCOLO e
+    GRAFO_VERSIONE_DATI) si sceglie una coppia precisa, per i confronti.
+
+    Solleva ArchivioIncompatibile se lo schema non soddisfa SCHEMA_RICHIESTO o se
+    non esiste un'esecuzione utilizzabile: meglio un errore chiaro di una
+    risposta calcolata su dati letti male.
     """
-    global _conn, _versione
-    chiudi()
-    conn = contratto.connetti(percorso)
+    global _esecuzione, _aperta_alle, _elenco_societa
+    versione_calcolo = versione_calcolo or os.environ.get("GRAFO_VERSIONE_CALCOLO") or None
+    numero_dati = numero_dati or os.environ.get("GRAFO_VERSIONE_DATI") or None
+
+    # 1. Schema: il lettore dichiara cosa gli serve, non pretende una versione identica
     try:
-        try:
-            riga = conn.execute(
-                "SELECT valore FROM info_archivio WHERE chiave = 'versione_schema'"
-            ).fetchone()
-        except Exception as errore:
-            raise contratto.ArchivioIncompatibile(
-                "Archivio senza versione di schema: non è stato creato dal processo "
-                f"di calcolo di questa versione ({errore})."
-            ) from errore
-        if riga is None or riga["valore"] != str(contratto.VERSIONE_SCHEMA):
-            trovato = "nessuno" if riga is None else riga["valore"]
-            raise contratto.ArchivioIncompatibile(
-                f"Schema dell'archivio: {trovato}; schema atteso dal codice: "
-                f"{contratto.VERSIONE_SCHEMA}. Aggiorna il codice o riesegui il calcolo."
-            )
+        info = _righe("SELECT valore FROM grafo_info WHERE chiave = 'versione_schema'")
+    except Exception as errore:
+        raise contratto.ArchivioIncompatibile(
+            f"Tabelle dell'app grafo non trovate: eseguire 'python manage.py migrate' ({errore})."
+        ) from errore
+    schema = info[0]["valore"] if info else None
+    if schema is None or not contratto.compatibile(schema, contratto.SCHEMA_RICHIESTO):
+        raise contratto.ArchivioIncompatibile(
+            f"Schema dell'archivio: {schema or 'non dichiarato'}; questo codice richiede "
+            f"{contratto.SCHEMA_RICHIESTO}. Aggiornare il codice oppure applicare le migrazioni."
+        )
 
-        esecuzione = conn.execute(
-            "SELECT versione, versione_codice, tassonomia_json FROM esecuzione_modello "
-            "ORDER BY data_calcolo DESC, versione DESC LIMIT 1"
-        ).fetchone()
-        if esecuzione is None:
-            raise contratto.ArchivioIncompatibile(
-                "L'archivio non contiene nessuna esecuzione del modello: avvia prima il calcolo."
-            )
-        if tuple(json.loads(esecuzione["tassonomia_json"])) != tuple(TIPI_IRREGOLARITA):
-            raise contratto.ArchivioIncompatibile(
-                "I tipi di irregolarità usati nel calcolo sono diversi da quelli del codice: "
-                "riesegui il calcolo con questa versione."
-            )
-        if esecuzione["versione_codice"] != contratto.VERSIONE_CODICE:
-            # Non blocca: schema e tassonomia combaciano. Ma va saputo.
-            print(
-                f"Attenzione: punteggi calcolati con la versione {esecuzione['versione_codice']} "
-                f"del codice, interrogati con la {contratto.VERSIONE_CODICE}.",
-                file=sys.stderr,
-            )
-    except Exception:
-        conn.close()
-        raise
-    _conn, _versione = conn, esecuzione["versione"]
-    return _versione
+    # 2. Esecuzione: coppia (versione del calcolo, fotografia dei dati)
+    candidate = esecuzioni_disponibili()
+    if not candidate:
+        raise contratto.ArchivioIncompatibile(
+            "L'archivio non contiene nessuna esecuzione: avviare 'python manage.py grafo_calcolo'."
+        )
+    if versione_calcolo:
+        adatte = [e for e in candidate if e["versione_calcolo"] == str(versione_calcolo)]
+    else:
+        adatte = [
+            e for e in candidate
+            if contratto.compatibile(e["versione_calcolo"], contratto.CALCOLO_ACCETTATO)
+        ]
+    if numero_dati:
+        adatte = [e for e in adatte if e["numero_dati"] == int(numero_dati)]
+    # Solo esecuzioni con la tassonomia di questo codice: tipi diversi non sono confrontabili
+    adatte = [e for e in adatte if tuple(e["tassonomia"]) == tuple(TIPI_IRREGOLARITA)]
+    if not adatte:
+        presenti = ", ".join(
+            f"calcolo {e['versione_calcolo']} / dati {e['numero_dati']}" for e in candidate
+        )
+        raise contratto.ArchivioIncompatibile(
+            f"Nessuna esecuzione utilizzabile (richiesto: calcolo {versione_calcolo or contratto.CALCOLO_ACCETTATO}"
+            f"{', dati ' + str(numero_dati) if numero_dati else ''}). Presenti: {presenti}. "
+            "Rieseguire il calcolo con questa versione."
+        )
+    # Fra le adatte: dati più recenti; a parità, la versione del calcolo più alta
+    numero_piu_recente = adatte[0]["numero_dati"]
+    scelta = max(
+        (e for e in adatte if e["numero_dati"] == numero_piu_recente),
+        key=lambda e: contratto.Version(e["versione_calcolo"]),
+    )
+    if _esecuzione is None or _esecuzione["id"] != scelta["id"]:
+        _elenco_societa = None  # i nomi appartengono alla fotografia dei dati
+    _esecuzione, _aperta_alle = scelta, time.monotonic()
+    return etichetta_esecuzione()
 
 
 def chiudi():
-    global _conn, _versione, _elenco_societa
-    if _conn is not None:
-        _conn.close()
-    _conn, _versione, _elenco_societa = None, None, None
+    global _esecuzione, _aperta_alle, _elenco_societa
+    _esecuzione, _aperta_alle, _elenco_societa = None, 0.0, None
 
 
-def _db():
-    if _conn is None:
+def _corrente():
+    """L'esecuzione in uso, riaperta se è passato il tempo di validità."""
+    if _esecuzione is None or time.monotonic() - _aperta_alle > SECONDI_DI_VALIDITA:
         apri()
-    return _conn
+    return _esecuzione
+
+
+def _chiavi(**altre):
+    """Parametri comuni alle query: e = esecuzione, d = fotografia dei dati."""
+    esecuzione = _corrente()
+    return {"e": esecuzione["id"], "d": esecuzione["versione_dati_id"], **altre}
+
+
+def etichetta_esecuzione():
+    """La coppia in uso, in chiaro: 'calcolo 1.0 / dati 2'."""
+    esecuzione = _corrente()
+    return f"calcolo {esecuzione['versione_calcolo']} / dati {esecuzione['numero_dati']}"
+
+
+def leggi_esecuzione():
+    """Coppia calcolo/dati, data di calcolo e soglie dell'esecuzione in uso."""
+    esecuzione = _corrente()
+    return {
+        "versione": etichetta_esecuzione(),
+        "versione_calcolo": esecuzione["versione_calcolo"],
+        "numero_dati": esecuzione["numero_dati"],
+        "versione_codice": esecuzione["versione_codice"],
+        "data_calcolo": _data_leggibile(esecuzione["calcolata_il"]),
+        "soglie": esecuzione["soglie"],
+    }
 
 
 # =====================================================================
 # 1. LETTURE (una funzione = una query)
 # =====================================================================
-# In ingresso e in uscita si usa l'indice del nodo dell'esecuzione corrente;
-# la traduzione verso l'identificativo fiscale avviene qui dentro.
-def id_fiscale_di(nodo):
-    riga = _db().execute(
-        "SELECT id_fiscale FROM nodo_azienda WHERE versione_modello = ? AND indice_nodo = ?",
-        (_versione, int(nodo)),
-    ).fetchone()
-    if riga is None:
-        raise KeyError(f"Società {nodo} non presente nell'archivio")
-    return riga["id_fiscale"]
-
-
-def nodi_di(id_fiscali):
-    """Traduce un elenco di identificativi fiscali negli indici di nodo correnti."""
-    id_fiscali = list(id_fiscali)
-    if not id_fiscali:
-        return []
-    segnaposto = ", ".join("?" * len(id_fiscali))
-    righe = _db().execute(
-        f"SELECT id_fiscale, indice_nodo FROM nodo_azienda "
-        f"WHERE versione_modello = ? AND id_fiscale IN ({segnaposto})",
-        [_versione, *id_fiscali],
-    ).fetchall()
-    corrispondenza = {riga["id_fiscale"]: riga["indice_nodo"] for riga in righe}
-    return [corrispondenza[i] for i in id_fiscali if i in corrispondenza]
-
-
-def esiste(nodo):
+# Una società è identificata dalla chiave interna del soggetto (grafo_soggetto.id),
+# stabile fra una fotografia dei dati e l'altra: è il "numero" che vede l'ispettore.
+# L'indice del nodo nel grafo non esce mai dal processo di calcolo.
+def esiste(soggetto):
     try:
-        id_fiscale_di(nodo)
-        return True
-    except (KeyError, TypeError, ValueError):
+        soggetto = int(soggetto)
+    except (TypeError, ValueError):
         return False
+    return bool(
+        _righe(
+            "SELECT 1 AS presente FROM grafo_dati_soggetto "
+            "WHERE versione_dati_id = %(d)s AND soggetto_id = %(s)s",
+            _chiavi(s=soggetto),
+        )
+    )
 
 
-def leggi_esecuzione():
-    """Versione, data di calcolo e soglie dell'esecuzione corrente."""
-    riga = _db().execute(
-        "SELECT versione, data_calcolo, soglie_json FROM esecuzione_modello WHERE versione = ?",
-        (_versione,),
-    ).fetchone()
-    return {
-        "versione": riga["versione"],
-        "data_calcolo": riga["data_calcolo"],
-        "soglie": json.loads(riga["soglie_json"]),
+def dati_azienda(soggetto):
+    """Nome, numero di iscrizione, identificativo fiscale e stato ispettivo dell'azienda."""
+    righe = _righe(
+        "SELECT a.nome, a.nr_iscrizione, a.id_fiscale, a.ispezionata, s.riferimento "
+        "FROM grafo_dati_soggetto a JOIN grafo_soggetto s ON s.id = a.soggetto_id "
+        "WHERE a.versione_dati_id = %(d)s AND a.soggetto_id = %(s)s",
+        _chiavi(s=int(soggetto)),
+    )
+    if not righe:
+        raise KeyError(f"Società {soggetto} non presente nell'archivio")
+    return righe[0]
+
+
+def irregolarita_accertate(soggetto):
+    """Tipi di irregolarità accertati per un soggetto (lista vuota se nessuno)."""
+    trovati = {
+        riga["tipo"]
+        for riga in _righe(
+            "SELECT tipo FROM grafo_irregolarita "
+            "WHERE versione_dati_id = %(d)s AND soggetto_id = %(s)s",
+            _chiavi(s=int(soggetto)),
+        )
     }
-
-
-def dati_azienda(nodo):
-    """Nome e numero di iscrizione dell'azienda."""
-    riga = _db().execute(
-        "SELECT id_fiscale, nome, nr_iscrizione FROM azienda WHERE id_fiscale = ?",
-        (id_fiscale_di(nodo),),
-    ).fetchone()
-    return dict(riga)
-
-
-def irregolarita_accertate(nodo):
-    """Tipi di irregolarità accertati per un nodo (lista vuota se nessuno)."""
-    righe = _db().execute(
-        "SELECT tipo FROM irregolarita_accertata WHERE id_fiscale = ?", (id_fiscale_di(nodo),)
-    ).fetchall()
-    trovati = {riga["tipo"] for riga in righe}
     return [tipo for tipo in TIPI_IRREGOLARITA if tipo in trovati]
 
 
-def stato_compliance(nodo):
-    """Stato noto di un nodo: irregolarità accertate, verificato o non ispezionato."""
-    riga = _db().execute(
-        "SELECT ispezionata FROM azienda WHERE id_fiscale = ?", (id_fiscale_di(nodo),)
-    ).fetchone()
-    if not riga["ispezionata"]:
+def stato_compliance(soggetto):
+    """Stato noto di un soggetto: irregolarità accertate, verificato o non ispezionato."""
+    if not dati_azienda(soggetto)["ispezionata"]:
         return "Non ispezionato (nessuna etichetta)"
-    tipi = irregolarita_accertate(nodo)
+    tipi = irregolarita_accertate(soggetto)
     if tipi:
         return "IRREGOLARITÀ ACCERTATE: " + ", ".join(tipi)
     return "Verificato senza rilievi"
 
 
-def vicini_diretti(nodo):
-    """Insieme dei nodi che hanno almeno un documento in comune con il nodo."""
-    id_fiscale = id_fiscale_di(nodo)
-    righe = _db().execute(
-        "SELECT acquirente AS altro FROM relazione WHERE venditore = ? "
-        "UNION SELECT venditore FROM relazione WHERE acquirente = ?",
-        (id_fiscale, id_fiscale),
-    ).fetchall()
-    return set(nodi_di(riga["altro"] for riga in righe)) - {int(nodo)}
+def vicini_diretti(soggetto):
+    """Insieme dei soggetti che hanno almeno un documento in comune con il soggetto."""
+    righe = _righe(
+        "SELECT acquirente_id AS altro FROM grafo_relazione "
+        "WHERE versione_dati_id = %(d)s AND venditore_id = %(s)s "
+        "UNION SELECT venditore_id FROM grafo_relazione "
+        "WHERE versione_dati_id = %(d)s AND acquirente_id = %(s)s",
+        _chiavi(s=int(soggetto)),
+    )
+    return {riga["altro"] for riga in righe} - {int(soggetto)}
 
 
-def vicini_a_due_passi(nodo):
-    """Nodi raggiungibili in esattamente 2 passi (esclusi il nodo e i vicini diretti)."""
-    righe = _db().execute(
+def vicini_a_due_passi(soggetto):
+    """Soggetti raggiungibili in esattamente 2 passi (esclusi il soggetto e i vicini diretti)."""
+    righe = _righe(
         """
         WITH diretti AS (
-            SELECT acquirente AS altro FROM relazione WHERE venditore = :id
-            UNION SELECT venditore FROM relazione WHERE acquirente = :id
+            SELECT acquirente_id AS altro FROM grafo_relazione
+            WHERE versione_dati_id = %(d)s AND venditore_id = %(s)s
+            UNION SELECT venditore_id FROM grafo_relazione
+            WHERE versione_dati_id = %(d)s AND acquirente_id = %(s)s
         ),
         secondi AS (
-            SELECT r.acquirente AS altro FROM relazione r JOIN diretti d ON r.venditore = d.altro
-            UNION SELECT r.venditore FROM relazione r JOIN diretti d ON r.acquirente = d.altro
+            SELECT r.acquirente_id AS altro FROM grafo_relazione r
+            JOIN diretti d ON r.venditore_id = d.altro WHERE r.versione_dati_id = %(d)s
+            UNION SELECT r.venditore_id FROM grafo_relazione r
+            JOIN diretti d ON r.acquirente_id = d.altro WHERE r.versione_dati_id = %(d)s
         )
         SELECT altro FROM secondi
-        WHERE altro != :id AND altro NOT IN (SELECT altro FROM diretti)
+        WHERE altro <> %(s)s AND altro NOT IN (SELECT altro FROM diretti)
         """,
-        {"id": id_fiscale_di(nodo)},
-    ).fetchall()
-    return set(nodi_di(riga["altro"] for riga in righe))
+        _chiavi(s=int(soggetto)),
+    )
+    return {riga["altro"] for riga in righe}
 
 
-def relazioni_fra(nodi):
-    """Coppie (a, b) con a < b di nodi dell'elenco che hanno documenti in comune."""
-    id_fiscali = [id_fiscale_di(n) for n in nodi]
-    if not id_fiscali:
+def relazioni_fra(soggetti):
+    """Coppie (a, b) con a < b di soggetti dell'elenco che hanno documenti in comune."""
+    soggetti = [int(s) for s in soggetti]
+    if not soggetti:
         return set()
-    segnaposto = ", ".join("?" * len(id_fiscali))
-    righe = _db().execute(
-        f"SELECT DISTINCT venditore, acquirente FROM relazione "
-        f"WHERE venditore IN ({segnaposto}) AND acquirente IN ({segnaposto})",
-        id_fiscali + id_fiscali,
-    ).fetchall()
-    coppie = set()
-    for riga in righe:
-        a, b = nodi_di([riga["venditore"], riga["acquirente"]])
-        coppie.add((min(a, b), max(a, b)))
-    return coppie
+    righe = _righe(
+        "SELECT DISTINCT venditore_id, acquirente_id FROM grafo_relazione "
+        "WHERE versione_dati_id = %(d)s AND venditore_id = ANY(%(elenco)s) "
+        "AND acquirente_id = ANY(%(elenco)s)",
+        _chiavi(elenco=soggetti),
+    )
+    return {
+        (min(r["venditore_id"], r["acquirente_id"]), max(r["venditore_id"], r["acquirente_id"]))
+        for r in righe
+        if r["venditore_id"] != r["acquirente_id"]
+    }
 
 
 def verso_relazione(a, b, descrivi=str):
     """
-    Verso commerciale reale fra due nodi (chi vende a chi). 'descrivi' sceglie come
-    nominare i nodi: il solo numero (predefinito) oppure nome_breve.
+    Verso commerciale reale fra due soggetti (chi vende a chi). 'descrivi' sceglie
+    come nominarli: il solo numero (predefinito) oppure nome_breve.
     """
-    id_a, id_b = id_fiscale_di(a), id_fiscale_di(b)
-    conta = "SELECT COUNT(*) AS n FROM relazione WHERE venditore = ? AND acquirente = ?"
-    a_vende = _db().execute(conta, (id_a, id_b)).fetchone()["n"] > 0
-    b_vende = _db().execute(conta, (id_b, id_a)).fetchone()["n"] > 0
+    righe = _righe(
+        "SELECT venditore_id, COUNT(*) AS documenti FROM grafo_relazione "
+        "WHERE versione_dati_id = %(d)s AND ((venditore_id = %(a)s AND acquirente_id = %(b)s) "
+        "OR (venditore_id = %(b)s AND acquirente_id = %(a)s)) GROUP BY venditore_id",
+        _chiavi(a=int(a), b=int(b)),
+    )
+    venditori = {riga["venditore_id"] for riga in righe}
+    a_vende, b_vende = int(a) in venditori, int(b) in venditori
     if a_vende and b_vende:
         return f"scambi in entrambi i versi fra {descrivi(a)} e {descrivi(b)}"
     if a_vende:
@@ -305,39 +395,44 @@ def verso_relazione(a, b, descrivi=str):
     return f"nessun arco diretto fra {descrivi(a)} e {descrivi(b)}"
 
 
-def documenti_relazione(nodo_a, nodo_b):
+def documenti_relazione(soggetto_a, soggetto_b):
     """
-    Riepilogo dei documenti scambiati fra due nodi (in entrambi i versi):
+    Riepilogo dei documenti scambiati fra due soggetti (in entrambi i versi):
     numero, importo totale e documento più recente. None se non ce ne sono.
     """
-    id_a, id_b = id_fiscale_di(nodo_a), id_fiscale_di(nodo_b)
-    filtro = "(venditore = ? AND acquirente = ?) OR (venditore = ? AND acquirente = ?)"
-    parametri = (id_a, id_b, id_b, id_a)
-    riga = _db().execute(
-        f"SELECT COUNT(*) AS numero, SUM(importo) AS totale FROM relazione WHERE {filtro}", parametri
-    ).fetchone()
-    if riga["numero"] == 0:
-        return None
-    ultimo = _db().execute(
-        f"SELECT documento, data FROM relazione WHERE {filtro} ORDER BY data DESC, id DESC LIMIT 1",
+    filtro = (
+        "versione_dati_id = %(d)s AND ((venditore_id = %(a)s AND acquirente_id = %(b)s) "
+        "OR (venditore_id = %(b)s AND acquirente_id = %(a)s))"
+    )
+    parametri = _chiavi(a=int(soggetto_a), b=int(soggetto_b))
+    riepilogo = _righe(
+        f"SELECT COUNT(*) AS numero, SUM(importo) AS totale FROM grafo_relazione WHERE {filtro}",
         parametri,
-    ).fetchone()
+    )[0]
+    if not riepilogo["numero"]:
+        return None
+    ultimo = _righe(
+        f"SELECT documento, data FROM grafo_relazione WHERE {filtro} ORDER BY data DESC, id DESC LIMIT 1",
+        parametri,
+    )[0]
     return {
-        "numero": riga["numero"],
-        "totale": riga["totale"],
+        "numero": riepilogo["numero"],
+        "totale": float(riepilogo["totale"]),
         "ultimo_documento": ultimo["documento"],
-        "ultima_data": ultimo["data"],
+        "ultima_data": str(ultimo["data"]),
     }
 
 
-def punteggi_nodo(nodo):
-    """Punteggi di rischio di un nodo, uno per tipo, nell'ordine di TIPI_IRREGOLARITA."""
-    righe = _db().execute(
-        "SELECT tipo, punteggio, sopra_soglia FROM punteggio_rischio "
-        "WHERE versione_modello = ? AND id_fiscale = ?",
-        (_versione, id_fiscale_di(nodo)),
-    ).fetchall()
-    per_tipo = {riga["tipo"]: riga for riga in righe}
+def punteggi_nodo(soggetto):
+    """Punteggi di rischio di un soggetto, uno per tipo, nell'ordine di TIPI_IRREGOLARITA."""
+    per_tipo = {
+        riga["tipo"]: riga
+        for riga in _righe(
+            "SELECT tipo, punteggio, sopra_soglia FROM grafo_punteggio "
+            "WHERE esecuzione_id = %(e)s AND soggetto_id = %(s)s",
+            _chiavi(s=int(soggetto)),
+        )
+    }
     return [
         {
             "tipo": tipo,
@@ -358,57 +453,52 @@ def classifica_rischio(n=3, tipo=None, popolazione="non_ispezionate"):
     - popolazione: "non_ispezionate" (predefinito: indica dove dirigere i
       controlli), "ispezionate" oppure "tutte".
 
-    Ogni voce: posizione, nodo, tipo, punteggio, percentile, sopra_soglia, stato.
+    Ogni voce: posizione, nodo (chiave del soggetto), tipo, punteggio, percentile,
+    sopra_soglia, stato.
 
     NOTA: la loss pesata gonfia le probabilità, quindi il punteggio serve per
     ORDINARE le aziende, non va letto come probabilità reale. Per questo ogni
     voce riporta anche il percentile nella popolazione confrontata.
     """
-    righe = _db().execute(
-        """
+    filtri = ""
+    if tipo:
+        filtri += " AND p.tipo = %(tipo)s"
+    if popolazione != "tutte":
+        filtri += " AND a.ispezionata = %(ispezionata)s"
+    righe = _righe(
+        f"""
         WITH candidati AS (
-            SELECT p.id_fiscale, p.tipo, p.punteggio, p.sopra_soglia,
+            SELECT p.soggetto_id, p.tipo, p.punteggio, p.sopra_soglia,
                    ROW_NUMBER() OVER (
-                       PARTITION BY p.id_fiscale ORDER BY p.punteggio DESC
+                       PARTITION BY p.soggetto_id ORDER BY p.punteggio DESC, p.tipo
                    ) AS rango_tipo
-            FROM punteggio_rischio p
-            JOIN azienda a ON a.id_fiscale = p.id_fiscale
-            WHERE p.versione_modello = :versione
-              AND (:tipo IS NULL OR p.tipo = :tipo)
-              AND (:popolazione = 'tutte' OR a.ispezionata = :ispezionata)
+            FROM grafo_punteggio p
+            JOIN grafo_dati_soggetto a
+              ON a.soggetto_id = p.soggetto_id AND a.versione_dati_id = %(d)s
+            WHERE p.esecuzione_id = %(e)s{filtri}
         ),
         migliori AS (SELECT * FROM candidati WHERE rango_tipo = 1)
-        SELECT m.id_fiscale, m.tipo, m.punteggio, m.sopra_soglia,
-               100.0 * (SELECT COUNT(*) FROM migliori m2 WHERE m2.punteggio < m.punteggio)
-                     / (SELECT COUNT(*) FROM migliori) AS percentile
+        SELECT m.soggetto_id, m.tipo, m.punteggio, m.sopra_soglia,
+               (100.0 * (SELECT COUNT(*) FROM migliori m2 WHERE m2.punteggio < m.punteggio)
+                      / (SELECT COUNT(*) FROM migliori))::float8 AS percentile
         FROM migliori m
-        ORDER BY m.punteggio DESC, m.id_fiscale
-        LIMIT :n
+        ORDER BY m.punteggio DESC, m.soggetto_id
+        LIMIT %(n)s
         """,
+        _chiavi(tipo=tipo, ispezionata=(popolazione == "ispezionate"), n=int(n)),
+    )
+    return [
         {
-            "versione": _versione,
-            "tipo": tipo,
-            "popolazione": popolazione,
-            "ispezionata": 1 if popolazione == "ispezionate" else 0,
-            "n": int(n),
-        },
-    ).fetchall()
-
-    classifica = []
-    for posizione, riga in enumerate(righe, start=1):
-        nodo = nodi_di([riga["id_fiscale"]])[0]
-        classifica.append(
-            {
-                "posizione": posizione,
-                "nodo": nodo,
-                "tipo": riga["tipo"],
-                "punteggio": riga["punteggio"],
-                "percentile": riga["percentile"],  # quota di aziende con punteggio inferiore
-                "sopra_soglia": bool(riga["sopra_soglia"]),
-                "stato": stato_compliance(nodo),
-            }
-        )
-    return classifica
+            "posizione": posizione,
+            "nodo": riga["soggetto_id"],
+            "tipo": riga["tipo"],
+            "punteggio": riga["punteggio"],
+            "percentile": riga["percentile"],  # quota di aziende con punteggio inferiore
+            "sopra_soglia": bool(riga["sopra_soglia"]),
+            "stato": stato_compliance(riga["soggetto_id"]),
+        }
+        for posizione, riga in enumerate(righe, start=1)
+    ]
 
 
 def soggetto_principale():
@@ -417,16 +507,18 @@ def soggetto_principale():
     è il caso meglio "capito" dalla GNN, usato come esempio nel report.
     Restituisce {nodo, tipo, indice_tipo, punteggio, soglia} oppure None.
     """
-    riga = _db().execute(
-        "SELECT p.id_fiscale, p.tipo, p.punteggio FROM punteggio_rischio p "
-        "JOIN irregolarita_accertata i ON i.id_fiscale = p.id_fiscale AND i.tipo = p.tipo "
-        "WHERE p.versione_modello = ? ORDER BY p.punteggio DESC, p.id_fiscale LIMIT 1",
-        (_versione,),
-    ).fetchone()
-    if riga is None:
+    righe = _righe(
+        "SELECT p.soggetto_id, p.tipo, p.punteggio FROM grafo_punteggio p "
+        "JOIN grafo_irregolarita i ON i.soggetto_id = p.soggetto_id AND i.tipo = p.tipo "
+        "AND i.versione_dati_id = %(d)s "
+        "WHERE p.esecuzione_id = %(e)s ORDER BY p.punteggio DESC, p.soggetto_id LIMIT 1",
+        _chiavi(),
+    )
+    if not righe or righe[0]["tipo"] not in TIPI_IRREGOLARITA:
         return None
+    riga = righe[0]
     return {
-        "nodo": nodi_di([riga["id_fiscale"]])[0],
+        "nodo": riga["soggetto_id"],
         "tipo": riga["tipo"],
         "indice_tipo": TIPI_IRREGOLARITA.index(riga["tipo"]),
         "punteggio": riga["punteggio"],
@@ -434,50 +526,72 @@ def soggetto_principale():
     }
 
 
-def leggi_spiegazione(nodo, indice_tipo):
-    """Spiegazione GNNExplainer già calcolata per (nodo, tipo), oppure None."""
-    riga = _db().execute(
-        "SELECT dati_json FROM spiegazione WHERE versione_modello = ? AND id_fiscale = ? AND tipo = ?",
-        (_versione, id_fiscale_di(nodo), TIPI_IRREGOLARITA[int(indice_tipo)]),
-    ).fetchone()
-    if riga is None:
+def _normalizza_spiegazione(documento):
+    """
+    Lettura TOLLERANTE di una spiegazione: si usano i campi conosciuti, si
+    ignorano quelli in più e si dà un valore predefinito a quelli facoltativi.
+    None se il documento non è di un tipo o di una versione che si sa leggere.
+    """
+    documento = _json(documento)
+    if not contratto.documento_leggibile(documento, "spiegazione", contratto.SPIEGAZIONE_ACCETTATA):
         return None
-    risultato = json.loads(riga["dati_json"])
-    # JSON trasforma le tuple in liste: ripristiniamo la forma ((a, b), importanza)
-    risultato["relazioni"] = [
-        ((coppia[0], coppia[1]), importanza) for coppia, importanza in risultato["relazioni"]
-    ]
-    return risultato
+    if documento.get("tipo_irregolarita") not in TIPI_IRREGOLARITA or "soggetto" not in documento:
+        return None
+    return {
+        "nodo": documento["soggetto"],
+        "tipo_irregolarita": documento["tipo_irregolarita"],
+        "indice_tipo": TIPI_IRREGOLARITA.index(documento["tipo_irregolarita"]),
+        "features": [
+            {
+                "indice": feat["indice"],
+                "tipo": feat.get("tipo", ""),
+                "descrizione": feat.get("descrizione", f"Indicatore {feat['indice']}"),
+                "peso": feat.get("peso", 0.0),
+            }
+            for feat in documento.get("features", [])
+        ],
+        # JSON trasforma le tuple in liste: ripristiniamo la forma ((a, b), importanza)
+        "relazioni": [
+            ((coppia[0], coppia[1]), importanza) for coppia, importanza in documento.get("relazioni", [])
+        ],
+        "impatto_testo": documento.get("impatto_testo", 0.0),
+        "impatto_strutturati": documento.get("impatto_strutturati", 0.0),
+    }
 
 
-def tipo_gia_spiegato(nodo):
-    """Indice del tipo per cui esiste già una spiegazione del nodo, oppure None."""
-    riga = _db().execute(
-        "SELECT tipo FROM spiegazione WHERE versione_modello = ? AND id_fiscale = ? "
-        "ORDER BY calcolata_il LIMIT 1",
-        (_versione, id_fiscale_di(nodo)),
-    ).fetchone()
-    return None if riga is None else TIPI_IRREGOLARITA.index(riga["tipo"])
+def leggi_spiegazione(soggetto, indice_tipo):
+    """Spiegazione GNNExplainer già calcolata per (soggetto, tipo), oppure None."""
+    righe = _righe(
+        "SELECT dati FROM grafo_spiegazione "
+        "WHERE esecuzione_id = %(e)s AND soggetto_id = %(s)s AND tipo = %(tipo)s",
+        _chiavi(s=int(soggetto), tipo=TIPI_IRREGOLARITA[int(indice_tipo)]),
+    )
+    return _normalizza_spiegazione(righe[0]["dati"]) if righe else None
 
 
-def richiedi_spiegazione(nodo, indice_tipo):
+def tipo_gia_spiegato(soggetto):
+    """Indice del tipo per cui esiste già una spiegazione del soggetto, oppure None."""
+    righe = _righe(
+        "SELECT tipo FROM grafo_spiegazione WHERE esecuzione_id = %(e)s AND soggetto_id = %(s)s "
+        "ORDER BY calcolata_il, tipo LIMIT 1",
+        _chiavi(s=int(soggetto)),
+    )
+    if not righe or righe[0]["tipo"] not in TIPI_IRREGOLARITA:
+        return None
+    return TIPI_IRREGOLARITA.index(righe[0]["tipo"])
+
+
+def richiedi_spiegazione(soggetto, indice_tipo):
     """
     Mette in coda la richiesta di una spiegazione non ancora calcolata. È l'unica
     scrittura fatta dalla libreria: il calcolo vero resta al processo di calcolo,
     che è il solo ad avere modello e grafo.
     """
-    conn = _db()
-    with conn:
-        conn.execute(
-            "INSERT OR IGNORE INTO richiesta_spiegazione "
-            "(versione_modello, id_fiscale, tipo, richiesta_il) VALUES (?, ?, ?, ?)",
-            (
-                _versione,
-                id_fiscale_di(nodo),
-                TIPI_IRREGOLARITA[int(indice_tipo)],
-                datetime.datetime.now().isoformat(timespec="seconds"),
-            ),
-        )
+    _esegui(
+        "INSERT INTO grafo_richiesta_spiegazione (esecuzione_id, soggetto_id, tipo, richiesta_il) "
+        "VALUES (%(e)s, %(s)s, %(tipo)s, NOW()) ON CONFLICT DO NOTHING",
+        _chiavi(s=int(soggetto), tipo=TIPI_IRREGOLARITA[int(indice_tipo)]),
+    )
 
 
 # ---------------------------------------------------------------------
@@ -497,19 +611,20 @@ def _normalizza(testo):
 
 
 def elenco_societa():
-    """Tutte le società dell'esecuzione corrente: nodo, id_fiscale, nome, nr_iscrizione, chiave."""
+    """Tutte le società della fotografia dei dati in uso: nodo (chiave del soggetto),
+    id_fiscale, nome, nr_iscrizione, chiave (nome normalizzato)."""
     global _elenco_societa
     if _elenco_societa is None:
-        righe = _db().execute(
-            "SELECT n.indice_nodo, a.id_fiscale, a.nome, a.nr_iscrizione FROM nodo_azienda n "
-            "JOIN azienda a ON a.id_fiscale = n.id_fiscale "
-            "WHERE n.versione_modello = ? ORDER BY n.indice_nodo",
-            (_versione,),
-        ).fetchall()
+        righe = _righe(
+            "SELECT a.soggetto_id, a.id_fiscale, a.nome, a.nr_iscrizione, s.riferimento "
+            "FROM grafo_dati_soggetto a JOIN grafo_soggetto s ON s.id = a.soggetto_id "
+            "WHERE a.versione_dati_id = %(d)s ORDER BY a.soggetto_id",
+            _chiavi(),
+        )
         _elenco_societa = [
             {
-                "nodo": riga["indice_nodo"],
-                "id_fiscale": riga["id_fiscale"],
+                "nodo": riga["soggetto_id"],
+                "id_fiscale": riga["id_fiscale"] or riga["riferimento"],
                 "nome": riga["nome"],
                 "nr_iscrizione": riga["nr_iscrizione"],
                 "chiave": _normalizza(riga["nome"]),  # nome normalizzato, per i confronti
@@ -524,7 +639,7 @@ def etichetta(nodo):
     dati = dati_azienda(nodo)
     if dati["nr_iscrizione"]:
         return f"Società {nodo} «{dati['nome']}» (iscrizione {dati['nr_iscrizione']})"
-    return f"Società {nodo} «{dati['nome']}» ({dati['id_fiscale']})"
+    return f"Società {nodo} «{dati['nome']}» ({dati['id_fiscale'] or dati['riferimento']})"
 
 
 def nome_breve(nodo):
@@ -600,7 +715,10 @@ def cerca_indicatori(termine):
     oppure quello con il numero indicato. Restituisce (trovati, voci nel dizionario),
     dove trovati = [{"indice", "descrizione"}].
     """
-    righe = _db().execute("SELECT indice, descrizione FROM feature ORDER BY indice").fetchall()
+    righe = _righe(
+        "SELECT indice, descrizione FROM grafo_indicatore WHERE versione_dati_id = %(d)s ORDER BY indice",
+        _chiavi(),
+    )
     chiave = _normalizza(termine)
     parole = chiave.split()
     trovati = []
@@ -614,24 +732,24 @@ def cerca_indicatori(termine):
 
 
 def spiegazioni_calcolate():
-    """Tutte le spiegazioni dell'esecuzione corrente: [(nodo, spiegazione)]."""
-    righe = _db().execute(
-        "SELECT n.indice_nodo, s.dati_json FROM spiegazione s "
-        "JOIN nodo_azienda n ON n.versione_modello = s.versione_modello AND n.id_fiscale = s.id_fiscale "
-        "WHERE s.versione_modello = ? ORDER BY n.indice_nodo",
-        (_versione,),
-    ).fetchall()
-    return [(riga["indice_nodo"], json.loads(riga["dati_json"])) for riga in righe]
+    """Tutte le spiegazioni leggibili dell'esecuzione in uso: [(soggetto, spiegazione)]."""
+    righe = _righe(
+        "SELECT soggetto_id, dati FROM grafo_spiegazione WHERE esecuzione_id = %(e)s "
+        "ORDER BY soggetto_id, tipo",
+        _chiavi(),
+    )
+    lette = [(riga["soggetto_id"], _normalizza_spiegazione(riga["dati"])) for riga in righe]
+    return [(soggetto, dati) for soggetto, dati in lette if dati is not None]
 
 
 # =====================================================================
 # 2. CONTESTI (il testo che viene dato al modello di linguaggio)
 # =====================================================================
 def intestazione_dati():
-    """Dichiara a quale calcolo risalgono i punteggi."""
+    """Dichiara a quale calcolo e a quale fotografia dei dati risalgono i punteggi."""
     esecuzione = leggi_esecuzione()
     return (
-        f"Punteggi calcolati il {esecuzione['data_calcolo']} (modello {esecuzione['versione']}): "
+        f"Punteggi calcolati il {esecuzione['data_calcolo']} ({esecuzione['versione']}): "
         "documenti caricati dopo questa data non sono considerati.\n"
     )
 
@@ -1155,11 +1273,3 @@ def consulta(domanda):
         return indicatore(smistamento["termine"], nodi[0] if nodi else "")
     return MESSAGGIO_NON_SUPPORTATA
 
-
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print('Uso: python -m controlli_grafo.interrogazione "domanda"')
-        sys.exit(2)
-    apri()
-    print(consulta(" ".join(sys.argv[1:])))
-    chiudi()
