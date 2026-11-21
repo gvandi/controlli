@@ -1,6 +1,6 @@
 # Registro delle novità
 
-Versione corrente: 17
+Versione corrente: 18
 
 Elenco completo delle novità rispetto alla versione 12 (ultimo file unico di partenza).
 È l'UNICO posto in cui le novità si scrivono a mano: `aggiorna_intestazioni.py` ricopia
@@ -65,6 +65,12 @@ le voci 13-15 sono assegnate alla parte in cui quel codice si trova oggi.
 - [16] (interrogazione) consulta(domanda) e uso da riga di comando, con smistamento a parole chiave.
 - [16] (interrogazione) Rimossi chiama_llm, smista_domanda, estrai_json, valida_smistamento, interroga_graph_rag e i relativi prompt: scelta dello strumento e stesura della risposta passano alla chat (istruzioni in prompt_di_sistema.txt).
 - [17] (interrogazione) Gli strumenti vengono eseguiti uno alla volta (_in_esclusiva): con mcp 2.x le funzioni sono chiamate da thread di lavoro e la connessione al database è una sola.
+- [18] (interrogazione) L'ispettore può indicare una società per nome, anche parziale, per numero o per numero di iscrizione: nuova risolvi_societa(), con normalizza_nome() e nucleo_nome() (maiuscole, accenti, punteggiatura e forma giuridica non contano).
+- [18] (interrogazione) Un nome che corrisponde a più società, o a nessuna, non viene mai indovinato: lo strumento restituisce l'elenco dei candidati o dei nomi simili, e decide l'ispettore.
+- [18] (interrogazione) Gli strumenti relazione, spiegazione e vicinato ricevono la società come testo (nome o numero) invece che come numero intero.
+- [18] (interrogazione) Tutti i testi indicano ogni società con numero, nome e numero di iscrizione (nuova etichetta()); una nota chiede alla chat di citarli nella risposta.
+- [18] (interrogazione) I nomi si leggono dalla tabella azienda, riempita dal calcolo a partire da elenco_aziende.json: il file non viene letto durante le interrogazioni.
+- [18] (interrogazione) consulta() riconosce nella domanda anche i nomi completi delle società, nell'ordine in cui compaiono (estrai_nodi_dalla_domanda).
 
 ## server
 
