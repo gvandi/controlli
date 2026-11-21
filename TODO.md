@@ -39,29 +39,41 @@ Elenco unico delle cose da fare. Ogni passo si chiude con questo file aggiornato
 - [ ] 11. Configurazione: regole e soglie versionate, modificabili dall'interfaccia
 - [ ] Più avanti: risoluzione delle identità, controlli sui documenti, analisi di rete e GNN
 
-## Prototipo grafo (`prototipo_grafo/`, versione 18)
+## App grafo (`grafo/`, versione 19.0)
 
-- [x] Prototipo su dati simulati: GNN con punteggi per tipo di irregolarità, archivio su
-      database, libreria di interrogazione, server MCP per la chat, report e mappa
-- [x] Prova di cablaggio fra le parti (`python -m unittest prove.prova_cablaggio`, senza PyTorch)
-- [ ] Prima esecuzione completa su una macchina con PyTorch: `calcolo.py`, la mappa e
-      `server_mcp.py` non sono mai stati eseguiti (in fase di scrittura mancavano le librerie)
-- [ ] Fissare le versioni in `prototipo_grafo/requirements.txt` dopo la prima esecuzione
-- [ ] Collegare il server MCP alla chat di Unsloth Studio e misurare quante volte il modello
-      sceglie lo strumento giusto (30-50 domande con risposta attesa)
-- [ ] Ricerca delle società per nome: con i dati reali va rivista (decine di migliaia di nomi,
-      ragioni sociali simili, più identificativi per soggetto: DECISIONI.md, n. 14)
-- [ ] Ricerca per indicatore: oggi guarda solo le società con spiegazione già calcolata
+- [x] Prototipo su dati simulati: GNN con punteggi per tipo di irregolarità, libreria di
+      interrogazione, server MCP per la chat, report e mappa
+- [x] Società indicate per nome, ricerca per indicatore
+- [x] Portato nell'applicativo come app Django su PostgreSQL, con chiave interna del
+      soggetto (DECISIONI.md, n. 14) e migrazione nel repository
+- [x] Regole di compatibilità (grafo/COMPATIBILITA.md): quattro versioni, lettore
+      tollerante, documenti JSON auto-descrittivi, coesistenza di calcoli e dati
+- [ ] **Prima esecuzione della versione 19**: `migrate`, `test grafo`, `grafo_calcolo`,
+      `grafo_server_mcp`. In fase di scrittura Django e psycopg non erano disponibili:
+      le query sono state provate su PostgreSQL 16, modelli, migrazione, scrittura e
+      comandi non sono mai stati eseguiti
+- [ ] Verificare con `makemigrations grafo --check` che la migrazione scritta a mano
+      coincida con i modelli (lo fa anche la prova MigrazioniTest)
+- [ ] Fissare le versioni in `grafo/requirements-calcolo.txt`
+- [ ] Misurare quante volte il modello della chat sceglie lo strumento giusto
+      (30-50 domande con risposta attesa)
 - [ ] Decidere se le spiegazioni restano in coda o vanno calcolate al momento della domanda
-- [ ] Sostituire i dati simulati con quelli estratti dai documenti (dopo i passi 6-8)
+- [ ] Ricerca delle società per nome: con i dati reali va rivista (decine di migliaia di
+      nomi, ragioni sociali simili)
+- [ ] Ricerca per indicatore: oggi guarda solo le società con spiegazione già calcolata
+- [ ] Fondere `grafo.Soggetto` con il modello dei soggetti dell'applicativo quando arriverà
+      la gestione documentale
+- [ ] Riservatezza: le interrogazioni non applicano ancora utenti e fascicoli
+      (DECISIONI.md, n. 17-19); la chat va portata dentro l'applicativo
+- [ ] Sessioni di più analisti: le mappe non si sovrascrivono più fra soggetti diversi, ma
+      non sono ancora separate per utente
+- [ ] Funzioni in prova per pochi utenti (Feature Flags) e ambiente di prova
+- [ ] Conservazione delle fotografie dei dati: per quanto tenerle
+- [ ] Sostituire i dati simulati con quelli estratti dai documenti (dopo i passi 6-8),
+      con documenti JSON auto-descrittivi e schemi versionati nel repository
 - [ ] Etichette dai verbali ispettivi: estrazione proposta dal modello, con citazione del
       testo, e conferma dell'analista prima dell'uso in addestramento
-- [ ] Integrazione nell'applicativo: schema su modelli Django e PostgreSQL; chiave interna
-      del soggetto al posto dell'identificativo fiscale (DECISIONI.md, n. 14)
-- [ ] Riservatezza: la chat del prototipo non conosce utenti né fascicoli; prima dell'uso in
-      gruppo le interrogazioni devono rispettare la visibilità (DECISIONI.md, n. 17-19)
 - [ ] Punteggio non supervisionato su tutta la popolazione (passo 9) come feature della GNN
-
 ## Da fare sullo scheletro
 
 - [ ] Caricare la classificazione delle attività economiche dal file ufficiale

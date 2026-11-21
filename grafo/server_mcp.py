@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   server_mcp.py  -  progetto controlli_grafo, VERSIONE 18
+#   server_mcp.py  -  app grafo, VERSIONE 19.0
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: server
@@ -13,17 +13,19 @@
 #   [17] Strumenti registrati con add_tool() e trasporto stdio indicato in modo esplicito.
 #   [18] Registra anche il quinto strumento, indicatore (nessuna modifica al codice: l'elenco
 #        viene da contratto.py).
+#   [19] Si avvia con python manage.py grafo_server_mcp, che carica le impostazioni
+#        dell'applicativo.
 #
 # <<< NOVITA
 """
-SERVER MCP: espone alla chat (Unsloth Studio o qualsiasi client MCP) i quattro
+SERVER MCP: espone alla chat (Unsloth Studio o qualsiasi client MCP) i cinque
 strumenti della libreria di interrogazione.
 
 Qui non c'è logica: nomi, parametri, descrizioni e controlli degli strumenti
 stanno in interrogazione.py; l'elenco dei nomi sta in contratto.py.
 
-    pip install "mcp[cli]"
-    python -m controlli_grafo.server_mcp        (trasporto stdio; mcp 1.x o 2.x)
+    pip install "mcp[cli]"                     (versione 1 o 2)
+    python manage.py grafo_server_mcp          (trasporto stdio)
 
 Importa contratto.py e interrogazione.py.
 """
@@ -45,7 +47,9 @@ for nome in contratto.NOMI_STRUMENTI:
     server.add_tool(interrogazione.STRUMENTI[nome])
 
 
-if __name__ == "__main__":
+
+def avvia():
+    """Avvia il server sul trasporto stdio (da: python manage.py grafo_server_mcp)."""
     # Se l'archivio non combacia con il codice il server non parte: meglio un
     # errore all'avvio che risposte sbagliate in chat.
     interrogazione.apri()

@@ -1,8 +1,8 @@
 """
 Ricopia in testa a ogni file del pacchetto le novità della sua parte, lette da NOVITA.md.
 
-    python aggiorna_intestazioni.py             riscrive le intestazioni
-    python aggiorna_intestazioni.py --verifica  controlla soltanto (esce con 1 se non coincidono)
+    python grafo/aggiorna_intestazioni.py             riscrive le intestazioni
+    python grafo/aggiorna_intestazioni.py --verifica  controlla soltanto (esce con 1 se non coincidono)
 
 Le intestazioni stanno fra le righe "# >>> NOVITA" e "# <<< NOVITA" e non vanno
 modificate a mano: si modifica NOVITA.md e si rilancia questo script.
@@ -15,7 +15,7 @@ import textwrap
 
 RADICE = pathlib.Path(__file__).resolve().parent
 REGISTRO = RADICE / "NOVITA.md"
-PACCHETTO = RADICE / "controlli_grafo"
+PACCHETTO = RADICE
 
 # A quale parte del registro appartiene ogni file
 PARTE_DEL_FILE = {
@@ -54,7 +54,7 @@ def intestazione(nome_file, versione, voci_parte):
     righe = [
         INIZIO + " (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)",
         "#",
-        f"#   {nome_file}  -  progetto controlli_grafo, VERSIONE {versione}",
+        f"#   {nome_file}  -  app grafo, VERSIONE {versione}",
         "#",
         "#   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)",
         f"#   Parte del registro: {PARTE_DEL_FILE[nome_file]}",

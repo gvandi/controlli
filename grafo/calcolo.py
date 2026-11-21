@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   calcolo.py  -  progetto controlli_grafo, VERSIONE 18
+#   calcolo.py  -  app grafo, VERSIONE 19.0
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: calcolo
@@ -41,25 +41,38 @@
 #   [18] Ogni spiegazione conserva 10 indicatori invece di 3, per rendere utile la ricerca per
 #        indicatore.
 #   [18] Il messaggio per uno schema diverso dice di eliminare il file e rieseguire il calcolo.
+#   [19] scrittura.py usa i modelli Django: registra_dati_simulati(), registra_esecuzione(),
+#        salva_spiegazione(), richieste_pendenti(), esecuzione_piu_recente(),
+#        nodi_dei_soggetti().
+#   [19] Nulla viene più cancellato a ogni avvio: dati nuovi aggiungono una fotografia, dati
+#        identici riusano quella esistente (impronta), e solo il ricalcolo della stessa coppia
+#        calcolo/dati la sostituisce.
+#   [19] Le spiegazioni si salvano come documenti auto-descrittivi che nominano i soggetti con
+#        la chiave interna, non con l'indice del nodo (documento_spiegazione).
+#   [19] Un file di modello per ogni coppia calcolo/dati, nella cartella dati_grafo insieme ai
+#        file JSON in ingresso (calcolo_cartella.py).
+#   [19] Si avvia con python manage.py grafo_calcolo (--spiegazioni per la sola coda).
 #
 # <<< NOVITA
 """
 PROCESSO DI CALCOLO: l'unica parte che usa PyTorch.
 
 Costruisce il grafo, addestra la GNN, calcola i punteggi e li consegna a
-scrittura.py, che li salva nel database. Salva su file anche pesi e grafo,
-per poter calcolare in seguito le spiegazioni richieste dalle interrogazioni.
+scrittura.py, che li salva nel database dell'applicativo. Salva su file anche
+pesi e grafo, per calcolare in seguito le spiegazioni richieste dalle interrogazioni.
 
-    python -m controlli_grafo.calcolo               calcolo completo (da eseguire di notte)
-    python -m controlli_grafo.calcolo spiegazioni   calcola solo le spiegazioni in coda
+    python manage.py grafo_calcolo                 calcolo completo (da eseguire di notte)
+    python manage.py grafo_calcolo --spiegazioni   calcola solo le spiegazioni in coda
+
+Ogni calcolo scrive una coppia (versione del calcolo, fotografia dei dati) e non
+cancella le altre: vedi COMPATIBILITA.md.
 
 Importa contratto.py e scrittura.py. NON importa interrogazione, server o mappa.
 """
 
-import datetime
 import json
-import os
 import sys
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -78,7 +91,9 @@ from torch_geometric.explain import Explainer, GNNExplainer
 from torch_geometric.nn import GATConv
 from torch_geometric.utils import remove_self_loops, to_undirected
 
+
 from . import contratto, scrittura
+from .calcolo_cartella import cartella_dati
 from .contratto import DIM_STRUTTURATI, DIM_TESTO, DIM_TOTALI, NUM_TIPI, TIPI_IRREGOLARITA
 
 # Parametri della simulazione
@@ -394,61 +409,90 @@ def spiega_nodo(model, grafo, nodo, indice_tipo, dizionario_descrizioni,
         "indice_tipo": indice_tipo,
         "tipo_irregolarita": TIPI_IRREGOLARITA[indice_tipo],
         "features": features,
-        "relazioni": [[[a, b], importanza] for (a, b), importanza in relazioni],
+        "relazioni": relazioni,  # [((nodo_a, nodo_b), importanza)]
         "impatto_testo": punteggi_features[:DIM_TESTO].mean().item(),
         "impatto_strutturati": punteggi_features[DIM_TESTO:].mean().item(),
     }
 
 
-def carica_json(percorso):
-    """Legge un file JSON di supporto; dizionario vuoto (con avviso) se manca."""
-    if os.path.exists(percorso):
+# =====================================================================
+# 5. I DUE COMANDI (avviati da: python manage.py grafo_calcolo)
+# =====================================================================
+def percorso_modello(esecuzione):
+    """Un file per ogni coppia calcolo/dati: le esecuzioni non si sovrascrivono fra loro."""
+    return cartella_dati() / (
+        f"modello_calcolo-{esecuzione.versione_calcolo}_dati-{esecuzione.versione_dati.numero}.pt"
+    )
+
+
+def carica_json(nome_file):
+    """Legge un file JSON dalla cartella dei dati; dizionario vuoto (con avviso) se manca."""
+    percorso = cartella_dati() / nome_file
+    if percorso.exists():
         with open(percorso, "r", encoding="utf-8") as f:
             return json.load(f)
     print(f"Attenzione: file {percorso} non trovato, si prosegue senza.", file=sys.stderr)
     return {}
 
 
-# =====================================================================
-# 5. I DUE COMANDI
-# =====================================================================
+def documento_spiegazione(risultato, soggetti_per_nodo):
+    """
+    Trasforma l'output di spiega_nodo() nel documento da salvare: auto-descrittivo
+    (campo "schema") e con le chiavi interne dei soggetti al posto degli indici
+    di nodo, che fuori dal calcolo non significano nulla.
+    """
+    return {
+        "schema": contratto.SCHEMA_SPIEGAZIONE,
+        "soggetto": soggetti_per_nodo[risultato["nodo"]],
+        "tipo_irregolarita": risultato["tipo_irregolarita"],
+        "features": risultato["features"],
+        "relazioni": [
+            [[soggetti_per_nodo[a], soggetti_per_nodo[b]], importanza]
+            for (a, b), importanza in risultato["relazioni"]
+        ],
+        "impatto_testo": risultato["impatto_testo"],
+        "impatto_strutturati": risultato["impatto_strutturati"],
+    }
+
+
 def esegui_calcolo():
-    """Calcolo completo: grafo, addestramento, punteggi, archivio, spiegazioni iniziali."""
+    """Calcolo completo: dati, addestramento, punteggi, archivio, spiegazioni iniziali."""
     # Seed per la riproducibilità della simulazione
     torch.manual_seed(42)
     np.random.seed(42)
 
     grafo, archi_orientati = costruisci_grafo_simulato()
-    model, soglie, metriche_test = addestra(grafo)
-    mappa_rischi = calcola_mappa_rischi(model, grafo)
 
-    versione = "sim-" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-
-    # --- Consegna all'archivio (scrittura.py non conosce PyTorch: riceve liste) ---
-    conn = scrittura.apri_in_scrittura()
-    scrittura.salva_dati_simulati(
-        conn,
+    # --- Fotografia dei dati in ingresso (scrittura.py non conosce PyTorch: riceve liste) ---
+    # Dati identici a una fotografia esistente non ne creano una nuova.
+    dizionario_descrizioni = carica_json("dizionario_descrizioni.json")
+    versione_dati, soggetti_per_nodo = scrittura.registra_dati_simulati(
         archi_orientati.tolist(),
         grafo.ha_etichetta.tolist(),
         grafo.y.tolist(),
         carica_json("elenco_aziende.json"),
+        dizionario_descrizioni,
     )
-    scrittura.salva_esecuzione(conn, versione, mappa_rischi.tolist(), soglie, metriche_test)
-    # Descrizioni degli indicatori: servono alle interrogazioni per la ricerca per parola
-    dizionario_descrizioni = carica_json("dizionario_descrizioni.json")
-    scrittura.salva_dizionario_indicatori(conn, dizionario_descrizioni)
 
-    # --- Pesi e grafo su file: servono al comando "spiegazioni" ---
+    model, soglie, metriche_test = addestra(grafo)
+    mappa_rischi = calcola_mappa_rischi(model, grafo)
+
+    # --- Risultati: coppia (versione del calcolo, fotografia dei dati) ---
+    esecuzione = scrittura.registra_esecuzione(
+        versione_dati, soggetti_per_nodo, mappa_rischi.tolist(), soglie, metriche_test
+    )
+
+    # --- Pesi e grafo su file: servono per calcolare in seguito le spiegazioni in coda ---
     torch.save(
         {
-            "versione": versione,
+            "esecuzione_id": esecuzione.id,
             "stato_modello": model.state_dict(),
             "x": grafo.x,
             "edge_index": grafo.edge_index,
         },
-        contratto.percorso_modello(),
+        percorso_modello(esecuzione),
     )
-    print(f"\nPunteggi salvati in {contratto.percorso_db()} (esecuzione {versione})")
+    print(f"\nPunteggi salvati: {esecuzione} (codice {contratto.VERSIONE_CODICE})")
 
     # --- Spiegazioni calcolate subito ---
     # 1) l'irregolarità accertata con il punteggio più alto (esempio del report)
@@ -462,46 +506,39 @@ def esegui_calcolo():
         da_spiegare.append((nodo, tipi_massimi[nodo].item()))
 
     for nodo, indice_tipo in da_spiegare:
-        print(f"Spiegazione: società {nodo}, {TIPI_IRREGOLARITA[indice_tipo]}")
-        scrittura.salva_spiegazione(
-            conn, versione, spiega_nodo(model, grafo, nodo, indice_tipo, dizionario_descrizioni)
-        )
-    conn.close()
+        print(f"Spiegazione: società {soggetti_per_nodo[nodo]}, {TIPI_IRREGOLARITA[indice_tipo]}")
+        risultato = spiega_nodo(model, grafo, nodo, indice_tipo, dizionario_descrizioni)
+        scrittura.salva_spiegazione(esecuzione, documento_spiegazione(risultato, soggetti_per_nodo))
+    return esecuzione
 
 
 def elabora_richieste():
     """Calcola le spiegazioni messe in coda dalle interrogazioni, senza riaddestrare."""
-    if not os.path.exists(contratto.percorso_modello()):
-        sys.exit("File del modello non trovato: esegui prima il calcolo completo.")
-    salvato = torch.load(contratto.percorso_modello())
-
-    conn = scrittura.apri_in_scrittura()
-    versione = scrittura.ultima_esecuzione(conn)
+    esecuzione = scrittura.esecuzione_piu_recente()
+    if esecuzione is None:
+        sys.exit(f"Nessuna esecuzione del calcolo {contratto.VERSIONE_CALCOLO}: eseguire prima il calcolo completo.")
+    percorso = percorso_modello(esecuzione)
+    if not percorso.exists():
+        sys.exit(f"File del modello non trovato ({percorso}): eseguire prima il calcolo completo.")
+    salvato = torch.load(percorso)
     # Il file del modello e i punteggi nell'archivio devono venire dalla stessa esecuzione
-    if salvato["versione"] != versione:
-        conn.close()
-        sys.exit(
-            f"Il modello su file è dell'esecuzione {salvato['versione']}, l'archivio è "
-            f"all'esecuzione {versione}: riesegui il calcolo completo."
-        )
+    if salvato["esecuzione_id"] != esecuzione.id:
+        sys.exit(f"Il modello su file non appartiene all'esecuzione {esecuzione}: rieseguire il calcolo completo.")
 
     model = ComplianceGAT()
     model.load_state_dict(salvato["stato_modello"])
     grafo = Data(x=salvato["x"], edge_index=salvato["edge_index"])
 
-    richieste = scrittura.richieste_pendenti(conn, versione)
-    print(f"Spiegazioni in coda: {len(richieste)}")
+    nodo_del_soggetto = scrittura.nodi_dei_soggetti(esecuzione)
+    soggetti_per_nodo = [None] * len(nodo_del_soggetto)
+    for soggetto, nodo in nodo_del_soggetto.items():
+        soggetti_per_nodo[nodo] = soggetto
+
+    richieste = scrittura.richieste_pendenti(esecuzione)
+    print(f"Esecuzione: {esecuzione}. Spiegazioni in coda: {len(richieste)}")
     dizionario_descrizioni = carica_json("dizionario_descrizioni.json")
-    for nodo, indice_tipo in richieste:
-        print(f"Spiegazione: società {nodo}, {TIPI_IRREGOLARITA[indice_tipo]}")
-        scrittura.salva_spiegazione(
-            conn, versione, spiega_nodo(model, grafo, nodo, indice_tipo, dizionario_descrizioni)
-        )
-    conn.close()
-
-
-if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] == "spiegazioni":
-        elabora_richieste()
-    else:
-        esegui_calcolo()
+    for soggetto, indice_tipo in richieste:
+        print(f"Spiegazione: società {soggetto}, {TIPI_IRREGOLARITA[indice_tipo]}")
+        risultato = spiega_nodo(model, grafo, nodo_del_soggetto[soggetto], indice_tipo, dizionario_descrizioni)
+        scrittura.salva_spiegazione(esecuzione, documento_spiegazione(risultato, soggetti_per_nodo))
+    return len(richieste)

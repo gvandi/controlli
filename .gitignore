@@ -14,10 +14,9 @@ venv/
 staticfiles/
 *.sqlite3
 
-# Prototipo grafo: archivio, modello e mappa si rigenerano con il calcolo
-*.sqlite
+# App grafo: file JSON in ingresso, modelli salvati e mappe generate
+dati_grafo/
 *.pt
-mappa_investigativa.html
 
 # Editor e sistema
 .idea/

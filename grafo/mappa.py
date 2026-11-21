@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   mappa.py  -  progetto controlli_grafo, VERSIONE 18
+#   mappa.py  -  app grafo, VERSIONE 19.0
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: mappa
@@ -20,28 +20,29 @@
 #        dichiara la data dei punteggi.
 #   [16] Se la spiegazione del soggetto manca, il report lo segnala e la mette in coda.
 #   [18] Il report mostra i primi 3 indicatori dei 10 ora conservati in ogni spiegazione.
+#   [19] Il file della mappa porta nel nome soggetto e coppia calcolo/dati e viene scritto in
+#        dati_grafo: mappe diverse non si sovrascrivono.
+#   [19] Si può scegliere il soggetto: python manage.py grafo_mappa --soggetto "nome o numero".
 #
 # <<< NOVITA
 """
-REPORT E MAPPA INVESTIGATIVA: produce mappa_investigativa.html.
+REPORT E MAPPA INVESTIGATIVA di un soggetto, in un file HTML.
 
 È un secondo utilizzatore della libreria di interrogazione, come il server MCP:
 legge solo dal database, non usa PyTorch e non ricalcola nulla.
 
-    python -m controlli_grafo.mappa
+    python manage.py grafo_mappa                  soggetto con l'irregolarità accertata più evidente
+    python manage.py grafo_mappa --soggetto 12    un soggetto a scelta
 
 Importa contratto.py e interrogazione.py.
 """
 
 import html
 import re
-
-import networkx as nx
+from pathlib import Path
 
 from . import interrogazione
-from .contratto import DIM_TOTALI
-
-NOME_FILE_MAPPA = "mappa_investigativa.html"
+from .contratto import DIM_TOTALI, TIPI_IRREGOLARITA
 
 SCRIPT_TOGGLE = """
 <script>
@@ -79,13 +80,27 @@ def genera_nodi_interattivi_html(lista_nodi):
     return ", ".join(elementi_html)
 
 
-def costruisci_report():
+def _soggetto_da_analizzare(soggetto=None):
+    """Il soggetto indicato (sul suo tipo più rischioso), oppure quello principale."""
+    if soggetto is None:
+        return interrogazione.soggetto_principale()
+    migliore = max(interrogazione.punteggi_nodo(soggetto), key=lambda voce: voce["punteggio"])
+    return {
+        "nodo": int(soggetto),
+        "tipo": migliore["tipo"],
+        "indice_tipo": TIPI_IRREGOLARITA.index(migliore["tipo"]),
+        "punteggio": migliore["punteggio"],
+        "soglia": interrogazione.leggi_esecuzione()["soglie"][migliore["tipo"]],
+    }
+
+
+def costruisci_report(soggetto=None):
     """
     Compone il report HTML sul soggetto principale. Restituisce (report_html, bolla)
     dove bolla = {"target", "vicini_1", "vicini_2"} serve a disegnare la mappa.
     Restituisce (messaggio, None) se nell'archivio non c'è nessuna irregolarità accertata.
     """
-    soggetto = interrogazione.soggetto_principale()
+    soggetto = _soggetto_da_analizzare(soggetto)
     if soggetto is None:
         return "<p>Nessuna irregolarità accertata nell'archivio: nessun soggetto da analizzare.</p>", None
 
@@ -173,9 +188,10 @@ def costruisci_report():
     return report, {"target": nodo_target, "vicini_1": vicini_1, "vicini_2": vicini_2}
 
 
-def scrivi_mappa(report_html, bolla, nome_file=NOME_FILE_MAPPA):
+def scrivi_mappa(report_html, bolla, nome_file):
     """Disegna la bolla di influenza con PyVis e vi affianca il report."""
-    from pyvis.network import Network  # serve solo qui
+    import networkx as nx  # servono solo qui
+    from pyvis.network import Network
 
     nodo_target = bolla["target"]
     set_1hop, set_2hop = set(bolla["vicini_1"]), set(bolla["vicini_2"])
@@ -270,11 +286,19 @@ def scrivi_mappa(report_html, bolla, nome_file=NOME_FILE_MAPPA):
     return nome_file
 
 
-if __name__ == "__main__":
-    interrogazione.apri()
-    report, bolla = costruisci_report()
+
+def genera(cartella, soggetto=None):
+    """
+    Scrive la mappa di un soggetto e restituisce il percorso del file, oppure None
+    se non c'è nulla da analizzare. Il nome del file contiene soggetto e coppia
+    calcolo/dati: mappe diverse non si sovrascrivono fra loro.
+    """
+    report, bolla = costruisci_report(soggetto)
     if bolla is None:
-        print("Nessuna irregolarità accertata nell'archivio: mappa non generata.")
-    else:
-        print(f"Mappa scritta in {scrivi_mappa(report, bolla)}")
-    interrogazione.chiudi()
+        return None
+    esecuzione = interrogazione.leggi_esecuzione()
+    nome = (
+        f"mappa_soggetto-{bolla['target']}_calcolo-{esecuzione['versione_calcolo']}"
+        f"_dati-{esecuzione['numero_dati']}.html"
+    )
+    return scrivi_mappa(report, bolla, str(Path(cartella) / nome))
