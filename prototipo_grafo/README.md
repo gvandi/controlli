@@ -1,4 +1,4 @@
-# controlli_grafo - versione 17
+# controlli_grafo - versione 18
 
 Componente grafo del progetto controlli UAE: una GNN assegna a ogni azienda un punteggio
 di rischio per tipo di irregolarità; i risultati si interrogano da una chat.
@@ -21,7 +21,7 @@ calcolo.py + scrittura.py  -->  database  <--  interrogazione.py  <--  server_mc
 | `controlli_grafo/contratto.py` | contratto | Tassonomia, valori ammessi, schema del database, versioni | nessuna |
 | `controlli_grafo/calcolo.py` | calcolo | Grafo, addestramento, punteggi, GNNExplainer | torch, torch_geometric, scikit-learn |
 | `controlli_grafo/scrittura.py` | calcolo | Scrive nel database ciò che il calcolo produce | nessuna |
-| `controlli_grafo/interrogazione.py` | interrogazione | Query, testi di contesto, quattro strumenti | nessuna |
+| `controlli_grafo/interrogazione.py` | interrogazione | Query, testi di contesto, cinque strumenti | nessuna |
 | `controlli_grafo/server_mcp.py` | server | Espone gli strumenti alla chat | mcp |
 | `controlli_grafo/mappa.py` | mappa | Report e mappa investigativa in HTML | networkx, pyvis |
 
@@ -40,6 +40,8 @@ server o prove può installare le sole righe corrispondenti del file.
 python -m controlli_grafo.calcolo                  calcolo completo: scrive database e modello
 python -m controlli_grafo.calcolo spiegazioni      calcola le spiegazioni in coda
 python -m controlli_grafo.interrogazione "Quali sono le 3 aziende più rischiose?"
+python -m controlli_grafo.interrogazione "Con chi commercia la Rossi Costruzioni?"
+python -m controlli_grafo.interrogazione "Quali aziende hanno l'indicatore sui paesi offshore?"
 python -m controlli_grafo.mappa                    scrive mappa_investigativa.html
 python -m controlli_grafo.server_mcp               avvia il server per la chat
 python -m unittest prove.prova_cablaggio -v        prova di cablaggio (senza PyTorch)
@@ -49,6 +51,18 @@ python aggiorna_intestazioni.py                    ricopia le novità in testa a
 File prodotti nella cartella di lavoro: `controlli_grafo.sqlite`, `modello_grafo.pt`,
 `mappa_investigativa.html`. I primi due si spostano con le variabili d'ambiente
 `CONTROLLI_DB` e `CONTROLLI_MODELLO`.
+
+## Nomi delle società e descrizioni degli indicatori
+
+I file `elenco_aziende.json` e `dizionario_descrizioni.json` vanno nella cartella
+`prototipo_grafo` **prima** del calcolo: `calcolo.py` li carica nel database (tabelle
+`azienda` e `feature`) e da lì li leggono le interrogazioni. Dopo averli modificati va
+rieseguito il calcolo. Senza i file il prototipo funziona con nomi generici
+("Azienda simulata 12") e senza ricerca per indicatore.
+
+Nelle domande una società si indica per nome, anche parziale, per numero di iscrizione o
+per numero. Un nome che corrisponde a più società non viene indovinato: la risposta le
+elenca e chiede quale.
 
 ## Collegare la chat (Unsloth Studio)
 

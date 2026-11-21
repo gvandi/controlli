@@ -1,6 +1,6 @@
 # Registro delle novità
 
-Versione corrente: 17
+Versione corrente: 18
 
 Elenco completo delle novità rispetto alla versione 12 (ultimo file unico di partenza).
 È l'UNICO posto in cui le novità si scrivono a mano: `aggiorna_intestazioni.py` ricopia
@@ -23,6 +23,8 @@ le voci 13-15 sono assegnate alla parte in cui quel codice si trova oggi.
 - [16] (contratto) Eccezione ArchivioIncompatibile e forma documentata della spiegazione.
 - [16] (contratto) Percorsi dei file modificabili con le variabili d'ambiente CONTROLLI_DB e CONTROLLI_MODELLO.
 - [17] (contratto) connetti() apre la connessione con check_same_thread=False, perché il server esegue gli strumenti in un thread diverso da quello che ha aperto l'archivio.
+- [18] (contratto) Nuova tabella feature con le descrizioni degli indicatori (da dizionario_descrizioni.json); VERSIONE_SCHEMA passa a 3: l'archivio va ricreato rieseguendo il calcolo.
+- [18] (contratto) Nuovo strumento indicatore in NOMI_STRUMENTI; nuove costanti FEATURES_PER_SPIEGAZIONE (10) e FEATURES_NEL_CONTESTO (5).
 
 ## calcolo
 
@@ -43,6 +45,9 @@ le voci 13-15 sono assegnate alla parte in cui quel codice si trova oggi.
 - [16] (calcolo) Nuovo comando "spiegazioni" (elabora_richieste): calcola le spiegazioni in coda senza riaddestrare, e si rifiuta se modello su file e archivio sono di esecuzioni diverse.
 - [16] (calcolo) apri_in_scrittura() controlla la versione dello schema e rifiuta gli archivi creati da versioni precedenti.
 - [16] (calcolo) Non contiene più report, mappa né domande di esempio; non usa più il generatore casuale di numpy per date e importi (ora random.Random).
+- [18] (calcolo) Il dizionario delle descrizioni viene caricato nel database (salva_dizionario_indicatori) a ogni calcolo.
+- [18] (calcolo) Ogni spiegazione conserva 10 indicatori invece di 3, per rendere utile la ricerca per indicatore.
+- [18] (calcolo) Il messaggio per uno schema diverso dice di eliminare il file e rieseguire il calcolo.
 
 ## interrogazione
 
@@ -65,6 +70,12 @@ le voci 13-15 sono assegnate alla parte in cui quel codice si trova oggi.
 - [16] (interrogazione) consulta(domanda) e uso da riga di comando, con smistamento a parole chiave.
 - [16] (interrogazione) Rimossi chiama_llm, smista_domanda, estrai_json, valida_smistamento, interroga_graph_rag e i relativi prompt: scelta dello strumento e stesura della risposta passano alla chat (istruzioni in prompt_di_sistema.txt).
 - [17] (interrogazione) Gli strumenti vengono eseguiti uno alla volta (_in_esclusiva): con mcp 2.x le funzioni sono chiamate da thread di lavoro e la connessione al database è una sola.
+- [18] (interrogazione) Le società si indicano anche per nome, anche parziale, numero di iscrizione o identificativo fiscale (risolvi_societa, elenco_societa): maiuscole, accenti e punteggiatura non contano.
+- [18] (interrogazione) Un nome che corrisponde a più società non viene indovinato: lo strumento le elenca e chiede quale; per un nome sconosciuto propone i più simili.
+- [18] (interrogazione) Tutti i testi riportano nome e numero di iscrizione accanto al numero della società (etichetta, nome_breve); verso_relazione() può nominare le società per nome.
+- [18] (interrogazione) Nuovo strumento indicatore(termine, societa): cerca gli indicatori per parola della descrizione (cerca_indicatori) e dice per quali società pesano di più (contesto_indicatore), fra le spiegazioni già calcolate.
+- [18] (interrogazione) consulta() riconosce nella domanda i nomi delle società e la ricerca di un indicatore; gli strumenti accettano per la società sia un numero sia un testo.
+- [18] (interrogazione) Nei testi le features si chiamano indicatori; il contesto ne riporta i primi 5.
 
 ## server
 
@@ -72,6 +83,7 @@ le voci 13-15 sono assegnate alla parte in cui quel codice si trova oggi.
 - [16] (server) All'avvio apre l'archivio: se non combacia con il codice il server non parte.
 - [17] (server) Compatibile con la libreria mcp 1.x (FastMCP) e 2.x (MCPServer): con la 2.x la versione 16 non partiva (ModuleNotFoundError).
 - [17] (server) Strumenti registrati con add_tool() e trasporto stdio indicato in modo esplicito.
+- [18] (server) Registra anche il quinto strumento, indicatore (nessuna modifica al codice: l'elenco viene da contratto.py).
 
 ## mappa
 
@@ -85,3 +97,4 @@ le voci 13-15 sono assegnate alla parte in cui quel codice si trova oggi.
 - [16] (mappa) Nomi delle aziende letti dalla tabella azienda (prima: da elenco_aziende.json); vicinato a 1 e 2 passi calcolato con le query.
 - [16] (mappa) Il tooltip degli archi riporta verso commerciale e documenti scambiati; il report dichiara la data dei punteggi.
 - [16] (mappa) Se la spiegazione del soggetto manca, il report lo segnala e la mette in coda.
+- [18] (mappa) Il report mostra i primi 3 indicatori dei 10 ora conservati in ogni spiegazione.

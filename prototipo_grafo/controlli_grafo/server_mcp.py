@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   server_mcp.py  -  progetto controlli_grafo, VERSIONE 17
+#   server_mcp.py  -  progetto controlli_grafo, VERSIONE 18
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: server
@@ -11,6 +11,8 @@
 #   [17] Compatibile con la libreria mcp 1.x (FastMCP) e 2.x (MCPServer): con la 2.x la versione
 #        16 non partiva (ModuleNotFoundError).
 #   [17] Strumenti registrati con add_tool() e trasporto stdio indicato in modo esplicito.
+#   [18] Registra anche il quinto strumento, indicatore (nessuna modifica al codice: l'elenco
+#        viene da contratto.py).
 #
 # <<< NOVITA
 """

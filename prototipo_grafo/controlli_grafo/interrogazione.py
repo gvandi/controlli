@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   interrogazione.py  -  progetto controlli_grafo, VERSIONE 17
+#   interrogazione.py  -  progetto controlli_grafo, VERSIONE 18
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: interrogazione
@@ -42,6 +42,19 @@
 #        risposta passano alla chat (istruzioni in prompt_di_sistema.txt).
 #   [17] Gli strumenti vengono eseguiti uno alla volta (_in_esclusiva): con mcp 2.x le funzioni
 #        sono chiamate da thread di lavoro e la connessione al database è una sola.
+#   [18] Le società si indicano anche per nome, anche parziale, numero di iscrizione o
+#        identificativo fiscale (risolvi_societa, elenco_societa): maiuscole, accenti e
+#        punteggiatura non contano.
+#   [18] Un nome che corrisponde a più società non viene indovinato: lo strumento le elenca e
+#        chiede quale; per un nome sconosciuto propone i più simili.
+#   [18] Tutti i testi riportano nome e numero di iscrizione accanto al numero della società
+#        (etichetta, nome_breve); verso_relazione() può nominare le società per nome.
+#   [18] Nuovo strumento indicatore(termine, societa): cerca gli indicatori per parola della
+#        descrizione (cerca_indicatori) e dice per quali società pesano di più
+#        (contesto_indicatore), fra le spiegazioni già calcolate.
+#   [18] consulta() riconosce nella domanda i nomi delle società e la ricerca di un indicatore;
+#        gli strumenti accettano per la società sia un numero sia un testo.
+#   [18] Nei testi le features si chiamano indicatori; il contesto ne riporta i primi 5.
 #
 # <<< NOVITA
 """
@@ -51,18 +64,21 @@ leggendo il database. Non usa PyTorch, non conosce modello né grafo.
 Tre livelli, dal basso verso l'alto:
   1. LETTURE      una funzione = una query (classifica_rischio, vicini_diretti, ...)
   2. CONTESTI     compongono il testo da dare al modello di linguaggio
-  3. STRUMENTI    le quattro funzioni esposte alla chat, con controllo dei parametri
+  3. STRUMENTI    le cinque funzioni esposte alla chat, con controllo dei parametri
 
 Importa solo contratto.py. Prova dalla riga di comando, senza chat:
     python -m controlli_grafo.interrogazione "Quali sono le 3 aziende più rischiose?"
 """
 
 import datetime
+import difflib
 import functools
 import json
 import re
 import sys
 import threading
+import unicodedata
+from typing import Union
 
 from . import contratto
 from .contratto import DESCRIZIONE_POPOLAZIONE, POPOLAZIONI, TIPI_IRREGOLARITA
@@ -128,10 +144,10 @@ def apri(percorso=None):
 
 
 def chiudi():
-    global _conn, _versione
+    global _conn, _versione, _elenco_societa
     if _conn is not None:
         _conn.close()
-    _conn, _versione = None, None
+    _conn, _versione, _elenco_societa = None, None, None
 
 
 def _db():
@@ -271,19 +287,22 @@ def relazioni_fra(nodi):
     return coppie
 
 
-def verso_relazione(a, b):
-    """Verso commerciale reale fra due nodi (chi vende a chi)."""
+def verso_relazione(a, b, descrivi=str):
+    """
+    Verso commerciale reale fra due nodi (chi vende a chi). 'descrivi' sceglie come
+    nominare i nodi: il solo numero (predefinito) oppure nome_breve.
+    """
     id_a, id_b = id_fiscale_di(a), id_fiscale_di(b)
     conta = "SELECT COUNT(*) AS n FROM relazione WHERE venditore = ? AND acquirente = ?"
     a_vende = _db().execute(conta, (id_a, id_b)).fetchone()["n"] > 0
     b_vende = _db().execute(conta, (id_b, id_a)).fetchone()["n"] > 0
     if a_vende and b_vende:
-        return f"scambi in entrambi i versi fra {a} e {b}"
+        return f"scambi in entrambi i versi fra {descrivi(a)} e {descrivi(b)}"
     if a_vende:
-        return f"{a} vende a {b}"
+        return f"{descrivi(a)} vende a {descrivi(b)}"
     if b_vende:
-        return f"{b} vende a {a}"
-    return f"nessun arco diretto fra {a} e {b}"
+        return f"{descrivi(b)} vende a {descrivi(a)}"
+    return f"nessun arco diretto fra {descrivi(a)} e {descrivi(b)}"
 
 
 def documenti_relazione(nodo_a, nodo_b):
@@ -461,6 +480,150 @@ def richiedi_spiegazione(nodo, indice_tipo):
         )
 
 
+# ---------------------------------------------------------------------
+# Riconoscimento di società e indicatori a partire dalle parole dell'ispettore
+# ---------------------------------------------------------------------
+# I nomi delle società e le descrizioni degli indicatori arrivano dai file
+# elenco_aziende.json e dizionario_descrizioni.json, che il processo di calcolo
+# carica nelle tabelle azienda e feature: la libreria li legge da lì.
+_elenco_societa = None  # memoria dell'elenco, svuotata a ogni apri()/chiudi()
+
+
+def _normalizza(testo):
+    """Minuscole, senza accenti né punteggiatura: 'L'Oro S.r.l.' -> 'l oro s r l'."""
+    testo = unicodedata.normalize("NFKD", str(testo).lower())
+    testo = "".join(c for c in testo if not unicodedata.combining(c))
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", testo).split())
+
+
+def elenco_societa():
+    """Tutte le società dell'esecuzione corrente: nodo, id_fiscale, nome, nr_iscrizione, chiave."""
+    global _elenco_societa
+    if _elenco_societa is None:
+        righe = _db().execute(
+            "SELECT n.indice_nodo, a.id_fiscale, a.nome, a.nr_iscrizione FROM nodo_azienda n "
+            "JOIN azienda a ON a.id_fiscale = n.id_fiscale "
+            "WHERE n.versione_modello = ? ORDER BY n.indice_nodo",
+            (_versione,),
+        ).fetchall()
+        _elenco_societa = [
+            {
+                "nodo": riga["indice_nodo"],
+                "id_fiscale": riga["id_fiscale"],
+                "nome": riga["nome"],
+                "nr_iscrizione": riga["nr_iscrizione"],
+                "chiave": _normalizza(riga["nome"]),  # nome normalizzato, per i confronti
+            }
+            for riga in righe
+        ]
+    return _elenco_societa
+
+
+def etichetta(nodo):
+    """Come si nomina una società nei testi: numero, nome e numero di iscrizione."""
+    dati = dati_azienda(nodo)
+    if dati["nr_iscrizione"]:
+        return f"Società {nodo} «{dati['nome']}» (iscrizione {dati['nr_iscrizione']})"
+    return f"Società {nodo} «{dati['nome']}» ({dati['id_fiscale']})"
+
+
+def nome_breve(nodo):
+    """Forma corta per le frasi sulle relazioni: nome e numero."""
+    return f"{dati_azienda(nodo)['nome']} (n. {nodo})"
+
+
+def _elenca(societa, massimo=8):
+    righe = [f"  - {etichetta(s['nodo'])}" for s in societa[:massimo]]
+    if len(societa) > massimo:
+        righe.append(f"  - ... e altre {len(societa) - massimo}")
+    return "\n".join(righe)
+
+
+def risolvi_societa(riferimento):
+    """
+    Riconosce una società da ciò che ha scritto l'ispettore: numero ("12",
+    "società 12"), identificativo fiscale, numero di iscrizione oppure nome,
+    anche parziale. Restituisce (nodo, None) oppure (None, messaggio).
+
+    Non tira mai a indovinare: se il nome corrisponde a più società le elenca
+    e chiede quale; se non corrisponde a nessuna propone i nomi più simili.
+    """
+    testo = str(riferimento).strip()
+    if not testo:
+        return None, "Indicare una società, per nome o per numero."
+    societa = elenco_societa()
+
+    # 1. Numero identificativo
+    numero = re.fullmatch(
+        r"(?:(?:societ[àa]|nodo|azienda|soggetto|impresa|n\.?)\s*)?#?\s*(\d+)", testo, flags=re.IGNORECASE
+    )
+    if numero and esiste(int(numero.group(1))):
+        return int(numero.group(1)), None
+
+    # 2. Identificativo fiscale o numero di iscrizione, scritti per intero
+    chiave = _normalizza(testo)
+    per_codice = [
+        s for s in societa
+        if chiave and chiave in (_normalizza(s["id_fiscale"]), _normalizza(s["nr_iscrizione"] or ""))
+    ]
+    if len(per_codice) == 1:
+        return per_codice[0]["nodo"], None
+    if numero and not per_codice:
+        return None, f"La società {int(numero.group(1))} non è presente nell'archivio."
+
+    # 3. Nome: uguale, poi tutte le parole presenti, poi parte del nome
+    parole = chiave.split()
+    candidati = [s for s in societa if s["chiave"] == chiave]
+    if not candidati:
+        candidati = [s for s in societa if parole and all(p in s["chiave"].split() for p in parole)]
+    if not candidati:
+        candidati = [s for s in societa if chiave and chiave in s["chiave"]]
+    if len(candidati) == 1:
+        return candidati[0]["nodo"], None
+    if candidati:
+        return None, (
+            f"Il nome '{testo}' corrisponde a {len(candidati)} società: chiedere all'ispettore quale intende.\n"
+            + _elenca(candidati)
+        )
+
+    # 4. Nessuna corrispondenza: si propongono i nomi più simili
+    simili = difflib.get_close_matches(chiave, [s["chiave"] for s in societa], n=5, cutoff=0.6)
+    messaggio = f"Nessuna società trovata con il nome '{testo}'."
+    if simili:
+        messaggio += " Nomi simili:\n" + _elenca([s for s in societa if s["chiave"] in simili])
+    return None, messaggio
+
+
+def cerca_indicatori(termine):
+    """
+    Indicatori (features) la cui descrizione contiene tutte le parole del termine,
+    oppure quello con il numero indicato. Restituisce (trovati, voci nel dizionario),
+    dove trovati = [{"indice", "descrizione"}].
+    """
+    righe = _db().execute("SELECT indice, descrizione FROM feature ORDER BY indice").fetchall()
+    chiave = _normalizza(termine)
+    parole = chiave.split()
+    trovati = []
+    for riga in righe:
+        descrizione = _normalizza(riga["descrizione"])
+        if (chiave.isdigit() and int(chiave) == riga["indice"]) or (
+            parole and not chiave.isdigit() and all(p in descrizione for p in parole)
+        ):
+            trovati.append({"indice": riga["indice"], "descrizione": riga["descrizione"]})
+    return trovati, len(righe)
+
+
+def spiegazioni_calcolate():
+    """Tutte le spiegazioni dell'esecuzione corrente: [(nodo, spiegazione)]."""
+    righe = _db().execute(
+        "SELECT n.indice_nodo, s.dati_json FROM spiegazione s "
+        "JOIN nodo_azienda n ON n.versione_modello = s.versione_modello AND n.id_fiscale = s.id_fiscale "
+        "WHERE s.versione_modello = ? ORDER BY n.indice_nodo",
+        (_versione,),
+    ).fetchall()
+    return [(riga["indice_nodo"], json.loads(riga["dati_json"])) for riga in righe]
+
+
 # =====================================================================
 # 2. CONTESTI (il testo che viene dato al modello di linguaggio)
 # =====================================================================
@@ -508,19 +671,19 @@ def tipo_da_spiegare(nodo, tipo_richiesto=None):
 def formatta_indicatori(indicatori):
     """Trasforma l'output reale di GNNExplainer in testo."""
     testo = (
-        f"Spiegazione GNNExplainer per la Società {indicatori['nodo']}, "
+        f"Spiegazione GNNExplainer per {etichetta(indicatori['nodo'])}, "
         f"irregolarità '{indicatori['tipo_irregolarita']}'.\n"
-        "Features più influenti:\n"
+        "Indicatori più influenti:\n"
     )
-    for feat in indicatori["features"]:
+    for feat in indicatori["features"][: contratto.FEATURES_NEL_CONTESTO]:
         testo += (
-            f"  - Feature #{feat['indice']} [{feat['tipo']}] {feat['descrizione']} "
+            f"  - Indicatore #{feat['indice']} [{feat['tipo']}] {feat['descrizione']} "
             f"| peso {feat['peso']*100:.2f}%\n"
         )
     testo += "Relazioni più influenti:\n"
     if indicatori["relazioni"]:
         for (a, b), importanza in indicatori["relazioni"]:
-            testo += f"  - {verso_relazione(a, b)} | impatto {importanza*100:.2f}%\n"
+            testo += f"  - {verso_relazione(a, b, nome_breve)} | impatto {importanza*100:.2f}%\n"
     else:
         testo += "  - nessuna relazione sopra la soglia di rilevanza\n"
     return testo
@@ -536,7 +699,7 @@ def indicatori_o_richiesta(nodo, indice_tipo):
         return formatta_indicatori(indicatori)
     richiedi_spiegazione(nodo, indice_tipo)
     return (
-        f"Spiegazione GNNExplainer NON ancora calcolata per la Società {nodo}, irregolarità "
+        f"Spiegazione GNNExplainer NON ancora calcolata per {etichetta(nodo)}, irregolarità "
         f"'{TIPI_IRREGOLARITA[indice_tipo]}'. La richiesta è stata registrata e sarà elaborata dal "
         "processo di calcolo: per ora sono disponibili solo i punteggi, non le cause.\n"
     )
@@ -560,7 +723,7 @@ def contesto_classifica(n, tipo, popolazione):
     for voce in classifica:
         diretti = vicini_diretti(voce["nodo"])
         testo += (
-            f"{voce['posizione']}. Società {voce['nodo']} | irregolarità: {voce['tipo']} "
+            f"{voce['posizione']}. {etichetta(voce['nodo'])} | irregolarità: {voce['tipo']} "
             f"| punteggio GNN: {voce['punteggio']*100:.2f}% | percentile: {voce['percentile']:.1f} "
             f"| soglia di decisione {'superata' if voce['sopra_soglia'] else 'NON superata'}\n"
             f"   Stato noto: {voce['stato']}\n"
@@ -583,14 +746,14 @@ def genera_contesto_investigativo(nodo_a, nodo_b, tipo=None):
     testo += intestazione_dati()
     for sigla, nodo in (("A", nodo_a), ("B", nodo_b)):
         testo += (
-            f"Soggetto {sigla}: Società {nodo}\n"
+            f"Soggetto {sigla}: {etichetta(nodo)}\n"
             f"  Stato noto: {stato_compliance(nodo)}\n"
             f"  Punteggi di rischio GNN: {descrivi_rischi(nodo)}\n"
         )
 
     if connessione_diretta:
         testo += (
-            f"Connessione diretta fra A e B: SI ({verso_relazione(nodo_a, nodo_b)}; "
+            f"Connessione diretta fra A e B: SI ({verso_relazione(nodo_a, nodo_b, nome_breve)}; "
             f"{descrivi_documenti(nodo_a, nodo_b)})\n"
         )
     else:
@@ -600,8 +763,8 @@ def genera_contesto_investigativo(nodo_a, nodo_b, tipo=None):
         testo += "Nodi intermediari collegati sia ad A sia a B (possibile percorso a 2 passi):\n"
         for inter in intermediari:
             testo += (
-                f"  - Società {inter} | {verso_relazione(nodo_a, inter)} ({descrivi_documenti(nodo_a, inter)}); "
-                f"{verso_relazione(inter, nodo_b)} ({descrivi_documenti(inter, nodo_b)})\n"
+                f"  - {etichetta(inter)} | {verso_relazione(nodo_a, inter, nome_breve)} ({descrivi_documenti(nodo_a, inter)}); "
+                f"{verso_relazione(inter, nodo_b, nome_breve)} ({descrivi_documenti(inter, nodo_b)})\n"
                 f"    Stato noto: {stato_compliance(inter)}\n"
                 f"    Punteggi di rischio GNN: {descrivi_rischi(inter)}\n"
             )
@@ -621,7 +784,7 @@ def contesto_spiegazione(nodo, tipo=None):
 
     testo = "--- SPIEGAZIONE DEL RISCHIO ESTRATTA DAL GRAFO DI COMPLIANCE ---\n"
     testo += intestazione_dati()
-    testo += f"Soggetto: Società {nodo}\n"
+    testo += f"Soggetto: {etichetta(nodo)}\n"
     testo += f"  Stato noto: {stato_compliance(nodo)}\n"
     testo += f"  Punteggi di rischio GNN: {descrivi_rischi(nodo)}\n"
     testo += (
@@ -639,12 +802,12 @@ def contesto_vicinato(nodo):
 
     testo = "--- RELAZIONI COMMERCIALI ESTRATTE DAL GRAFO DI COMPLIANCE ---\n"
     testo += intestazione_dati()
-    testo += f"Soggetto: Società {nodo} | Stato noto: {stato_compliance(nodo)}\n"
+    testo += f"Soggetto: {etichetta(nodo)} | Stato noto: {stato_compliance(nodo)}\n"
     testo += f"Controparti dirette ({len(diretti)}):\n"
     for vicino in diretti:
         migliore = max(punteggi_nodo(vicino), key=lambda voce: voce["punteggio"])
         testo += (
-            f"  - Società {vicino} | {verso_relazione(nodo, vicino)} | {descrivi_documenti(nodo, vicino)}\n"
+            f"  - {etichetta(vicino)} | {verso_relazione(nodo, vicino, nome_breve)} | {descrivi_documenti(nodo, vicino)}\n"
             f"    Stato noto: {stato_compliance(vicino)} "
             f"| punteggio GNN più alto: {migliore['punteggio']*100:.2f}% ({migliore['tipo']})\n"
         )
@@ -653,9 +816,70 @@ def contesto_vicinato(nodo):
     testo += f"Soggetti raggiungibili in 2 passi: {len(indiretti)}\n"
     testo += (
         "Fra questi, con irregolarità accertate: "
-        + (", ".join(f"Società {v}" for v in indiretti_irregolari) or "nessuno")
+        + ("; ".join(etichetta(v) for v in indiretti_irregolari) or "nessuno")
         + "\n"
     )
+    return testo
+
+
+def contesto_indicatore(termine, nodo=None):
+    """
+    Contesto per l'intento 'indicatore': quali indicatori corrispondono al termine
+    e per quali società sono fra i più influenti. La ricerca avviene fra le
+    spiegazioni già calcolate; con 'nodo' si limita a quella società.
+    """
+    trovati, voci_dizionario = cerca_indicatori(termine)
+
+    testo = f"--- INDICATORI DI RISCHIO CORRISPONDENTI A '{termine}' ---\n"
+    testo += intestazione_dati()
+    if voci_dizionario == 0:
+        return testo + (
+            "Il dizionario degli indicatori è vuoto: copiare dizionario_descrizioni.json nella "
+            "cartella del prototipo e rieseguire il calcolo.\n"
+        )
+    if not trovati:
+        return testo + f"Nessun indicatore fra i {voci_dizionario} del dizionario contiene '{termine}'.\n"
+
+    massimo = 10
+    testo += f"Indicatori trovati: {len(trovati)}\n"
+    for voce in trovati[:massimo]:
+        testo += f"  - Indicatore #{voce['indice']}: {voce['descrizione']}\n"
+    if len(trovati) > massimo:
+        testo += f"  - ... e altri {len(trovati) - massimo}: restringere il termine\n"
+
+    indici = {voce["indice"] for voce in trovati}
+    spiegazioni = [(n, s) for n, s in spiegazioni_calcolate() if nodo is None or n == nodo]
+    presenze = []
+    for nodo_spiegato, dati in spiegazioni:
+        for posizione, feat in enumerate(dati["features"], start=1):
+            if feat["indice"] in indici:
+                presenze.append((feat["peso"], nodo_spiegato, dati["tipo_irregolarita"], feat["indice"], posizione))
+    presenze.sort(key=lambda p: -p[0])
+
+    if nodo is None:
+        testo += (
+            f"\nSocietà per cui questi indicatori sono fra i {contratto.FEATURES_PER_SPIEGAZIONE} più influenti "
+            f"(ricerca limitata alle {len({n for n, _ in spiegazioni})} società con spiegazione già calcolata):\n"
+        )
+    else:
+        testo += f"\nPeso di questi indicatori per {etichetta(nodo)}:\n"
+        if not spiegazioni:
+            indice_tipo = tipo_da_spiegare(nodo)
+            richiedi_spiegazione(nodo, indice_tipo)
+            return testo + (
+                "  Spiegazione GNNExplainer NON ancora calcolata per questa società: la richiesta è stata "
+                "registrata e sarà elaborata dal processo di calcolo.\n"
+            )
+    if not presenze:
+        return testo + (
+            f"  - nessuna: l'indicatore non compare fra i {contratto.FEATURES_PER_SPIEGAZIONE} più influenti "
+            "nelle spiegazioni disponibili\n"
+        )
+    for peso, nodo_spiegato, tipo, indice, posizione in presenze[:20]:
+        testo += (
+            f"  - {etichetta(nodo_spiegato)} | irregolarità: {tipo} | indicatore #{indice} "
+            f"in posizione {posizione} | peso {peso*100:.2f}%\n"
+        )
     return testo
 
 
@@ -688,11 +912,9 @@ def _errore_tipo(tipo):
     return None
 
 
-def _errore_societa(*numeri):
-    for numero in numeri:
-        if not esiste(numero):
-            return f"La società {numero} non è presente nell'archivio."
-    return None
+def _societa_o_errore(riferimento):
+    """Come risolvi_societa(), usato dagli strumenti: (nodo, None) oppure (None, messaggio)."""
+    return risolvi_societa(riferimento)
 
 
 @_in_esclusiva
@@ -718,40 +940,69 @@ def classifica(n: int = 3, tipo: str = "", popolazione: str = "non_ispezionate")
 
 
 @_in_esclusiva
-def relazione(societa_a: int, societa_b: int, tipo: str = "") -> str:
+def relazione(societa_a: Union[int, str], societa_b: Union[int, str], tipo: str = "") -> str:
     """Descrive il rapporto fra due società: connessione diretta, documenti scambiati,
     intermediari comuni, punteggi di rischio. Da usare quando la domanda cita due società.
-    societa_a, societa_b: numeri identificativi delle due società.
+    societa_a, societa_b: nome (anche parziale), numero di iscrizione o numero identificativo
+    di ciascuna società, così come li ha scritti l'ispettore.
     tipo: lasciare vuoto, oppure il tipo di irregolarità su cui concentrare la spiegazione."""
-    errore = _errore_tipo(tipo) or _errore_societa(societa_a, societa_b)
+    errore = _errore_tipo(tipo)
     if errore:
         return errore
-    if int(societa_a) == int(societa_b):
+    nodo_a, errore = _societa_o_errore(societa_a)
+    if errore:
+        return errore
+    nodo_b, errore = _societa_o_errore(societa_b)
+    if errore:
+        return errore
+    if nodo_a == nodo_b:
         return "Indicare due società diverse."
-    return genera_contesto_investigativo(int(societa_a), int(societa_b), tipo or None)
+    return genera_contesto_investigativo(nodo_a, nodo_b, tipo or None)
 
 
 @_in_esclusiva
-def spiegazione(societa: int, tipo: str = "") -> str:
+def spiegazione(societa: Union[int, str], tipo: str = "") -> str:
     """Spiega perché una società è considerata a rischio: punteggi, caratteristiche e
-    relazioni che hanno pesato di più. Da usare per domande come "perché la società 12 è a rischio".
-    societa: numero identificativo della società.
+    relazioni che hanno pesato di più. Da usare per domande come "perché la società Rossi è a rischio".
+    societa: nome (anche parziale), numero di iscrizione o numero identificativo della società,
+    così come l'ha scritto l'ispettore.
     tipo: lasciare vuoto per l'irregolarità con il punteggio più alto, oppure indicarne una."""
-    errore = _errore_tipo(tipo) or _errore_societa(societa)
+    errore = _errore_tipo(tipo)
     if errore:
         return errore
-    return contesto_spiegazione(int(societa), tipo or None)
+    nodo, errore = _societa_o_errore(societa)
+    if errore:
+        return errore
+    return contesto_spiegazione(nodo, tipo or None)
 
 
 @_in_esclusiva
-def vicinato(societa: int) -> str:
+def vicinato(societa: Union[int, str]) -> str:
     """Elenca le controparti commerciali di una società con i documenti scambiati, e conta i
-    soggetti raggiungibili in due passi. Da usare per domande come "con chi commercia la società 12".
-    societa: numero identificativo della società."""
-    errore = _errore_societa(societa)
+    soggetti raggiungibili in due passi. Da usare per domande come "con chi commercia la società Rossi".
+    societa: nome (anche parziale), numero di iscrizione o numero identificativo della società,
+    così come l'ha scritto l'ispettore."""
+    nodo, errore = _societa_o_errore(societa)
     if errore:
         return errore
-    return contesto_vicinato(int(societa))
+    return contesto_vicinato(nodo)
+
+
+@_in_esclusiva
+def indicatore(termine: str, societa: Union[int, str] = "") -> str:
+    """Cerca un indicatore di rischio (caratteristica usata dal modello) partendo da una parola
+    della sua descrizione, e dice per quali società pesa di più. Da usare per domande come
+    "quali aziende hanno l'indicatore sui paesi offshore" o "per la società Rossi conta il fatturato?".
+    termine: una o più parole della descrizione dell'indicatore, oppure il suo numero.
+    societa: lasciare vuoto per cercare fra tutte le società, oppure indicarne una per nome o numero."""
+    if not str(termine).strip():
+        return "Indicare una parola della descrizione dell'indicatore da cercare."
+    nodo = None
+    if str(societa).strip():
+        nodo, errore = _societa_o_errore(societa)
+        if errore:
+            return errore
+    return contesto_indicatore(str(termine), nodo)
 
 
 STRUMENTI = {
@@ -759,6 +1010,7 @@ STRUMENTI = {
     "relazione": relazione,
     "spiegazione": spiegazione,
     "vicinato": vicinato,
+    "indicatore": indicatore,
 }
 
 
@@ -775,28 +1027,42 @@ NOMI_COLLETTIVI = r"(?:aziende|societ[àa]|soggetti|imprese|nodi)"
 
 MESSAGGIO_NON_SUPPORTATA = (
     "Domanda non riconosciuta. Posso rispondere a: classifica delle aziende più rischiose, "
-    "relazione fra due società, spiegazione del rischio di una società, controparti di una società "
-    "(indicando le società con il loro numero, es. 'società 12')."
+    "relazione fra due società, spiegazione del rischio di una società, controparti di una società, "
+    "ricerca di un indicatore di rischio (le società si indicano per nome o per numero, es. 'società 12')."
 )
 
 
 def estrai_nodi_dalla_domanda(domanda):
     """
-    Estrae dalla domanda i numeri delle società citate (es. "società 12").
-    Con i dati reali andrà sostituita da una risoluzione per nome o identificativo fiscale.
+    Trova le società citate in una domanda, nell'ordine in cui compaiono:
+    per numero ("società 12") oppure per nome, se il nome intero compare nel testo.
+    Un numero viene restituito anche se la società non esiste: lo segnalerà lo strumento.
     """
-    trovati = []
-    for testo_numero in re.findall(
-        r"(?:societ[àa]|nodo|azienda|soggetto|impresa)\s+#?(\d+)", domanda, flags=re.IGNORECASE
-    ):
-        nodo = int(testo_numero)
-        if nodo not in trovati:
-            trovati.append(nodo)
-    return trovati
+    testo = _normalizza(domanda)
+    trovate = []  # (inizio, fine, nodo)
+
+    # Nomi: prima i più lunghi, così "Rossi Costruzioni" vince su "Rossi"
+    for societa in sorted(elenco_societa(), key=lambda s: -len(s["chiave"])):
+        if len(societa["chiave"]) < 3:
+            continue
+        trovata = re.search(rf"(?<![a-z0-9]){re.escape(societa['chiave'])}(?![a-z0-9])", testo)
+        if trovata and not any(i < trovata.end() and trovata.start() < f for i, f, _ in trovate):
+            trovate.append((trovata.start(), trovata.end(), societa["nodo"]))
+
+    # Numeri: "società 12", "nodo 12"...
+    for trovata in re.finditer(r"(?<![a-z0-9])(?:societa|nodo|azienda|soggetto|impresa) (\d+)(?![a-z0-9])", testo):
+        if not any(i < trovata.end() and trovata.start() < f for i, f, _ in trovate):
+            trovate.append((trovata.start(), trovata.end(), int(trovata.group(1))))
+
+    nodi = []
+    for _, _, nodo in sorted(trovate):
+        if nodo not in nodi:
+            nodi.append(nodo)
+    return nodi
 
 
 def smista_con_regole(domanda):
-    """Riconosce l'intento con parole chiave: {intento, nodi, n, tipo, popolazione}."""
+    """Riconosce l'intento con parole chiave: {intento, nodi, n, tipo, popolazione, termine}."""
     testo = domanda.lower()
     nodi = estrai_nodi_dalla_domanda(domanda)
 
@@ -834,6 +1100,20 @@ def smista_con_regole(domanda):
     else:
         popolazione = "non_ispezionate"
 
+    # Ricerca di un indicatore: il termine è il testo fra virgolette doppie,
+    # altrimenti ciò che segue la parola "indicatore" / "caratteristica" / "feature"
+    termine = ""
+    if re.search(r"indicator|caratteristic|feature", testo):
+        fra_virgolette = re.search(r"[\"«“]([^\"»”]+)[\"»”]", domanda)
+        if fra_virgolette:
+            termine = fra_virgolette.group(1).strip()
+        else:
+            dopo = re.search(
+                r"(?:indicator[ei]|caratteristic[ah]e?|features?)\s+(?:(?:di|del|dello|della|dei|sui|sul|sulla|sulle|su|con|per)\s+)?(.+)",
+                testo,
+            )
+            termine = dopo.group(1).strip(" ?.!") if dopo else ""
+
     chiede_classifica = re.search(
         r"più\s+(?:a\s+)?risch|maggior(?:e)?\s+rischio|classifica|graduatoria|"
         r"(?:prime|primi|top)\s+\w+|da\s+(?:ispezionare|controllare)",
@@ -842,7 +1122,9 @@ def smista_con_regole(domanda):
     chiede_vicinato = re.search(
         r"con\s+chi|commerci|clienti|fornitori|controparti|collegat|vicin", testo
     )
-    if chiede_classifica and not nodi:
+    if termine:
+        intento = "indicatore"
+    elif chiede_classifica and not nodi:
         intento = "classifica"
     elif len(nodi) >= 2:
         intento = "relazione"
@@ -851,7 +1133,10 @@ def smista_con_regole(domanda):
     else:
         intento = "non_supportata"
 
-    return {"intento": intento, "nodi": nodi, "n": n, "tipo": tipo, "popolazione": popolazione}
+    return {
+        "intento": intento, "nodi": nodi, "n": n, "tipo": tipo,
+        "popolazione": popolazione, "termine": termine,
+    }
 
 
 def consulta(domanda):
@@ -866,6 +1151,8 @@ def consulta(domanda):
         return spiegazione(nodi[0], smistamento["tipo"])
     if intento == "vicinato":
         return vicinato(nodi[0])
+    if intento == "indicatore":
+        return indicatore(smistamento["termine"], nodi[0] if nodi else "")
     return MESSAGGIO_NON_SUPPORTATA
 
 

@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   calcolo.py  -  progetto controlli_grafo, VERSIONE 17
+#   calcolo.py  -  progetto controlli_grafo, VERSIONE 18
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: calcolo
@@ -36,6 +36,11 @@
 #        versioni precedenti.
 #   [16] Non contiene più report, mappa né domande di esempio; non usa più il generatore casuale
 #        di numpy per date e importi (ora random.Random).
+#   [18] Il dizionario delle descrizioni viene caricato nel database
+#        (salva_dizionario_indicatori) a ogni calcolo.
+#   [18] Ogni spiegazione conserva 10 indicatori invece di 3, per rendere utile la ricerca per
+#        indicatore.
+#   [18] Il messaggio per uno schema diverso dice di eliminare il file e rieseguire il calcolo.
 #
 # <<< NOVITA
 """
@@ -324,7 +329,7 @@ def addestra(grafo, epoche=100):
 # 4. SPIEGABILITÀ (GNNExplainer)
 # =====================================================================
 def spiega_nodo(model, grafo, nodo, indice_tipo, dizionario_descrizioni,
-                soglia_archi=0.4, num_features=3):
+                soglia_archi=0.4, num_features=contratto.FEATURES_PER_SPIEGAZIONE):
     """
     Esegue GNNExplainer su un nodo per UN tipo di irregolarità. Restituisce una
     spiegazione nella forma descritta in contratto.py (200 epoche: qualche secondo).
@@ -429,6 +434,9 @@ def esegui_calcolo():
         carica_json("elenco_aziende.json"),
     )
     scrittura.salva_esecuzione(conn, versione, mappa_rischi.tolist(), soglie, metriche_test)
+    # Descrizioni degli indicatori: servono alle interrogazioni per la ricerca per parola
+    dizionario_descrizioni = carica_json("dizionario_descrizioni.json")
+    scrittura.salva_dizionario_indicatori(conn, dizionario_descrizioni)
 
     # --- Pesi e grafo su file: servono al comando "spiegazioni" ---
     torch.save(
@@ -453,7 +461,6 @@ def esegui_calcolo():
     for nodo in torch.argsort(punteggi_massimi, descending=True)[:SPIEGAZIONI_PRECALCOLATE].tolist():
         da_spiegare.append((nodo, tipi_massimi[nodo].item()))
 
-    dizionario_descrizioni = carica_json("dizionario_descrizioni.json")
     for nodo, indice_tipo in da_spiegare:
         print(f"Spiegazione: società {nodo}, {TIPI_IRREGOLARITA[indice_tipo]}")
         scrittura.salva_spiegazione(
