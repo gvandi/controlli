@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   mappa.py  -  progetto controlli_grafo, VERSIONE 17
+#   mappa.py  -  progetto controlli_grafo, VERSIONE 18
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: mappa
@@ -19,6 +19,7 @@
 #   [16] Il tooltip degli archi riporta verso commerciale e documenti scambiati; il report
 #        dichiara la data dei punteggi.
 #   [16] Se la spiegazione del soggetto manca, il report lo segnala e la mette in coda.
+#   [18] Il report mostra i primi 3 indicatori dei 10 ora conservati in ogni spiegazione.
 #
 # <<< NOVITA
 """
@@ -132,8 +133,8 @@ def costruisci_report():
         report += f"Analisi dei pesi delle <u>{DIM_TOTALI} features</u> del super-vettore:<br>\n"
         report += f" ➔ Peso medio della componente <b>Testuale</b> (Semantica dei JSON): <code>{indicatori['impatto_testo']*100:.2f}%</code><br>\n"
         report += f" ➔ Peso medio della componente <b>Strutturata</b> (Dati Finanziari/Bilanci): <code>{indicatori['impatto_strutturati']*100:.2f}%</code><br><br>\n"
-        report += f"<b>Indicatori specifici</b> isolati da GNNExplainer per il <b>Nodo {nodo_target}</b> (Clicca sull'ID per la descrizione):<br>\n"
-        for i, feat in enumerate(indicatori["features"], start=1):
+        report += f"<b>Top 3 indicatori specifici</b> isolati da GNNExplainer per il <b>Nodo {nodo_target}</b> (Clicca sull'ID per la descrizione):<br>\n"
+        for i, feat in enumerate(indicatori["features"][:3], start=1):
             report += (
                 f"  {i}. Feature <b onclick='toggleDescrizione(this)' data-id='#{feat['indice']}' "
                 f"data-descrizione='{html.escape(str(feat['descrizione']), quote=True)}' style='cursor: pointer; text-decoration: underline;'>#{feat['indice']}</b> "

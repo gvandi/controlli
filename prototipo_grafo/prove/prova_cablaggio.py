@@ -59,9 +59,19 @@ class ProvaCablaggio(unittest.TestCase):
         conn = scrittura.apri_in_scrittura(cls.percorso)
         scrittura.salva_dati_simulati(
             conn, cls.archi, cls.ha_etichetta, cls.y,
-            {"7": {"nome_Azienda": "L'Oro <srl>", "nr_iscrizione_reg_società": "X1"}},
+            {
+                "7": {"nome_Azienda": "L'Oro <srl>", "nr_iscrizione_reg_società": "X1"},
+                "3": {"nome_Azienda": "Rossi Costruzioni srl", "nr_iscrizione_reg_società": "R-0003"},
+                "4": {"nome_Azienda": "Rossi Trasporti spa", "nr_iscrizione_reg_società": "R-0004"},
+                "20": {"nome_Azienda": "Beta Legnami", "nr_iscrizione_reg_società": "B-0020"},
+            },
         )
         scrittura.salva_esecuzione(conn, "prova-1", cls.punteggi, cls.soglie, {"esempio": {"pr_auc": 0.3}})
+        scrittura.salva_dizionario_indicatori(conn, {
+            "5": "Variazioni repentine del CdA",
+            "400": "Relazioni con paesi offshore",
+            "401": "Fatturato dichiarato",
+        })
         conn.close()
 
         # --- parte "interrogazione" ---
@@ -181,8 +191,82 @@ class ProvaCablaggio(unittest.TestCase):
         conn.close()
 
         testo = interrogazione.spiegazione(nodo, contratto.TIPI_IRREGOLARITA[indice_tipo])
-        self.assertIn("Feature #5", testo)
+        self.assertIn("Indicatore #5", testo)
         self.assertNotIn("NON ancora calcolata", testo)
+
+    # ------------------------------------------------------------ società per nome
+    def test_le_societa_si_riconoscono_da_nome_numero_e_codici(self):
+        attesi = {
+            "Beta Legnami": 20, "beta legnami": 20, "legnami": 20, "BETA  LEGNAMI.": 20,
+            "rossi costruzioni": 3, "Rossi Trasporti spa": 4, "l'oro": 7,
+            "X1": 7, "b-0020": 20, "SIM-00020": 20,
+            "12": 12, 12: 12, "società 12": 12, "nodo #12": 12,
+        }
+        for riferimento, nodo in attesi.items():
+            self.assertEqual(interrogazione.risolvi_societa(riferimento), (nodo, None), riferimento)
+
+    def test_un_nome_ambiguo_o_sconosciuto_non_viene_indovinato(self):
+        nodo, messaggio = interrogazione.risolvi_societa("Rossi")
+        self.assertIsNone(nodo)
+        self.assertIn("corrisponde a 2 società", messaggio)
+        self.assertIn("Rossi Costruzioni srl", messaggio)
+        self.assertIn("Rossi Trasporti spa", messaggio)
+
+        nodo, messaggio = interrogazione.risolvi_societa("Bata Legnami")
+        self.assertIsNone(nodo)
+        self.assertIn("Nessuna società trovata", messaggio)
+        self.assertIn("Beta Legnami", messaggio)  # nome simile proposto
+
+        self.assertEqual(interrogazione.risolvi_societa("Zeta Inesistente")[0], None)
+        self.assertIn("corrisponde a 2 società", interrogazione.relazione("Rossi", 5))
+
+    def test_le_risposte_riportano_nome_e_numero_di_iscrizione(self):
+        for testo in (
+            interrogazione.vicinato("Beta Legnami"),
+            interrogazione.spiegazione("beta legnami"),
+            interrogazione.relazione("Beta Legnami", "Rossi Costruzioni srl"),
+        ):
+            self.assertIn("Società 20 «Beta Legnami» (iscrizione B-0020)", testo)
+        self.assertIn("«Azienda simulata", interrogazione.classifica(50, popolazione="tutte"))
+
+    def test_consulta_riconosce_i_nomi_nella_domanda(self):
+        testo = interrogazione.consulta("Con chi commercia la Beta Legnami?")
+        self.assertIn("RELAZIONI COMMERCIALI", testo)
+        self.assertIn("«Beta Legnami»", testo)
+        testo = interrogazione.consulta("Che rapporto c'è fra Rossi Costruzioni srl e Beta Legnami?")
+        self.assertIn("Soggetto A: Società 3 «Rossi Costruzioni srl»", testo)
+        self.assertIn("Soggetto B: Società 20 «Beta Legnami»", testo)
+
+    # ------------------------------------------------------------ indicatori per parola
+    def test_gli_indicatori_si_cercano_per_parola(self):
+        conn = scrittura.apri_in_scrittura(self.percorso)
+        scrittura.salva_spiegazione(conn, "prova-1", {
+            "nodo": 20, "indice_tipo": 0, "tipo_irregolarita": contratto.TIPI_IRREGOLARITA[0],
+            "features": [
+                {"indice": 400, "tipo": "Strutturata", "descrizione": "Relazioni con paesi offshore", "peso": 0.7},
+                {"indice": 5, "tipo": "Testuale (NLP)", "descrizione": "Variazioni repentine del CdA", "peso": 0.2},
+            ],
+            "relazioni": [], "impatto_testo": 0.1, "impatto_strutturati": 0.2,
+        })
+        conn.close()
+
+        testo = interrogazione.indicatore("offshore")
+        self.assertIn("Indicatore #400: Relazioni con paesi offshore", testo)
+        self.assertIn("Società 20 «Beta Legnami» (iscrizione B-0020)", testo)
+        self.assertIn("posizione 1", testo)
+        self.assertIn("Indicatore #400", interrogazione.indicatore("Paesi OFFSHORE", "Beta Legnami"))
+        self.assertIn("Indicatore #400", interrogazione.indicatore("400"))
+
+        self.assertIn("Nessun indicatore", interrogazione.indicatore("zzz"))
+        self.assertIn("- nessuna", interrogazione.indicatore("fatturato"))  # esiste ma non pesa per nessuno
+        self.assertIn("Indicatore #400", interrogazione.consulta("Quali aziende hanno l'indicatore sui paesi offshore?"))
+
+        # società senza spiegazione: lo dichiara e la mette in coda
+        testo = interrogazione.indicatore("offshore", "Rossi Trasporti spa")
+        self.assertIn("NON ancora calcolata", testo)
+        conn = scrittura.apri_in_scrittura(self.percorso)
+        self.assertIn(4, [nodo for nodo, _ in scrittura.richieste_pendenti(conn, "prova-1")])
+        conn.close()
 
     # ------------------------------------------------------------ report
     def test_il_report_si_compone_dal_solo_database(self):

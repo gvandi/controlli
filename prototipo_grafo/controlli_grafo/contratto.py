@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   contratto.py  -  progetto controlli_grafo, VERSIONE 17
+#   contratto.py  -  progetto controlli_grafo, VERSIONE 18
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: contratto
@@ -23,6 +23,11 @@
 #        CONTROLLI_MODELLO.
 #   [17] connetti() apre la connessione con check_same_thread=False, perché il server esegue gli
 #        strumenti in un thread diverso da quello che ha aperto l'archivio.
+#   [18] Nuova tabella feature con le descrizioni degli indicatori (da
+#        dizionario_descrizioni.json); VERSIONE_SCHEMA passa a 3: l'archivio va ricreato
+#        rieseguendo il calcolo.
+#   [18] Nuovo strumento indicatore in NOMI_STRUMENTI; nuove costanti FEATURES_PER_SPIEGAZIONE
+#        (10) e FEATURES_NEL_CONTESTO (5).
 #
 # <<< NOVITA
 """
@@ -43,11 +48,11 @@ import sqlite3
 # 1. VERSIONI
 # =====================================================================
 # Un solo numero di versione per tutto il progetto (lo stesso di NOVITA.md)
-VERSIONE_CODICE = "17"
+VERSIONE_CODICE = "18"
 
 # Va aumentata a ogni modifica di SCHEMA_DB: la libreria di interrogazione
 # rifiuta di aprire un archivio scritto con uno schema diverso.
-VERSIONE_SCHEMA = 2
+VERSIONE_SCHEMA = 3
 
 # =====================================================================
 # 2. TASSONOMIA E VALORI AMMESSI
@@ -69,10 +74,15 @@ DESCRIZIONE_POPOLAZIONE = {
 }
 
 # Strumenti che il server MCP espone alla chat: uno per intento
-NOMI_STRUMENTI = ("classifica", "relazione", "spiegazione", "vicinato")
+NOMI_STRUMENTI = ("classifica", "relazione", "spiegazione", "vicinato", "indicatore")
 
 # Limiti dei parametri degli strumenti
 MAX_AZIENDE_IN_CLASSIFICA = 50
+
+# Quanti indicatori (features) conserva ogni spiegazione, e quanti ne riporta il
+# testo dato alla chat. La ricerca per indicatore lavora su quelli conservati.
+FEATURES_PER_SPIEGAZIONE = 10
+FEATURES_NEL_CONTESTO = 5
 
 # Struttura del vettore di features di ogni nodo
 DIM_TESTO = 384
@@ -101,6 +111,7 @@ def percorso_modello():
 #
 # Chi scrive e chi legge:
 #   azienda, irregolarita_accertata, relazione   scrive: calcolo (in futuro i documenti)
+#   feature                                      scrive: calcolo (dal dizionario)
 #   esecuzione_modello, nodo_azienda,
 #   punteggio_rischio, spiegazione               scrive: calcolo
 #   richiesta_spiegazione                        scrive: interrogazione, svuota: calcolo
@@ -132,6 +143,10 @@ CREATE TABLE IF NOT EXISTS relazione (
 );
 CREATE INDEX IF NOT EXISTS idx_relazione_venditore  ON relazione(venditore);
 CREATE INDEX IF NOT EXISTS idx_relazione_acquirente ON relazione(acquirente);
+CREATE TABLE IF NOT EXISTS feature (
+    indice          INTEGER PRIMARY KEY,         -- posizione nel vettore di features
+    descrizione     TEXT NOT NULL                -- da dizionario_descrizioni.json
+);
 CREATE TABLE IF NOT EXISTS esecuzione_modello (
     versione        TEXT PRIMARY KEY,
     data_calcolo    TEXT NOT NULL,

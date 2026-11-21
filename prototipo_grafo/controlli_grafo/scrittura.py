@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   scrittura.py  -  progetto controlli_grafo, VERSIONE 17
+#   scrittura.py  -  progetto controlli_grafo, VERSIONE 18
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: calcolo
@@ -36,6 +36,11 @@
 #        versioni precedenti.
 #   [16] Non contiene più report, mappa né domande di esempio; non usa più il generatore casuale
 #        di numpy per date e importi (ora random.Random).
+#   [18] Il dizionario delle descrizioni viene caricato nel database
+#        (salva_dizionario_indicatori) a ogni calcolo.
+#   [18] Ogni spiegazione conserva 10 indicatori invece di 3, per rendere utile la ricerca per
+#        indicatore.
+#   [18] Il messaggio per uno schema diverso dice di eliminare il file e rieseguire il calcolo.
 #
 # <<< NOVITA
 """
@@ -86,7 +91,8 @@ def apri_in_scrittura(percorso=None):
         conn.close()
         raise contratto.ArchivioIncompatibile(
             f"Il database ha schema {riga['valore']}, questo codice scrive lo schema "
-            f"{contratto.VERSIONE_SCHEMA}. Serve una migrazione."
+            f"{contratto.VERSIONE_SCHEMA}. Con i dati simulati basta eliminare il file e "
+            "rieseguire il calcolo; con dati reali serve una migrazione."
         )
     return conn
 
@@ -113,7 +119,7 @@ def salva_dati_simulati(conn, archi, ha_etichetta_nodi, y_nodi, elenco_aziende):
 
     with conn:
         for tabella in ("richiesta_spiegazione", "spiegazione", "punteggio_rischio",
-                        "nodo_azienda", "esecuzione_modello", "relazione",
+                        "nodo_azienda", "esecuzione_modello", "relazione", "feature",
                         "irregolarita_accertata", "azienda"):
             conn.execute(f"DELETE FROM {tabella}")
 
@@ -148,6 +154,21 @@ def salva_dati_simulati(conn, archi, ha_etichetta_nodi, y_nodi, elenco_aziende):
                     (datetime.date(2025, 1, 1) + datetime.timedelta(days=giorno)).isoformat(),
                     round(generatore.expovariate(1 / 8000) + 50, 2),
                 ),
+            )
+
+
+def salva_dizionario_indicatori(conn, dizionario_descrizioni):
+    """
+    Carica nella tabella feature le descrizioni degli indicatori:
+    {"<indice>": "descrizione"}, come in dizionario_descrizioni.json.
+    Sostituisce il contenuto precedente.
+    """
+    with conn:
+        conn.execute("DELETE FROM feature")
+        for indice, descrizione in dizionario_descrizioni.items():
+            conn.execute(
+                "INSERT INTO feature (indice, descrizione) VALUES (?, ?)",
+                (int(indice), str(descrizione)),
             )
 
 
