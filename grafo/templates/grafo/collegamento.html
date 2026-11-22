@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block titolo %}{% translate "Collegamento alla chat" %}{% endblock %}
+{% block contenuto %}
+<style>
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: 0.35rem 0.6rem 0.35rem 0; border-bottom: 1px solid var(--bordo); }
+  code, pre { background: var(--sfondo); padding: 0.1rem 0.3rem; border-radius: 3px; }
+  pre { padding: 0.6rem; overflow-x: auto; }
+  .evidenza { border-color: #1e6b3a; }
+</style>
+<h1>{% translate "Collegamento alla chat" %}</h1>
+
+{% if token_appena_creato %}
+<div class="scheda evidenza">
+  <h2>{% translate "Nuovo token" %}</h2>
+  <p>{% translate "Copialo adesso: non verrà più mostrato. Chi lo possiede interroga il sistema a tuo nome." %}</p>
+  <pre>{{ token_appena_creato }}</pre>
+</div>
+{% endif %}
+
+<div class="scheda">
+  <h2>{% translate "Impostazioni per Unsloth Studio" %}</h2>
+  <p>{% translate "Nel server MCP della chat indicare:" %}</p>
+  <table>
+    <tr><th>{% translate "Indirizzo (URL)" %}</th><td><code>{{ indirizzo_servizio }}</code></td></tr>
+    <tr><th>{% translate "Intestazione" %}</th><td><code>Authorization: Bearer {% translate "IL-TUO-TOKEN" %}</code></td></tr>
+  </table>
+</div>
+
+<div class="scheda">
+  <h2>{% translate "I tuoi token" %}</h2>
+  <table>
+    <tr><th>{% translate "N." %}</th><th>{% translate "Etichetta" %}</th><th>{% translate "Creato" %}</th><th>{% translate "Ultimo uso" %}</th><th></th></tr>
+    {% for t in token %}
+      <tr>
+        <td>{{ t.pk }}</td>
+        <td>{{ t.etichetta|default:"-" }}</td>
+        <td>{{ t.creato_il|date:"Y-m-d H:i" }}</td>
+        <td>{{ t.ultimo_uso|date:"Y-m-d H:i"|default:"-" }}</td>
+        <td>
+          {% if t.revocato_il %}<span class="tenue">{% translate "revocato" %}</span>
+          {% else %}
+            <form method="post">{% csrf_token %}
+              <input type="hidden" name="azione" value="revoca"><input type="hidden" name="token" value="{{ t.pk }}">
+              <button class="secondario" type="submit">{% translate "Revoca" %}</button>
+            </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="5" class="tenue">{% translate "Nessun token." %}</td></tr>
+    {% endfor %}
+  </table>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="azione" value="crea">
+    <label for="etichetta">{% translate "Etichetta del nuovo token (per esempio: il computer su cui lo userai)" %}</label>
+    <input type="text" id="etichetta" name="etichetta" maxlength="80">
+    <p><button type="submit">{% translate "Crea un token" %}</button></p>
+  </form>
+</div>
+
+<div class="scheda">
+  <h2>{% translate "Le tue mappe" %}</h2>
+  <table>
+    <tr><th>{% translate "Prodotta" %}</th><th>{% translate "Sessione" %}</th><th>{% translate "File" %}</th></tr>
+    {% for m in mappe %}
+      <tr>
+        <td>{{ m.prodotta_il|date:"Y-m-d H:i" }}</td>
+        <td>{{ m.sessione_id }}</td>
+        <td><a href="{% url 'grafo:mappa' m.pk %}">{{ m.nome_file }}</a></td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="3" class="tenue">{% translate "Nessuna mappa: chiederla in chat." %}</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

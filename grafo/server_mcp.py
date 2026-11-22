@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   server_mcp.py  -  app grafo, VERSIONE 19.0
+#   server_mcp.py  -  app grafo, VERSIONE 20
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: server
@@ -15,19 +15,39 @@
 #        viene da contratto.py).
 #   [19] Si avvia con python manage.py grafo_server_mcp, che carica le impostazioni
 #        dell'applicativo.
+#   [20] Nuovo servizio MCP su HTTP dentro l'applicativo (views.py, indirizzo /grafo/mcp/): la
+#        chat si collega dalla rete e si presenta con un token personale; senza token valido la
+#        risposta è 401.
+#   [20] Il protocollo è scritto in protocollo_mcp.py (initialize, ping, tools/list,
+#        tools/call), senza la libreria mcp, che resta solo per il trasporto stdio.
+#   [20] Ogni chiamata passa da servizio_mcp.esegui_strumento(): la richiesta viene registrata
+#        nella sessione prima dell'esecuzione e completata con esito, durata e coppia
+#        calcolo/dati.
+#   [20] Ogni strumento ha in più il parametro facoltativo domanda, in cui il modello della chat
+#        ricopia la domanda dell'ispettore per il registro.
+#   [20] Nuovo strumento mappa(societa): produce la mappa investigativa e restituisce il
+#        collegamento alla pagina /grafo/mappe/N/, visibile dopo l'accesso solo a chi l'ha
+#        chiesta.
+#   [20] Nuove pagine: /grafo/collegamento/ (l'analista crea e revoca i propri token, ritrova le
+#        proprie mappe) e /grafo/cruscotto/ (l'amministratore vede le quattro versioni, i
+#        calcoli presenti, le sessioni, e modifica i parametri).
+#   [20] Il server stdio (grafo_server_mcp) resta per le prove su un solo computer: non
+#        riconosce l'utente e non registra sessioni.
 #
 # <<< NOVITA
 """
-SERVER MCP: espone alla chat (Unsloth Studio o qualsiasi client MCP) i cinque
-strumenti della libreria di interrogazione.
+SERVER MCP SU STDIO: espone gli strumenti a una chat che gira sullo STESSO
+computer e avvia il server come comando locale.
 
-Qui non c'è logica: nomi, parametri, descrizioni e controlli degli strumenti
-stanno in interrogazione.py; l'elenco dei nomi sta in contratto.py.
+Dalla versione 20 il collegamento normale è il servizio HTTP dell'applicativo
+(views.py, indirizzo /grafo/mcp/), che riconosce l'utente e registra la
+sessione. Questo trasporto resta per le prove su un solo computer: NON chiede
+chi sei e NON registra sessioni né richieste.
 
     pip install "mcp[cli]"                     (versione 1 o 2)
     python manage.py grafo_server_mcp          (trasporto stdio)
 
-Importa contratto.py e interrogazione.py.
+Importa contratto.py, interrogazione.py e servizio_mcp.py.
 """
 
 # La libreria mcp ha cambiato nome alla classe del server fra la versione 1 e la 2:
@@ -37,15 +57,14 @@ try:
 except ModuleNotFoundError:
     from mcp.server.fastmcp import FastMCP as ServerMCP  # mcp 1.x
 
-from . import contratto, interrogazione
+from . import contratto, interrogazione, servizio_mcp
 
 server = ServerMCP("controlli-uae")
 
 # Ogni funzione viene registrata con il proprio nome, i propri parametri tipizzati
 # e la propria descrizione: è ciò che il modello della chat legge per scegliere.
 for nome in contratto.NOMI_STRUMENTI:
-    server.add_tool(interrogazione.STRUMENTI[nome])
-
+    server.add_tool(servizio_mcp.STRUMENTI[nome])
 
 
 def avvia():

@@ -12,6 +12,14 @@ class Command(BaseCommand):
         self.stdout.write(f"Schema prodotto dalle migrazioni del codice: {contratto.VERSIONE_SCHEMA} "
                           f"(i lettori richiedono {contratto.SCHEMA_RICHIESTO})")
         try:
+            from grafo import sessioni
+
+            restrizioni = {n: v for n, v in sessioni.leggi_parametri().items() if n.startswith("restrizione_") and v}
+        except Exception:
+            restrizioni = {}
+        for nome, valore in restrizioni.items():
+            self.stdout.write(f"Restrizione dell'amministratore: {nome} = {valore}")
+        try:
             in_uso = interrogazione.apri()
         except contratto.ArchivioIncompatibile as errore:
             in_uso = None

@@ -39,7 +39,7 @@ Elenco unico delle cose da fare. Ogni passo si chiude con questo file aggiornato
 - [ ] 11. Configurazione: regole e soglie versionate, modificabili dall'interfaccia
 - [ ] Più avanti: risoluzione delle identità, controlli sui documenti, analisi di rete e GNN
 
-## App grafo (`grafo/`, versione 19.0)
+## App grafo (`grafo/`, versione 20)
 
 - [x] Prototipo su dati simulati: GNN con punteggi per tipo di irregolarità, libreria di
       interrogazione, server MCP per la chat, report e mappa
@@ -63,10 +63,28 @@ Elenco unico delle cose da fare. Ogni passo si chiude con questo file aggiornato
 - [ ] Ricerca per indicatore: oggi guarda solo le società con spiegazione già calcolata
 - [ ] Fondere `grafo.Soggetto` con il modello dei soggetti dell'applicativo quando arriverà
       la gestione documentale
-- [ ] Riservatezza: le interrogazioni non applicano ancora utenti e fascicoli
-      (DECISIONI.md, n. 17-19); la chat va portata dentro l'applicativo
-- [ ] Sessioni di più analisti: le mappe non si sovrascrivono più fra soggetti diversi, ma
-      non sono ancora separate per utente
+- [ ] Riservatezza: le interrogazioni riconoscono l'utente ma non applicano ancora i
+      fascicoli (DECISIONI.md, n. 17-19): chi ha il diritto usa_chat vede tutte le società
+- [x] Sessioni di più analisti (versione 20): servizio MCP su HTTP con token personale,
+      sessioni numerate, registro delle richieste, mappe separate per sessione e visibili
+      solo a chi le ha chieste, cruscotto dell'amministratore
+- [ ] **Prima esecuzione della versione 20**: `migrate`, `crea_ruoli`, `test grafo`,
+      collegamento di Studio via HTTP. In fase di scrittura Django non era disponibile:
+      sono stati provati il protocollo (senza Django) e le query delle restrizioni su
+      PostgreSQL 16; modelli, migrazione 0002, sessioni, viste, pagine e prove nuove non
+      sono mai stati eseguiti
+- [ ] Verificare che Unsloth Studio parli con il servizio (versione del protocollo,
+      intestazione Mcp-Session-Id, risposta JSON senza flusso SSE)
+- [ ] **Versione 21**: accesso OAuth 2.0 dal browser al posto del token copiato a mano
+      (applicativo come fornitore delle autorizzazioni, django-oauth-toolkit); sessioni,
+      registro e mappe non cambiano
+- [ ] Installazione in rete: HTTPS davanti all'applicativo (il token viaggia a ogni
+      richiesta), `CONTROLLI_ALLOWED_HOSTS`, `CONTROLLI_URL_PUBBLICO`
+- [ ] Misurare quante volte il modello ricopia la domanda dell'ispettore nel parametro
+      `domanda`; se poche, il registro resta fatto di strumento e parametri
+- [ ] Conservazione di sessioni, richieste e file delle mappe: per quanto tenerli, e chi
+      può leggere il registro (vedi "Punti aperti sulla riservatezza")
+- [ ] Scadenza dei token personali (oggi valgono fino alla revoca)
 - [ ] Funzioni in prova per pochi utenti (Feature Flags) e ambiente di prova
 - [ ] Conservazione delle fotografie dei dati: per quanto tenerle
 - [ ] Sostituire i dati simulati con quelli estratti dai documenti (dopo i passi 6-8),

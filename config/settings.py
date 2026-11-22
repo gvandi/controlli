@@ -127,6 +127,11 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_ROOT = BASE_DIR / "dati_caricati"
 MEDIA_URL = "dati_caricati/"
 
+# App grafo: indirizzo con cui gli analisti raggiungono l'applicativo (per esempio
+# https://controlli.ufficio.example). Serve a comporre i collegamenti alle mappe
+# restituiti alla chat; se vuoto si usa l'indirizzo della richiesta ricevuta.
+GRAFO_URL_PUBBLICO = os.environ.get("CONTROLLI_URL_PUBBLICO", "")
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 if not DEBUG:

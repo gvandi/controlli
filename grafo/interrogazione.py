@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   interrogazione.py  -  app grafo, VERSIONE 19.0
+#   interrogazione.py  -  app grafo, VERSIONE 20
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: interrogazione
@@ -69,6 +69,10 @@
 #        esecuzioni_disponibili() ed etichetta_esecuzione().
 #   [19] La versione del progetto non produce più avvisi: è solo provenienza.
 #   [19] Si prova senza chat con python manage.py grafo_consulta "domanda".
+#   [20] apri() legge le restrizioni dell'amministratore (restrizioni_in_vigore) e le applica a
+#        schema, calcolo e documenti di spiegazione; i messaggi di errore dicono quando il
+#        rifiuto viene da una restrizione.
+#   [20] in_esclusiva diventa un nome pubblico: lo usa lo strumento mappa.
 #
 # <<< NOVITA
 """
@@ -105,6 +109,9 @@ from .contratto import DESCRIZIONE_POPOLAZIONE, POPOLAZIONI, TIPI_IRREGOLARITA
 # versione_calcolo, versione_codice, calcolata_il, soglie}
 _esecuzione = None
 _aperta_alle = 0.0
+# Restrizioni dell'amministratore sulle versioni accettate (tabella grafo_parametro),
+# rilette a ogni apri(): {nome del parametro: intervallo PEP 440}
+_restrizioni = {}
 
 # Ogni quanti secondi si ricontrolla se esiste un'esecuzione più recente
 # (il calcolo notturno ne aggiunge una mentre server e chat restano accesi)
@@ -143,6 +150,24 @@ def _data_leggibile(momento):
     return str(momento)[:16]
 
 
+def restrizioni_in_vigore():
+    """
+    Restrizioni scritte dall'amministratore nel cruscotto. Si aggiungono a ciò che
+    il codice sa leggere (contratto.py): possono restringere, mai allargare.
+    """
+    righe = _righe(
+        "SELECT nome, valore FROM grafo_parametro WHERE nome = ANY(%(nomi)s)",
+        {"nomi": [contratto.PARAMETRO_SCHEMA, contratto.PARAMETRO_CALCOLO, contratto.PARAMETRO_SPIEGAZIONE]},
+    )
+    return {riga["nome"]: (riga["valore"] or "").strip() for riga in righe if (riga["valore"] or "").strip()}
+
+
+def _richiesto(richiesta_del_codice, nome_parametro):
+    """Testo per i messaggi: la richiesta del codice più l'eventuale restrizione."""
+    restrizione = _restrizioni.get(nome_parametro)
+    return f"{richiesta_del_codice} e {restrizione} (restrizione dell'amministratore)" if restrizione else richiesta_del_codice
+
+
 def esecuzioni_disponibili():
     """Tutte le esecuzioni presenti, dalla fotografia dei dati più recente alla più vecchia."""
     righe = _righe(
@@ -162,7 +187,7 @@ def apri(versione_calcolo=None, numero_dati=None):
     Sceglie l'esecuzione su cui lavorare e controlla la compatibilità.
 
     Senza parametri: fra le esecuzioni di un calcolo compatibile con
-    contratto.CALCOLO_ACCETTATO, quella sulla fotografia dei dati più recente.
+    contratto.CALCOLO_ACCETTATO (e con la restrizione dell'amministratore, se c'è), quella sulla fotografia dei dati più recente.
     Con i parametri (o con le variabili d'ambiente GRAFO_VERSIONE_CALCOLO e
     GRAFO_VERSIONE_DATI) si sceglie una coppia precisa, per i confronti.
 
@@ -170,7 +195,7 @@ def apri(versione_calcolo=None, numero_dati=None):
     non esiste un'esecuzione utilizzabile: meglio un errore chiaro di una
     risposta calcolata su dati letti male.
     """
-    global _esecuzione, _aperta_alle, _elenco_societa
+    global _esecuzione, _aperta_alle, _elenco_societa, _restrizioni
     versione_calcolo = versione_calcolo or os.environ.get("GRAFO_VERSIONE_CALCOLO") or None
     numero_dati = numero_dati or os.environ.get("GRAFO_VERSIONE_DATI") or None
 
@@ -185,7 +210,16 @@ def apri(versione_calcolo=None, numero_dati=None):
     if schema is None or not contratto.compatibile(schema, contratto.SCHEMA_RICHIESTO):
         raise contratto.ArchivioIncompatibile(
             f"Schema dell'archivio: {schema or 'non dichiarato'}; questo codice richiede "
-            f"{contratto.SCHEMA_RICHIESTO}. Aggiornare il codice oppure applicare le migrazioni."
+            f"{contratto.SCHEMA_RICHIESTO}. Aggiornare il codice oppure applicare le migrazioni "
+            "('python manage.py migrate')."
+        )
+    # Lo schema è quello atteso: la tabella dei parametri esiste e si può leggere
+    _restrizioni = restrizioni_in_vigore()
+    if not contratto.accettata(schema, contratto.SCHEMA_RICHIESTO, _restrizioni.get(contratto.PARAMETRO_SCHEMA)):
+        raise contratto.ArchivioIncompatibile(
+            f"Schema dell'archivio: {schema}; richiesto: "
+            f"{_richiesto(contratto.SCHEMA_RICHIESTO, contratto.PARAMETRO_SCHEMA)}. "
+            "La restrizione si modifica dal cruscotto dell'amministratore."
         )
 
     # 2. Esecuzione: coppia (versione del calcolo, fotografia dei dati)
@@ -199,7 +233,10 @@ def apri(versione_calcolo=None, numero_dati=None):
     else:
         adatte = [
             e for e in candidate
-            if contratto.compatibile(e["versione_calcolo"], contratto.CALCOLO_ACCETTATO)
+            if contratto.accettata(
+                e["versione_calcolo"], contratto.CALCOLO_ACCETTATO,
+                _restrizioni.get(contratto.PARAMETRO_CALCOLO),
+            )
         ]
     if numero_dati:
         adatte = [e for e in adatte if e["numero_dati"] == int(numero_dati)]
@@ -210,7 +247,8 @@ def apri(versione_calcolo=None, numero_dati=None):
             f"calcolo {e['versione_calcolo']} / dati {e['numero_dati']}" for e in candidate
         )
         raise contratto.ArchivioIncompatibile(
-            f"Nessuna esecuzione utilizzabile (richiesto: calcolo {versione_calcolo or contratto.CALCOLO_ACCETTATO}"
+            f"Nessuna esecuzione utilizzabile (richiesto: calcolo "
+            f"{versione_calcolo or _richiesto(contratto.CALCOLO_ACCETTATO, contratto.PARAMETRO_CALCOLO)}"
             f"{', dati ' + str(numero_dati) if numero_dati else ''}). Presenti: {presenti}. "
             "Rieseguire il calcolo con questa versione."
         )
@@ -534,6 +572,10 @@ def _normalizza_spiegazione(documento):
     """
     documento = _json(documento)
     if not contratto.documento_leggibile(documento, "spiegazione", contratto.SPIEGAZIONE_ACCETTATA):
+        return None
+    restrizione = _restrizioni.get(contratto.PARAMETRO_SPIEGAZIONE)
+    versione_documento = str(documento.get("schema", "")).partition("/")[2]
+    if not contratto.accettata(versione_documento, contratto.SPIEGAZIONE_ACCETTATA, restrizione):
         return None
     if documento.get("tipo_irregolarita") not in TIPI_IRREGOLARITA or "soggetto" not in documento:
         return None
@@ -1022,6 +1064,10 @@ def _in_esclusiva(funzione):
         with _lucchetto:
             return funzione(*args, **kwargs)
     return protetta
+
+
+# Nome pubblico: lo usa servizio_mcp.py per lo strumento "mappa"
+in_esclusiva = _in_esclusiva
 
 
 def _errore_tipo(tipo):

@@ -10,14 +10,15 @@ Ognuna risponde a una domanda diversa. Sono dichiarate in `contratto.py`.
 
 | Versione | Domanda | Formato | Dove si legge |
 |---|---|---|---|
-| Progetto (`VERSIONE_CODICE`) | Quale rilascio è installato? | PEP 440: `19.0`, `20.0rc1` | `contratto.py`, `NOVITA.md` |
-| Schema (`VERSIONE_SCHEMA`) | Questo lettore può aprire l'archivio? | due numeri: `4.0` | tabella `grafo_info`, scritta dalle migrazioni |
+| Progetto (`VERSIONE_CODICE`) | Quale rilascio è installato? | numero intero: `20`, `21` | `contratto.py`, `NOVITA.md` |
+| Schema (`VERSIONE_SCHEMA`) | Questo lettore può aprire l'archivio? | due numeri: `4.1` | tabella `grafo_info`, scritta dalle migrazioni |
 | Calcolo (`VERSIONE_CALCOLO`) | Questi punteggi sono confrontabili? | due numeri: `1.0` | tabella `grafo_esecuzione` |
 | Dati | Su quale fotografia dei dati? | contatore: 1, 2, 3 | tabella `grafo_versione_dati` |
 
 La versione del progetto è solo provenienza: **non blocca mai nulla**. Chi decide se si
 può leggere è la versione dello schema; chi decide se i punteggi vanno ricalcolati è la
-versione del calcolo.
+versione del calcolo. Per questo dalla versione 20 è un numero intero: non essendo mai
+confrontata con un intervallo, il secondo numero non serviva.
 
 ### Quando sale quale numero
 
@@ -43,6 +44,24 @@ SCHEMA_RICHIESTO = "~=4.0"    # almeno 4.0, e comunque 4.x
 Con questa riga il lettore accetta 4.0, 4.1, 4.7 e rifiuta 3.9 (gli manca qualcosa) e
 5.0 (qualcosa è stato tolto). Se un lettore comincia a usare una colonna aggiunta nella
 4.2, la sua dichiarazione diventa `~=4.2`.
+
+### Restrizioni dell'amministratore
+
+Gli intervalli scritti in `contratto.py` dicono ciò che il codice **sa** leggere: sono il
+limite, e si spostano solo con un rilascio. Dal cruscotto (`/grafo/cruscotto/`)
+l'amministratore può aggiungere una restrizione per ciascuno, salvata in `grafo_parametro`:
+
+| Parametro | Si aggiunge a | Uso tipico |
+|---|---|---|
+| `restrizione_schema` | `SCHEMA_RICHIESTO` | di norma vuoto |
+| `restrizione_calcolo` | `CALCOLO_ACCETTATO` | `==1.0` per restare sul calcolo 1.0 mentre si valuta l'1.1 |
+| `restrizione_spiegazione` | `SPIEGAZIONE_ACCETTATA` | di norma vuoto |
+
+Una versione è accettata se soddisfa **entrambe** le condizioni (`contratto.accettata()`).
+Quindi una restrizione può restringere, mai allargare: nessuna impostazione fa leggere al
+codice ciò che non conosce. Il cruscotto rifiuta una restrizione che escluderebbe lo schema
+attuale o tutti i calcoli presenti; una restrizione scritta male (possibile solo
+modificando la tabella a mano) viene ignorata.
 
 ## 2. Lettore tollerante
 
@@ -118,6 +137,10 @@ contemporanea su vecchio e nuovo (dual-write) serve solo se il rilascio di chi s
 quello di chi legge non possono essere coordinati: con un calcolo notturno e pochi
 utenti di norma non occorre.
 
+La versione 20 è il primo caso reale: la migrazione `0002_sessioni` aggiunge cinque tabelle
+(4.0 → 4.1) senza toccare le esistenti, e il codice della versione 19 continua a funzionare
+sul database aggiornato.
+
 ### Lista di controllo per una modifica di schema
 
 1. Stabilire se la modifica aggiunge o toglie (tabella del punto 1).
@@ -136,8 +159,8 @@ utenti di norma non occorre.
 
 - **Ordine**: prima le migrazioni di espansione, poi il codice. Mai il contrario.
 - **Funzioni in prova** (Feature Flags): una funzione nuova si rilascia spenta e si
-  accende per pochi utenti. Non è ancora realizzato: è previsto nell'applicativo insieme
-  alla gestione delle sessioni (vedi TODO.md).
+  accende per pochi utenti. Non è ancora realizzato. La tabella `grafo_parametro` e il
+  cruscotto (versione 20) sono il posto in cui andranno gli interruttori (vedi TODO.md).
 - **Tornare indietro**: una migrazione di espansione si può lasciare applicata anche
   tornando al codice precedente, proprio perché il codice vecchio la tollera.
 

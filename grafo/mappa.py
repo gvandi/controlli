@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   mappa.py  -  app grafo, VERSIONE 19.0
+#   mappa.py  -  app grafo, VERSIONE 20
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: mappa
@@ -23,6 +23,9 @@
 #   [19] Il file della mappa porta nel nome soggetto e coppia calcolo/dati e viene scritto in
 #        dati_grafo: mappe diverse non si sovrascrivono.
 #   [19] Si può scegliere il soggetto: python manage.py grafo_mappa --soggetto "nome o numero".
+#   [20] Nuova produci(): restituisce percorso, nome del file e soggetto; chiesta dalla chat, la
+#        mappa porta nel nome anche il numero di sessione, così analisti diversi non si
+#        sovrascrivono.
 #
 # <<< NOVITA
 """
@@ -287,18 +290,29 @@ def scrivi_mappa(report_html, bolla, nome_file):
 
 
 
-def genera(cartella, soggetto=None):
+def produci(cartella, soggetto=None, sessione=None):
     """
-    Scrive la mappa di un soggetto e restituisce il percorso del file, oppure None
-    se non c'è nulla da analizzare. Il nome del file contiene soggetto e coppia
-    calcolo/dati: mappe diverse non si sovrascrivono fra loro.
+    Scrive la mappa di un soggetto. Restituisce {"percorso", "nome_file", "soggetto"}
+    oppure None se non c'è nulla da analizzare.
+
+    Il nome del file contiene soggetto e coppia calcolo/dati e, se la mappa è
+    chiesta dalla chat, il numero di sessione: le mappe di analisti diversi non si
+    sovrascrivono fra loro.
     """
     report, bolla = costruisci_report(soggetto)
     if bolla is None:
         return None
     esecuzione = interrogazione.leggi_esecuzione()
     nome = (
-        f"mappa_soggetto-{bolla['target']}_calcolo-{esecuzione['versione_calcolo']}"
-        f"_dati-{esecuzione['numero_dati']}.html"
+        f"mappa_{f'sessione-{sessione}_' if sessione else ''}soggetto-{bolla['target']}"
+        f"_calcolo-{esecuzione['versione_calcolo']}_dati-{esecuzione['numero_dati']}.html"
     )
-    return scrivi_mappa(report, bolla, str(Path(cartella) / nome))
+    Path(cartella).mkdir(parents=True, exist_ok=True)
+    percorso = scrivi_mappa(report, bolla, str(Path(cartella) / nome))
+    return {"percorso": percorso, "nome_file": nome, "soggetto": bolla["target"]}
+
+
+def genera(cartella, soggetto=None):
+    """Come produci(), ma restituisce solo il percorso del file (o None)."""
+    prodotta = produci(cartella, soggetto)
+    return prodotta["percorso"] if prodotta else None

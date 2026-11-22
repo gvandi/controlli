@@ -8,16 +8,25 @@ Non richiede PyTorch, pyvis né la libreria mcp. Se un filo fra le parti si
 stacca, o una regola di compatibilità viene violata, qui si vede.
 """
 import ast
+import datetime
+import json
 import pathlib
 import random
 import sys
+import tempfile
 from io import StringIO
+from unittest import mock
 
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Permission
 from django.core.management import call_command
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase, TestCase, override_settings
+from django.urls import reverse
 
-from grafo import contratto, interrogazione, mappa, scrittura
-from grafo.models import Esecuzione, InfoArchivio, Spiegazione, VersioneDati
+from grafo import contratto, interrogazione, mappa, protocollo_mcp, scrittura, servizio_mcp, sessioni
+from grafo.models import (
+    Esecuzione, InfoArchivio, MappaProdotta, Parametro, Richiesta, Sessione, Spiegazione, VersioneDati,
+)
 
 CARTELLA_APP = pathlib.Path(__file__).resolve().parent
 N_NODI = 300
@@ -173,8 +182,8 @@ class NomiEStrumentiTest(ConArchivio):
         self.assertIn("corrisponde a 2 società", interrogazione.relazione("Rossi", self.s(5)))
 
     def test_gli_strumenti_sono_quelli_del_contratto_e_rispondono(self):
-        self.assertEqual(tuple(interrogazione.STRUMENTI), contratto.NOMI_STRUMENTI)
-        for nome, funzione in interrogazione.STRUMENTI.items():
+        self.assertEqual(tuple(servizio_mcp.STRUMENTI), contratto.NOMI_STRUMENTI)
+        for nome, funzione in servizio_mcp.STRUMENTI.items():
             self.assertEqual(funzione.__name__, nome)  # il server registra il nome della funzione
             self.assertTrue(funzione.__doc__)  # la descrizione è ciò che legge la chat
 
@@ -331,6 +340,280 @@ class VersioniTest(ConArchivio):
             interrogazione.apri()
 
 
+def _mappa_finta(report_html, bolla, nome_file):
+    """Al posto di mappa.scrivi_mappa: scrive il file senza networkx e pyvis."""
+    pathlib.Path(nome_file).write_text(f"<html>mappa di {bolla['target']}</html>", encoding="utf-8")
+    return nome_file
+
+
+class SessioniTest(ConArchivio):
+    """Versione 20: servizio MCP su HTTP, token, sessioni, registro, mappa, cruscotto."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        Utente = get_user_model()
+        diritto = lambda codice: Permission.objects.get(content_type__app_label="grafo", codename=codice)
+        cls.analista = Utente.objects.create_user("analista", password="x")
+        cls.analista.user_permissions.add(diritto("usa_chat"))
+        cls.collega = Utente.objects.create_user("collega", password="x")
+        cls.collega.user_permissions.add(diritto("usa_chat"))
+        cls.amministratore = Utente.objects.create_user("amministratore", password="x")
+        cls.amministratore.user_permissions.add(diritto("change_parametro"), diritto("view_mappaprodotta"))
+        cls.senza_diritti = Utente.objects.create_user("ospite", password="x")
+        cls.riga_token, cls.token = sessioni.crea_token(cls.analista, "prova")
+
+    # ---- attrezzi -------------------------------------------------------
+    def invia(self, messaggio, token=None, connessione=None):
+        intestazioni = {"HTTP_AUTHORIZATION": f"Bearer {token or self.token}"}
+        if connessione:
+            intestazioni["HTTP_MCP_SESSION_ID"] = connessione
+        return self.client.post(
+            reverse("grafo:mcp"), data=json.dumps(messaggio), content_type="application/json", **intestazioni
+        )
+
+    def collega_chat(self, token=None):
+        """Come fa la chat all'avvio: initialize, poi l'avviso initialized."""
+        risposta = self.invia(
+            {"jsonrpc": "2.0", "id": 1, "method": "initialize",
+             "params": {"protocolVersion": contratto.PROTOCOLLI_MCP[1], "clientInfo": {"name": "prova", "version": "1"}}},
+            token,
+        )
+        self.assertEqual(risposta.status_code, 200)
+        connessione = risposta["Mcp-Session-Id"]
+        avviso = self.invia({"jsonrpc": "2.0", "method": "notifications/initialized"}, token, connessione)
+        self.assertEqual(avviso.status_code, 202)
+        return connessione, risposta.json()["result"]
+
+    def chiama(self, connessione, strumento, token=None, **argomenti):
+        risposta = self.invia(
+            {"jsonrpc": "2.0", "id": 9, "method": "tools/call", "params": {"name": strumento, "arguments": argomenti}},
+            token, connessione,
+        )
+        self.assertEqual(risposta.status_code, 200)
+        return risposta.json()["result"]
+
+    # ---- accesso --------------------------------------------------------
+    def test_senza_token_valido_il_servizio_risponde_401(self):
+        messaggio = {"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
+        senza = self.client.post(reverse("grafo:mcp"), data=json.dumps(messaggio), content_type="application/json")
+        self.assertEqual(senza.status_code, 401)
+        self.assertIn("Bearer", senza["WWW-Authenticate"])
+        self.assertEqual(self.invia(messaggio, "ctrl_inventato").status_code, 401)
+        _, senza_diritto = sessioni.crea_token(self.senza_diritti)
+        self.assertEqual(self.invia(messaggio, senza_diritto).status_code, 401)
+        self.assertEqual(self.client.get(reverse("grafo:mcp")).status_code, 405)
+        self.assertEqual(Sessione.objects.count(), 0)
+
+    def test_del_token_si_conserva_solo_l_impronta_e_la_revoca_chiude_le_sessioni(self):
+        self.assertNotIn(self.token, json.dumps(list(self.riga_token.__dict__.values()), default=str))
+        connessione, _ = self.collega_chat()
+        sessioni.revoca_token(self.riga_token)
+        self.assertEqual(self.invia({"jsonrpc": "2.0", "id": 1, "method": "ping"}, connessione=connessione).status_code, 401)
+        self.assertEqual(Sessione.objects.get().motivo_chiusura, sessioni.CHIUSA_PER_REVOCA)
+
+    # ---- sessioni e registro -------------------------------------------
+    def test_la_sessione_nasce_alla_connessione_e_registra_le_richieste(self):
+        connessione, presentazione = self.collega_chat()
+        self.assertEqual(presentazione["protocolVersion"], contratto.PROTOCOLLI_MCP[1])
+        self.assertEqual(presentazione["serverInfo"]["version"], contratto.VERSIONE_CODICE)
+        sessione = Sessione.objects.get()
+        self.assertEqual((sessione.utente, sessione.id_connessione, sessione.chiusa_il), (self.analista, connessione, None))
+        self.assertEqual(sessione.client, "prova 1")
+
+        elenco = self.invia({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}, connessione=connessione).json()
+        self.assertEqual(tuple(s["name"] for s in elenco["result"]["tools"]), contratto.NOMI_STRUMENTI)
+        self.assertEqual(Richiesta.objects.count(), 0)  # elencare gli strumenti non è una richiesta
+
+        risultato = self.chiama(connessione, "classifica", n=3, domanda="quali sono le 3 peggiori?")
+        self.assertFalse(risultato["isError"])
+        self.assertIn("1. Società", risultato["content"][0]["text"])
+        richiesta = Richiesta.objects.get()
+        self.assertEqual((richiesta.sessione, richiesta.strumento, richiesta.parametri), (sessione, "classifica", {"n": 3}))
+        self.assertEqual((richiesta.domanda, richiesta.esito), ("quali sono le 3 peggiori?", "ok"))
+        self.assertEqual((richiesta.versione_calcolo, richiesta.numero_dati), (contratto.VERSIONE_CALCOLO, 1))
+
+        # un parametro non ammesso è un testo per la chat, e resta nel registro
+        self.assertIn("non riconosciuto", self.chiama(connessione, "classifica", tipo="boh")["content"][0]["text"])
+        self.assertTrue(self.chiama(connessione, "relazione", societa_a=1)["isError"])  # manca societa_b
+        self.assertEqual(Richiesta.objects.count(), 2)
+
+    def test_la_sessione_si_chiude_per_inattivita_secondo_il_parametro(self):
+        connessione, _ = self.collega_chat()
+        prima = Sessione.objects.get()
+        fermo_da = lambda minuti: Sessione.objects.filter(pk=prima.pk).update(
+            ultima_attivita=prima.ultima_attivita - datetime.timedelta(minutes=minuti)
+        )
+        fermo_da(contratto.MINUTI_INATTIVITA_PREDEFINITI + 5)
+        # i messaggi di servizio non contano come attività e non riaprono nulla
+        self.invia({"jsonrpc": "2.0", "id": 2, "method": "ping"}, connessione=connessione)
+        self.assertEqual(Sessione.objects.count(), 1)
+        # la richiesta dell'ispettore trova la sessione scaduta: chiusa, e ne nasce un'altra
+        self.assertFalse(self.chiama(connessione, "classifica")["isError"])
+        prima.refresh_from_db()
+        self.assertEqual(prima.motivo_chiusura, sessioni.CHIUSA_PER_INATTIVITA)
+        nuova = Sessione.objects.exclude(pk=prima.pk).get()
+        self.assertGreater(nuova.pk, prima.pk)
+        self.assertEqual(Richiesta.objects.get().sessione, nuova)
+
+        # l'amministratore allunga il tempo: la stessa pausa non chiude più
+        sessioni.salva_parametro(contratto.PARAMETRO_INATTIVITA, "120", self.amministratore)
+        Sessione.objects.filter(pk=nuova.pk).update(
+            ultima_attivita=nuova.ultima_attivita - datetime.timedelta(minutes=60)
+        )
+        self.chiama(connessione, "classifica")
+        self.assertEqual(Sessione.objects.count(), 2)
+        self.assertEqual(sessioni.chiudi_scadute(), 0)
+
+    def test_la_chat_puo_chiudere_la_sessione_e_non_usa_quelle_degli_altri(self):
+        connessione, _ = self.collega_chat()
+        _, token_collega = sessioni.crea_token(self.collega)
+        ping = {"jsonrpc": "2.0", "id": 2, "method": "ping"}
+        self.assertEqual(self.invia(ping, token_collega, connessione).status_code, 404)
+        chiusura = self.client.delete(
+            reverse("grafo:mcp"), HTTP_AUTHORIZATION=f"Bearer {self.token}", HTTP_MCP_SESSION_ID=connessione
+        )
+        self.assertEqual(chiusura.status_code, 204)
+        self.assertEqual(Sessione.objects.get().motivo_chiusura, sessioni.CHIUSA_DAL_CLIENT)
+        self.assertEqual(self.invia(ping, connessione=connessione).status_code, 404)
+
+    # ---- mappa ----------------------------------------------------------
+    def test_la_mappa_restituisce_un_collegamento_riservato_a_chi_l_ha_chiesta(self):
+        connessione, _ = self.collega_chat()
+        with tempfile.TemporaryDirectory() as cartella, override_settings(GRAFO_CARTELLA=cartella), \
+                mock.patch.object(mappa, "scrivi_mappa", _mappa_finta):
+            testo = self.chiama(connessione, "mappa", societa="Beta Legnami")["content"][0]["text"]
+            riga = MappaProdotta.objects.get()
+            sessione = Sessione.objects.get()
+            self.assertEqual((riga.sessione, riga.soggetto_id), (sessione, self.s(20)))
+            self.assertIn(f"sessione-{sessione.pk}_soggetto-{self.s(20)}_", riga.nome_file)
+            self.assertEqual(riga.richiesta, Richiesta.objects.get())
+            indirizzo = reverse("grafo:mappa", args=[riga.pk])
+            self.assertIn("http://testserver" + indirizzo, testo)
+            self.assertIn(f"Sessione n. {sessione.pk}", testo)
+            self.assertIn("Beta Legnami", testo)
+
+            self.assertEqual(self.client.get(indirizzo).status_code, 302)  # senza accesso: alla pagina di accesso
+            for utente, atteso in ((self.analista, 200), (self.collega, 404), (self.amministratore, 200)):
+                self.client.force_login(utente)
+                self.assertEqual(self.client.get(indirizzo).status_code, atteso, utente.username)
+            self.client.force_login(self.analista)
+            self.assertIn(f"mappa di {self.s(20)}", self.client.get(indirizzo).content.decode())
+            # rifare la stessa mappa nella stessa sessione non crea una seconda riga
+            self.chiama(connessione, "mappa", societa="Beta Legnami")
+            self.assertEqual(MappaProdotta.objects.count(), 1)
+            # un nome ambiguo non viene indovinato nemmeno qui
+            self.assertIn("corrisponde a 2 società", self.chiama(connessione, "mappa", societa="Rossi")["content"][0]["text"])
+
+    # ---- parametri e cruscotto -----------------------------------------
+    def test_le_restrizioni_dell_amministratore_restringono_e_non_allargano(self):
+        altra = VersioneDati.objects.create(numero=9, impronta="altra")
+        nuovo_calcolo = contratto.VERSIONE_CALCOLO.split(".")[0] + ".9"
+        Esecuzione.objects.create(
+            versione_calcolo=nuovo_calcolo, versione_dati=altra, versione_codice="x",
+            tassonomia=list(TIPI), soglie={}, metriche={},
+        )
+        self.assertEqual(interrogazione.apri(), f"calcolo {nuovo_calcolo} / dati 9")
+        sessioni.salva_parametro(contratto.PARAMETRO_CALCOLO, f"=={contratto.VERSIONE_CALCOLO}")
+        self.assertEqual(interrogazione.apri(), f"calcolo {contratto.VERSIONE_CALCOLO} / dati 1")
+        # una restrizione scritta male non spegne il servizio; una che esclude tutto sì, e lo dice
+        sessioni.salva_parametro(contratto.PARAMETRO_CALCOLO, "non un intervallo")
+        self.assertEqual(interrogazione.apri(), f"calcolo {nuovo_calcolo} / dati 9")
+        sessioni.salva_parametro(contratto.PARAMETRO_SCHEMA, "==99.0")
+        with self.assertRaisesRegex(contratto.ArchivioIncompatibile, "restrizione dell'amministratore"):
+            interrogazione.apri()
+        # non può allargare: ciò che il codice non sa leggere resta rifiutato
+        sessioni.salva_parametro(contratto.PARAMETRO_SCHEMA, ">=1.0")
+        InfoArchivio.objects.filter(chiave="versione_schema").update(valore="99.0")
+        with self.assertRaises(contratto.ArchivioIncompatibile):
+            interrogazione.apri()
+
+    def test_i_parametri_si_controllano_prima_di_salvarli(self):
+        controlla = lambda nome, valore: sessioni.errore_parametro(
+            nome, valore, contratto.VERSIONE_SCHEMA, [contratto.VERSIONE_CALCOLO]
+        )
+        for nome, valore in (
+            (contratto.PARAMETRO_INATTIVITA, "0"), (contratto.PARAMETRO_INATTIVITA, "dieci"),
+            (contratto.PARAMETRO_INATTIVITA, "5000"), (contratto.PARAMETRO_CALCOLO, "uno"),
+            (contratto.PARAMETRO_CALCOLO, "==99.0"), (contratto.PARAMETRO_SCHEMA, "==99.0"), ("inventato", "1"),
+        ):
+            self.assertTrue(controlla(nome, valore), (nome, valore))
+        for nome, valore in (
+            (contratto.PARAMETRO_INATTIVITA, "45"), (contratto.PARAMETRO_CALCOLO, ""),
+            (contratto.PARAMETRO_CALCOLO, f"=={contratto.VERSIONE_CALCOLO}"),
+            (contratto.PARAMETRO_SCHEMA, f">={contratto.VERSIONE_SCHEMA}"), (contratto.PARAMETRO_SPIEGAZIONE, "~=1.0"),
+        ):
+            self.assertIsNone(controlla(nome, valore), (nome, valore))
+        # la migrazione ha creato tutti i parametri del contratto con i valori predefiniti
+        self.assertEqual(set(Parametro.objects.values_list("nome", flat=True)), set(contratto.PARAMETRI))
+        self.assertEqual(sessioni.minuti_di_inattivita(), contratto.MINUTI_INATTIVITA_PREDEFINITI)
+
+    def test_il_cruscotto_mostra_le_versioni_e_salva_solo_valori_validi(self):
+        indirizzo = reverse("grafo:cruscotto")
+        self.client.force_login(self.analista)
+        self.assertEqual(self.client.get(indirizzo).status_code, 403)
+        self.client.force_login(self.amministratore)
+        pagina = self.client.get(indirizzo)
+        self.assertEqual(pagina.status_code, 200)
+        self.assertEqual(pagina.context["versione_codice"], contratto.VERSIONE_CODICE)
+        self.assertEqual(pagina.context["schema_database"], contratto.VERSIONE_SCHEMA)
+        self.assertEqual(pagina.context["in_uso"], f"calcolo {contratto.VERSIONE_CALCOLO} / dati 1")
+        self.assertContains(pagina, contratto.SCHEMA_RICHIESTO)
+
+        valori = {nome: predefinito for nome, (predefinito, _) in contratto.PARAMETRI.items()}
+        rifiutata = self.client.post(indirizzo, {**valori, contratto.PARAMETRO_CALCOLO: "==99.0"})
+        self.assertFalse(rifiutata.context["salvato"])
+        self.assertContains(rifiutata, "escluderebbe")
+        self.assertEqual(sessioni.leggi_parametri()[contratto.PARAMETRO_CALCOLO], "")
+
+        accettata = self.client.post(indirizzo, {
+            **valori, contratto.PARAMETRO_INATTIVITA: "45",
+            contratto.PARAMETRO_CALCOLO: f"=={contratto.VERSIONE_CALCOLO}",
+        })
+        self.assertTrue(accettata.context["salvato"])
+        self.assertEqual(sessioni.minuti_di_inattivita(), 45)
+        self.assertEqual(Parametro.objects.get(nome=contratto.PARAMETRO_INATTIVITA).modificato_da, self.amministratore)
+
+    def test_l_analista_crea_e_revoca_i_propri_token_dalla_pagina(self):
+        indirizzo = reverse("grafo:collegamento")
+        self.client.force_login(self.senza_diritti)
+        self.assertEqual(self.client.get(indirizzo).status_code, 403)
+        self.client.force_login(self.collega)
+        pagina = self.client.post(indirizzo, {"azione": "crea", "etichetta": "portatile"})
+        nuovo = pagina.context["token_appena_creato"]
+        self.assertTrue(nuovo.startswith(sessioni.PREFISSO_TOKEN))
+        self.assertContains(pagina, reverse("grafo:mcp"))
+        self.assertEqual(sessioni.token_valido(nuovo).utente, self.collega)
+        # non si revoca il token di un altro
+        self.client.post(indirizzo, {"azione": "revoca", "token": self.riga_token.pk})
+        self.assertIsNotNone(sessioni.token_valido(self.token))
+        self.client.post(indirizzo, {"azione": "revoca", "token": sessioni.token_valido(nuovo).pk})
+        self.assertIsNone(sessioni.token_valido(nuovo))
+
+
+class ProtocolloTest(SimpleTestCase):
+    """Il protocollo MCP, senza database: descrizione degli strumenti e messaggi."""
+
+    def test_ogni_strumento_si_descrive_con_i_suoi_parametri(self):
+        descrizioni = {d["name"]: d for d in map(protocollo_mcp.descrivi_strumento, servizio_mcp.STRUMENTI.values())}
+        self.assertEqual(tuple(descrizioni), contratto.NOMI_STRUMENTI)
+        for descrizione in descrizioni.values():
+            self.assertTrue(descrizione["description"])
+            self.assertIn(protocollo_mcp.PARAMETRO_DOMANDA, descrizione["inputSchema"]["properties"])
+        self.assertEqual(descrizioni["relazione"]["inputSchema"]["required"], ["societa_a", "societa_b"])
+        self.assertEqual(descrizioni["classifica"]["inputSchema"]["properties"]["n"], {"type": "integer", "default": 3})
+        self.assertNotIn("required", descrizioni["mappa"]["inputSchema"])
+
+    def test_messaggi_sconosciuti_o_malformati_non_fanno_cadere_il_servizio(self):
+        rispondi = lambda messaggio: protocollo_mcp.rispondi(messaggio, {}, lambda *a: ("", False))
+        self.assertIsNone(rispondi({"jsonrpc": "2.0", "method": "notifications/cancelled"}))
+        self.assertEqual(rispondi({"jsonrpc": "2.0", "id": 1, "method": "resources/list"})["error"]["code"], -32601)
+        self.assertEqual(rispondi({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "x"}})["error"]["code"], -32602)
+        self.assertEqual(rispondi(["non", "un", "messaggio"])["error"]["code"], -32600)
+        futura = rispondi({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2099-01-01"}})
+        self.assertEqual(futura["result"]["protocolVersion"], contratto.PROTOCOLLI_MCP[0])
+
+
 class MigrazioniTest(TestCase):
 
     def test_le_migrazioni_coincidono_con_i_modelli(self):
@@ -368,18 +651,32 @@ class StrutturaTest(SimpleTestCase):
             "scrittura.py": {"contratto", "models"},
             "calcolo.py": {"contratto", "scrittura", "calcolo_cartella"},
             "interrogazione.py": {"contratto"},
-            "server_mcp.py": {"contratto", "interrogazione"},
             "mappa.py": {"contratto", "interrogazione"},
+            "sessioni.py": {"contratto", "models"},
+            "protocollo_mcp.py": {"contratto"},
+            "servizio_mcp.py": {"contratto", "interrogazione", "mappa", "sessioni", "calcolo_cartella"},
+            "server_mcp.py": {"contratto", "interrogazione", "servizio_mcp"},
+            "views.py": {
+                "contratto", "interrogazione", "protocollo_mcp", "servizio_mcp", "sessioni",
+                "calcolo_cartella", "models",
+            },
         }
         for nome_file, permesse in ammesse.items():
             interni, _ = self._importazioni(nome_file)
             self.assertLessEqual(interni, permesse, f"{nome_file} importa {interni - permesse}")
 
     def test_solo_il_calcolo_usa_pytorch_e_il_contratto_non_usa_django(self):
-        for nome_file in ("contratto.py", "models.py", "scrittura.py", "interrogazione.py", "server_mcp.py", "mappa.py"):
+        for nome_file in (
+            "contratto.py", "models.py", "scrittura.py", "interrogazione.py", "server_mcp.py", "mappa.py",
+            "sessioni.py", "protocollo_mcp.py", "servizio_mcp.py", "views.py",
+        ):
             _, esterni = self._importazioni(nome_file)
             self.assertFalse(esterni & {"torch", "torch_geometric"}, nome_file)
         self.assertNotIn("django", self._importazioni("contratto.py")[1])
+        # il protocollo si prova da solo: niente Django; solo il server stdio usa la libreria mcp
+        self.assertNotIn("django", self._importazioni("protocollo_mcp.py")[1])
+        for nome_file in ("protocollo_mcp.py", "servizio_mcp.py", "views.py", "sessioni.py"):
+            self.assertNotIn("mcp", self._importazioni(nome_file)[1], nome_file)
         self.assertNotIn("torch", sys.modules)  # queste prove hanno caricato l'app senza PyTorch
 
     def test_registro_e_intestazioni_sono_allineati(self):
