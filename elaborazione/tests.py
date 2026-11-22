@@ -347,7 +347,7 @@ class ScansioneTest(ConFile):
     PAGINA_1 = "Assemblea dei soci della Alfa S.r.l., C.O.E. SM 12345, tenuta in Serravalle.\nAmministratore: Mario Rossi."
     PAGINA_2 = "Bilancio 2024\nRicavi delle vendite: € 150.000,00"
 
-    def lettore(self, modello):
+    def lettore_di_scansioni(self, modello):
         return coda.LettoreModello(cliente=modello, pagine_del_pdf=lambda percorso, punti: [b"pagina-1", b"pagina-2"])
 
     def test_una_scansione_di_due_pagine(self):
@@ -363,7 +363,7 @@ class ScansioneTest(ConFile):
             entita_json(("RICAVI", "150.000,00", "Ricavi delle vendite: € 150.000,00", "", "2024")),
         ])
         file = self.carica(b"%PDF-1.4 scansione finta", nome="assemblea.pdf")
-        resoconto = coda.esegui(lettori=[self.lettore(modello)])
+        resoconto = coda.esegui(lettori=[self.lettore_di_scansioni(modello)])
         self.assertEqual(resoconto[coda.DA_RIVEDERE], 1)
 
         elaborazione = Elaborazione.objects.get()
@@ -403,7 +403,7 @@ class ScansioneTest(ConFile):
     def test_una_risposta_tagliata_e_un_errore_da_ritentare_non_un_risultato(self):
         modello = ModelloFinto([risposta_del_modello(self.PAGINA_1), risposta_del_modello('{"entita": [', fine="length")])
         file = self.carica(b"%PDF-1.4 scansione finta", nome="assemblea.pdf")
-        self.assertEqual(coda.esegui(lettori=[self.lettore(modello)])[coda.ERRORE], 1)
+        self.assertEqual(coda.esegui(lettori=[self.lettore_di_scansioni(modello)])[coda.ERRORE], 1)
         riga = FileCaricato.objects.get(pk=file.pk)
         self.assertEqual((riga.stato, riga.tentativi), (archivio.FILE_ERRORE, 1))
         self.assertIn("tagliata", riga.ultimo_errore)

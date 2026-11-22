@@ -343,16 +343,17 @@ def sblocca_interrotti(ore=6):
     )
 
 
-def _prendi(saltati):
+def _prendi(gia_presi):
     """
     Il prossimo file da elaborare, già segnato "in elaborazione": prima i ricevuti
     (priorità più alta, poi i più vecchi), poi gli errori ancora ritentabili.
     Solo i file di caricamenti confermati: una bozza o un caricamento annullato non si tocca.
+    Un file già preso in questo giro non si riprende: un errore si ritenta la volta dopo.
     """
     with transaction.atomic():
         in_attesa = (
             FileCaricato.objects.select_for_update(skip_locked=True, of=("self",))
-            .filter(fascicolo__stato=archivio.CONFERMATO).exclude(pk__in=saltati)
+            .filter(fascicolo__stato=archivio.CONFERMATO).exclude(pk__in=gia_presi)
             .order_by("-priorita", "caricato_il", "pk")
         )
         file = (
@@ -374,17 +375,19 @@ def esegui(minuti=None, massimo=None, lettori=None):
     lettori = lettori if lettori is not None else lettori_predefiniti()
     scadenza = time.monotonic() + minuti * 60 if minuti else None
     resoconto = {ELABORATO: 0, DA_RIVEDERE: 0, ERRORE: 0, SALTATO: 0, "motivi": {}, "sbloccati": sblocca_interrotti()}
-    saltati, presi = [], 0
-    while (massimo is None or presi < massimo) and (scadenza is None or time.monotonic() < scadenza):
-        file = _prendi(saltati)
+    # Ogni file si prende al più una volta per giro. Senza questo, un file andato in
+    # errore verrebbe ripreso subito e consumerebbe tutti i tentativi in pochi secondi,
+    # per esempio mentre il server del modello è spento.
+    gia_presi = []
+    while (massimo is None or len(gia_presi) < massimo) and (scadenza is None or time.monotonic() < scadenza):
+        file = _prendi(gia_presi)
         if file is None:
             break
-        presi += 1
+        gia_presi.append(file.pk)
         esito, messaggio = elabora_file(file, lettori)
         if esito == SALTATO:
-            # Nessun lettore disponibile per questo file: torna com'era e non si riprova in questo giro
+            # Nessun lettore disponibile per questo file: torna com'era
             FileCaricato.objects.filter(pk=file.pk).update(stato=file.stato_precedente)
-            saltati.append(file.pk)
             resoconto["motivi"][messaggio] = resoconto["motivi"].get(messaggio, 0) + 1
         resoconto[esito] += 1
     resoconto["in attesa"] = FileCaricato.objects.filter(
