@@ -353,6 +353,7 @@ class CaricamentoTest(ConUtenti):
         self.assertEqual(effettivi["provenienza"], ("Sopralluogo del 3 marzo", True))
         # correggere il caricamento arriva a chi eredita
         self.pagina(self.anna, "fascicolo", fascicolo.pk, azione="metadati", provenienza="Sopralluogo del 4 marzo")
+        b = FileCaricato.objects.get(pk=b.pk)  # riletto: l'oggetto di prima ricorda i metadati vecchi
         self.assertEqual(caricamento.metadati_effettivi(b)["provenienza"][0], "Sopralluogo del 4 marzo")
         self.assertContains(self.pagina(self.anna, "file", b.pk), "proprio del file")
         # valori non ammessi
