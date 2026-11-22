@@ -264,11 +264,13 @@ def metadati_effettivi(file):
     I metadati che valgono per un file: {campo: (valore, ereditato)}.
     Vale il valore del file se c'è, altrimenti quello del caricamento.
     """
-    caricamento = file.fascicolo.caricamento
+    # Letto dal database ogni volta: i metadati del caricamento possono essere stati
+    # corretti dopo che questo oggetto è stato caricato in memoria.
+    caricamento = Caricamento.objects.select_related("tipo_documento").filter(pk=file.fascicolo_id).first()
     effettivi = {}
     for campo in CAMPI_EREDITABILI:
         proprio = getattr(file, campo)
-        effettivi[campo] = (proprio, False) if proprio else (getattr(caricamento, campo), True)
+        effettivi[campo] = (proprio, False) if proprio else (getattr(caricamento, campo, None), True)
     return effettivi
 
 
