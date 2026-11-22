@@ -150,6 +150,9 @@ OAUTH2_PROVIDER = {
     # utente un client non ottiene nulla. Da restringere prima dell'uso reale (TODO.md).
     "DCR_ENABLED": True,
     "DCR_REGISTRATION_PERMISSION_CLASSES": ("oauth2_provider.dcr.AllowAllDCRPermission",),
+    # La pagina di consenso si mostra la prima volta; poi si salta finché l'utente ha un
+    # token non scaduto per lo stesso programma. "force" la ripropone a ogni accesso.
+    "REQUEST_APPROVAL_PROMPT": os.environ.get("CONTROLLI_OAUTH_CONSENSO", "auto"),
     # Una chat sullo stesso computer può ricevere la risposta su http://localhost:porta
     "ALLOW_LOCALHOST_LOOPBACK": True,
     # Durata del token della chat (ore) e del token di rinnovo (giorni)
