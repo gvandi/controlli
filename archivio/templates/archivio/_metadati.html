@@ -1,0 +1,27 @@
+{% load i18n %}
+{# Modulo dei metadati. Vuole: oggetto (Caricamento o FileCaricato), tipi_documento, nature, vuoto (testo dell'opzione vuota), con_note #}
+<form method="post">
+  {% csrf_token %}
+  <input type="hidden" name="azione" value="metadati">
+  <label for="provenienza">{% translate "Provenienza (chi ha fornito i file, in quale occasione)" %}</label>
+  <input type="text" id="provenienza" name="provenienza" maxlength="200" value="{{ oggetto.provenienza }}">
+  <label for="natura">{% translate "Natura del contenuto" %}</label>
+  <select id="natura" name="natura">
+    <option value="">{{ vuoto }}</option>
+    {% for codice, nome in nature %}<option value="{{ codice }}"{% if oggetto.natura == codice %} selected{% endif %}>{{ nome }}</option>{% endfor %}
+  </select>
+  <label for="tipo_documento">{% translate "Tipo di documento" %}</label>
+  <select id="tipo_documento" name="tipo_documento">
+    <option value="">{{ vuoto }}</option>
+    {% for tipo in tipi_documento %}<option value="{{ tipo.pk }}"{% if oggetto.tipo_documento_id == tipo.pk %} selected{% endif %}>{{ tipo.descrizione }}</option>{% endfor %}
+  </select>
+  <label for="periodo_dal">{% translate "Periodo a cui si riferiscono: dal" %}</label>
+  <input type="date" id="periodo_dal" name="periodo_dal" value="{{ oggetto.periodo_dal|date:'Y-m-d' }}">
+  <label for="periodo_al">{% translate "al" %}</label>
+  <input type="date" id="periodo_al" name="periodo_al" value="{{ oggetto.periodo_al|date:'Y-m-d' }}">
+  {% if con_note %}
+    <label for="note">{% translate "Note" %}</label>
+    <input type="text" id="note" name="note" value="{{ oggetto.note }}">
+  {% endif %}
+  <p><button type="submit">{% translate "Salva i metadati" %}</button></p>
+</form>

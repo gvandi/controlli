@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block titolo %}{{ fascicolo.titolo }}{% endblock %}
+{% block contenuto %}
+<style>
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: 0.35rem 0.6rem 0.35rem 0; border-bottom: 1px solid var(--bordo); vertical-align: top; }
+  td form { display: inline; }
+  .in-riga input, .in-riga select { display: inline-block; width: auto; margin-right: 0.5rem; }
+  input[type=date] { width: auto; }
+  .ok { color: #1e6b3a; } .avviso { color: #a12622; }
+  .percorso { font-family: monospace; }
+</style>
+<p>
+  <a href="{% url 'archivio:faldoni' %}">{% translate "Archivio" %}</a> &rsaquo;
+  <a href="{% url 'archivio:faldone' fascicolo.faldone.codice %}">{{ fascicolo.faldone.nome }}</a> &rsaquo;
+  {% translate "Fascicolo" %} {{ fascicolo.pk }}
+</p>
+<h1>{{ fascicolo.titolo }}</h1>
+<p>
+  {% translate "Stato:" %} <strong>{{ fascicolo.stato }}</strong> &middot;
+  {% if fascicolo.riservato_a_id %}{% translate "riservato a un'indagine" %}{% else %}{% translate "visibilità generale" %}{% endif %} &middot;
+  {% blocktranslate count numero=file|length %}{{ numero }} file{% plural %}{{ numero }} file{% endblocktranslate %}, {{ dimensione_totale|filesizeformat }}
+</p>
+{% if errore %}<p class="errore">{{ errore }}</p>{% endif %}
+
+{% if resoconto %}
+<div class="scheda">
+  <h2>{% translate "Esito del caricamento" %}</h2>
+  <p>
+    <span class="ok">{% blocktranslate with n=resoconto.aggiunti %}{{ n }} aggiunti{% endblocktranslate %}</span>
+    {% if resoconto.presenti %}&middot; {{ resoconto.presenti }} {% translate "già presenti (non duplicati)" %}{% endif %}
+    {% if resoconto.rinominati %}&middot; {{ resoconto.rinominati }} {% translate "con lo stesso percorso ma contenuto diverso: tenuti con un numero nel nome" %}{% endif %}
+  </p>
+  {% if resoconto.rifiutati %}
+    <p class="avviso">{% translate "Non accettati:" %}</p>
+    <ul>{% for nome, motivo in resoconto.rifiutati %}<li><span class="percorso">{{ nome }}</span>: {{ motivo }}</li>{% endfor %}</ul>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if in_bozza %}
+<div class="scheda">
+  <h2>{% translate "Aggiungi file" %}</h2>
+  <form method="post" enctype="multipart/form-data" id="modulo-carica">
+    {% csrf_token %}
+    <input type="hidden" name="azione" value="carica">
+    <label for="file">{% translate "File singoli o un archivio ZIP" %}</label>
+    <input type="file" id="file" name="file" multiple>
+    <label for="cartella">{% translate "Oppure una cartella intera, con le sue sottocartelle" %}</label>
+    <input type="file" id="cartella" name="cartella" multiple webkitdirectory>
+    <p class="tenue">{% translate "I file omonimi in sottocartelle diverse restano distinti. Uno ZIP viene aperto e non conservato." %}</p>
+    <p><button type="submit">{% translate "Carica" %}</button></p>
+  </form>
+  <script>
+    // Il browser manda solo il nome dei file: il percorso dentro la cartella scelta
+    // viaggia in campi a parte, nello stesso ordine dei file.
+    document.getElementById("modulo-carica").addEventListener("submit", function () {
+      var modulo = this;
+      modulo.querySelectorAll("input[name=percorso_cartella]").forEach(function (c) { c.remove(); });
+      Array.prototype.forEach.call(document.getElementById("cartella").files, function (f) {
+        var campo = document.createElement("input");
+        campo.type = "hidden"; campo.name = "percorso_cartella"; campo.value = f.webkitRelativePath || f.name;
+        modulo.appendChild(campo);
+      });
+    });
+  </script>
+</div>
+{% endif %}
+
+<div class="scheda">
+  <h2>{% translate "Metadati del caricamento" %}</h2>
+  <p class="tenue">{% translate "Valgono per tutti i file, tranne quelli a cui ne dai di propri aprendo il singolo file." %}</p>
+  {% if in_bozza %}
+    {% translate "(non indicato)" as vuoto %}
+    {% include "archivio/_metadati.html" with oggetto=caricamento con_note=True %}
+  {% else %}
+    <table>
+      <tr><th>{% translate "Provenienza" %}</th><td>{{ caricamento.provenienza|default:"-" }}</td></tr>
+      <tr><th>{% translate "Natura" %}</th><td>{{ caricamento.natura|default:"-" }}</td></tr>
+      <tr><th>{% translate "Tipo di documento" %}</th><td>{{ caricamento.tipo_documento.descrizione|default:"-" }}</td></tr>
+      <tr><th>{% translate "Periodo" %}</th><td>{{ caricamento.periodo_dal|date:"Y-m-d"|default:"-" }} / {{ caricamento.periodo_al|date:"Y-m-d"|default:"-" }}</td></tr>
+      <tr><th>{% translate "Note" %}</th><td>{{ caricamento.note|default:"-" }}</td></tr>
+    </table>
+  {% endif %}
+</div>
+
+<div class="scheda">
+  <h2>{% translate "Soggetti (COE)" %}</h2>
+  <p class="tenue">{% translate "Il primo è il soggetto principale, gli altri sono collegati. Per una controparte estera scegli un altro tipo di identificativo." %}</p>
+  {% include "archivio/_soggetti_dichiarati.html" with soggetti=dichiarati modificabili=True %}
+</div>
+
+<div class="scheda">
+  <h2>{% translate "File" %}</h2>
+  <table>
+    <tr><th>{% translate "Percorso" %}</th><th>{% translate "Dimensione" %}</th><th>{% translate "Stato" %}</th><th></th></tr>
+    {% for f in file %}
+      <tr>
+        <td class="percorso"><a href="{% url 'archivio:file' f.pk %}">{{ f.percorso_originale }}</a></td>
+        <td>{{ f.dimensione|filesizeformat }}</td>
+        <td>{{ f.stato }}</td>
+        <td>{% if f.doppione %}<span class="tenue">{% translate "stesso contenuto di un altro file" %}</span>{% endif %}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="4" class="tenue">{% translate "Nessun file." %}</td></tr>
+    {% endfor %}
+  </table>
+</div>
+
+{% if in_bozza %}
+<div class="scheda">
+  <h2>{% translate "Conferma" %}</h2>
+  <p>{% translate "Con la conferma i file passano all'elaborazione e il caricamento non si può più modificare né cancellare: solo annullare." %}</p>
+  <form method="post" style="display:inline">{% csrf_token %}
+    <input type="hidden" name="azione" value="conferma">
+    <button type="submit">{% translate "Conferma il caricamento" %}</button>
+  </form>
+  <form method="post" style="display:inline">{% csrf_token %}
+    <input type="hidden" name="azione" value="elimina">
+    <button type="submit" class="secondario">{% translate "Elimina la bozza e i suoi file" %}</button>
+  </form>
+</div>
+{% elif annullabile %}
+<div class="scheda">
+  <h2>{% translate "Annullamento" %}</h2>
+  <p>{% translate "Ritira il caricamento: i file non verranno più elaborati. Resta traccia di chi lo ha annullato e quando." %}</p>
+  <form method="post">{% csrf_token %}
+    <input type="hidden" name="azione" value="annulla">
+    <button type="submit" class="secondario">{% translate "Annulla il caricamento" %}</button>
+  </form>
+</div>
+{% endif %}
+
+<div class="scheda">
+  <h2>{% translate "Registro" %}</h2>
+  <table>
+    {% for e in eventi %}
+      <tr><td>{{ e.quando|date:"Y-m-d H:i" }}</td><td>{{ e.utente.get_username|default:"-" }}</td><td>{{ e.azione }}</td><td class="tenue">{{ e.dettaglio }}</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

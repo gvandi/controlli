@@ -6,7 +6,7 @@ sullo stesso utente; l'amministratore può crearne altri dall'interfaccia.
 
 Archivio (app archivio e soggetti): Caricatore dati, Analista e Lettore
 consultano faldoni e fascicoli; Caricatore dati e Analista possono aggiungere
-soggetti; solo l'Analista apre indagini (diritto "apre_indagini"). Avere il
+soggetti e caricare file; solo l'Analista apre indagini (diritto "apre_indagini"). Avere il
 diritto di consultare non basta per vedere un'indagine: bisogna esservi assegnati.
 L'Amministratore non ha diritti sull'archivio.
 
@@ -28,6 +28,8 @@ USA_CHAT = ("usa",)
 # Diritto proprio dell'archivio (archivio.apre_indagini, definito sul modello Fascicolo)
 APRE_INDAGINI = ("apre",)
 AGGIUNGE_E_LEGGE = ("add", "view")
+# Caricare file: il diritto che conta è archivio.add_filecaricato
+CARICA = ("add", "change", "delete")
 
 # ruolo -> elenco di (app, modello o None per tutti i modelli dell'app, azioni)
 DIRITTI = {
@@ -42,6 +44,7 @@ DIRITTI = {
     ],
     CARICATORE_DATI: [
         ("archivio", None, SOLO_LETTURA),
+        ("archivio", "filecaricato", CARICA),
         ("soggetti", None, AGGIUNGE_E_LEGGE),
     ],
     ANALISTA: [
@@ -49,6 +52,7 @@ DIRITTI = {
         ("grafo", "sessione", USA_CHAT),
         ("archivio", None, SOLO_LETTURA),
         ("archivio", "fascicolo", APRE_INDAGINI),
+        ("archivio", "filecaricato", CARICA),
         ("soggetti", None, AGGIUNGE_E_LEGGE),
     ],
     CONFIGURATORE: [

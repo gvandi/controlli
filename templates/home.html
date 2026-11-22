@@ -19,7 +19,12 @@
 
 <div class="scheda">
   <h2>{% translate "Caricamento dati" %}</h2>
-  <p class="tenue">{% translate "Invio dei file da analizzare e loro conservazione sul server. In arrivo con uno dei prossimi passi (vedi TODO.md)." %}</p>
+  {% if puo_caricare_file %}
+    <p>{% translate "Invio dei file da analizzare: file singoli, una cartella o un archivio ZIP." %}</p>
+    <p><a class="bottone" href="{% url 'archivio:faldone' 'CARICAMENTI' %}">{% translate "Apri i caricamenti" %}</a></p>
+  {% else %}
+    <p class="tenue">{% translate "Non hai i diritti per caricare file." %}</p>
+  {% endif %}
 </div>
 
 <div class="scheda">

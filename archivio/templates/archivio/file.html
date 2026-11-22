@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block titolo %}{{ file.percorso_originale }}{% endblock %}
+{% block contenuto %}
+<style>
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: 0.35rem 0.6rem 0.35rem 0; border-bottom: 1px solid var(--bordo); vertical-align: top; }
+  td form { display: inline; }
+  .in-riga input, .in-riga select { display: inline-block; width: auto; margin-right: 0.5rem; }
+  input[type=date] { width: auto; }
+  .percorso { font-family: monospace; word-break: break-all; }
+</style>
+<p>
+  <a href="{% url 'archivio:faldoni' %}">{% translate "Archivio" %}</a> &rsaquo;
+  <a href="{% url 'archivio:faldone' fascicolo.faldone.codice %}">{{ fascicolo.faldone.nome }}</a> &rsaquo;
+  <a href="{% url 'archivio:fascicolo' fascicolo.pk %}">{{ fascicolo.titolo }}</a>
+</p>
+<h1 class="percorso">{{ file.percorso_originale }}</h1>
+{% if errore %}<p class="errore">{{ errore }}</p>{% endif %}
+
+<div class="scheda">
+  <table>
+    <tr><th>{% translate "Stato" %}</th><td>{{ file.stato }}</td></tr>
+    <tr><th>{% translate "Dimensione" %}</th><td>{{ file.dimensione|filesizeformat }}</td></tr>
+    <tr><th>{% translate "Caricato" %}</th><td>{{ file.caricato_il|date:"Y-m-d H:i" }}{% if file.caricato_da %} {% translate "da" %} {{ file.caricato_da.get_username }}{% endif %}</td></tr>
+    <tr><th>{% translate "Impronta (SHA-256)" %}</th><td class="percorso">{{ file.impronta }}</td></tr>
+    {% if file.ultimo_errore %}<tr><th>{% translate "Ultimo errore" %}</th><td>{{ file.ultimo_errore }}</td></tr>{% endif %}
+  </table>
+  <p><a class="bottone" href="{% url 'archivio:scarica' file.pk %}">{% translate "Scarica l'originale" %}</a></p>
+</div>
+
+<div class="scheda">
+  <h2>{% translate "Metadati che valgono per questo file" %}</h2>
+  <table>
+    {% for m in effettivi %}
+      <tr>
+        <th>{{ m.nome }}</th>
+        <td>{{ m.valore|default:"-" }}</td>
+        <td class="tenue">{% if m.ereditato %}{% translate "dal caricamento" %}{% else %}{% translate "proprio del file" %}{% endif %}</td>
+      </tr>
+    {% endfor %}
+  </table>
+  {% if in_bozza %}
+    <h3>{% translate "Metadati propri del file" %}</h3>
+    <p class="tenue">{% translate "Compila solo ciò che è diverso dal caricamento: i campi lasciati vuoti continuano a ereditare." %}</p>
+    {% translate "(come il caricamento)" as vuoto %}
+    {% include "archivio/_metadati.html" with oggetto=file con_note=False %}
+  {% endif %}
+</div>
+
+<div class="scheda">
+  <h2>{% translate "Soggetti (COE)" %}</h2>
+  {% if soggetti_ereditati %}
+    <p class="tenue">{% translate "Questo file usa i soggetti del caricamento. Se ne aggiungi uno qui, il file avrà i propri e non erediterà più quelli." %}</p>
+  {% else %}
+    <p class="tenue">{% translate "Questo file ha soggetti propri: non eredita quelli del caricamento." %}</p>
+  {% endif %}
+  {% if soggetti_ereditati %}
+    {% include "archivio/_soggetti_dichiarati.html" with modificabili=False %}
+  {% else %}
+    {% include "archivio/_soggetti_dichiarati.html" with modificabili=True %}
+  {% endif %}
+</div>
+
+{% if in_bozza %}
+<div class="scheda">
+  <form method="post">{% csrf_token %}
+    <input type="hidden" name="azione" value="togli_file">
+    <button type="submit" class="secondario">{% translate "Togli questo file dal caricamento" %}</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}
