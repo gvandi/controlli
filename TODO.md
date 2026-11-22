@@ -27,10 +27,20 @@ Elenco unico delle cose da fare. Ogni passo si chiude con questo file aggiornato
         con tipo di irregolarità, data e verbale; è il dato che oggi l'analisi di rete simula
   - [ ] chiusura di un'indagine; registro di chi ha aperto quale fascicolo
 - [ ] 4. Caricamento (DECISIONI.md, n. 64-68)
-  - [ ] parte 2: fascicolo di caricamento in bozza, scelta di una cartella o di un file ZIP
-        (con limiti), percorso originale e file omonimi, file salvati una volta sola per
-        impronta, metadati sul fascicolo ereditati dai file, campi COE (principale e
-        collegati), visibilità generale o legata a un'indagine, conferma, annullamento
+  - [x] parte 2: fascicolo di caricamento in bozza, scelta di file, di una cartella o di un
+        file ZIP (con limiti), percorso originale e file omonimi, file salvati una volta sola
+        per impronta, metadati sul fascicolo ereditati dai file, campi COE (principale e
+        collegati), visibilità generale o legata a un'indagine, conferma, annullamento,
+        scarico dell'originale, registro
+  - [ ] **Prima esecuzione della parte 2**: `migrate`, `crea_ruoli`, `test archivio`, e una
+        prova vera dal browser con una cartella e con uno ZIP. In fase di scrittura sono
+        stati provati solo `deposito.py` e `ingresso.py` (senza Django); modelli, migrazione
+        0002, regole, pagine e prove non sono mai stati eseguiti
+  - [ ] verificare dal browser che la scelta di una cartella conservi i percorsi (dipende
+        dal browser: provato solo il lato server)
+  - [ ] limiti del server web davanti all'applicativo (dimensione massima di una richiesta)
+        quando ci sarà; caricamenti molto grandi a pezzi, con ripresa
+  - [ ] controllo antivirus dei file ricevuti
   - [ ] parte 3: stati di elaborazione (bozza, ricevuto, in elaborazione, elaborato, da
         rivedere, errore, annullato) con priorità e tentativi; elaboratore finto che collega
         il file ai fascicoli delle aziende dichiarate

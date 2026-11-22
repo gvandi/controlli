@@ -7,7 +7,8 @@ ARCHIVIO: faldoni e fascicoli (passo 3).
     FASCICOLO          sta in un faldone. A seconda del faldone è un caricamento,
                        un'azienda oppure un'indagine.
 
-    Caricamenti        un fascicolo per ogni caricamento di file (parte 2)
+    Caricamenti        un fascicolo per ogni caricamento di file: Caricamento (i
+                       metadati dichiarati), FileCaricato, SoggettoDichiarato
     Aziende            un fascicolo per ogni azienda acquisita; lo crea il sistema
     Indagini           un fascicolo per ogni indagine; riservato alle persone assegnate
 
@@ -25,6 +26,28 @@ raggiunge solo dal fascicolo d'indagine: dall'azienda non si risale alle indagin
 from django.conf import settings
 from django.db import models
 from django.db.models import Q
+
+# Stati di un fascicolo di caricamento
+BOZZA = "bozza"            # l'ispettore sta caricando e completando i metadati
+CONFERMATO = "confermato"  # consegnato all'elaborazione
+ANNULLATO = "annullato"    # ritirato dopo la conferma: resta la traccia
+
+# Stati di un file (DECISIONI.md, n. 66)
+FILE_BOZZA = "bozza"
+FILE_RICEVUTO = "ricevuto"
+FILE_IN_ELABORAZIONE = "in elaborazione"
+FILE_ELABORATO = "elaborato"
+FILE_DA_RIVEDERE = "da rivedere"
+FILE_ERRORE = "errore"
+FILE_ANNULLATO = "annullato"
+
+# Natura del contenuto di un file: dice a quale importazione è destinato
+NATURE = (
+    ("documenti", "Documenti (fatture, DDT, verbali...)"),
+    ("transazioni", "Estratto di transazioni"),
+    ("dati_economici", "Dati economici"),
+    ("altro", "Altro"),
+)
 
 # Codici dei faldoni creati dalla migrazione iniziale
 CARICAMENTI = "CARICAMENTI"
@@ -118,3 +141,103 @@ class SoggettoInIndagine(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["fascicolo", "soggetto"], name="soggetto_in_indagine_unico"),
         ]
+
+
+# =====================================================================
+# CARICAMENTO DEI FILE (parte 2; DECISIONI.md, n. 64-68)
+# =====================================================================
+class Caricamento(models.Model):
+    """Metadati dichiarati dall'ispettore per un fascicolo del faldone Caricamenti.
+
+    Valgono per tutti i file del fascicolo che non ne dichiarano di propri.
+    """
+
+    fascicolo = models.OneToOneField(
+        Fascicolo, on_delete=models.CASCADE, primary_key=True, related_name="caricamento"
+    )
+    provenienza = models.CharField(max_length=200, blank=True, default="")
+    tipo_documento = models.ForeignKey(
+        "decodifiche.TipoDocumento", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    natura = models.CharField(max_length=20, blank=True, default="")
+    periodo_dal = models.DateField(null=True, blank=True)
+    periodo_al = models.DateField(null=True, blank=True)
+    note = models.TextField(blank=True, default="")
+
+
+class FileCaricato(models.Model):
+    """Un file di un caricamento.
+
+    Il contenuto sta nel deposito (deposito.py) sotto un nome ricavato
+    dall'impronta e non si sposta mai. Qui c'è il percorso con cui il file è
+    arrivato: due file omonimi in sottocartelle diverse sono due righe distinte.
+    I campi dei metadati, se vuoti, ereditano quelli del caricamento.
+    """
+
+    fascicolo = models.ForeignKey(Fascicolo, on_delete=models.CASCADE, related_name="file")
+    percorso_originale = models.CharField(max_length=500)
+    impronta = models.CharField(max_length=64, db_index=True)
+    dimensione = models.BigIntegerField()
+    tipo_mime = models.CharField(max_length=100, blank=True, default="")
+    stato = models.CharField(max_length=20, default="bozza")
+    priorita = models.SmallIntegerField(default=0)
+    tentativi = models.PositiveSmallIntegerField(default=0)
+    ultimo_errore = models.TextField(blank=True, default="")
+    caricato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    caricato_il = models.DateTimeField(auto_now_add=True)
+    # Metadati propri del file: vuoto = eredita dal caricamento
+    provenienza = models.CharField(max_length=200, blank=True, default="")
+    tipo_documento = models.ForeignKey(
+        "decodifiche.TipoDocumento", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    natura = models.CharField(max_length=20, blank=True, default="")
+    periodo_dal = models.DateField(null=True, blank=True)
+    periodo_al = models.DateField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["fascicolo", "percorso_originale"], name="file_unico_per_percorso"),
+        ]
+
+    def __str__(self):
+        return self.percorso_originale
+
+
+class SoggettoDichiarato(models.Model):
+    """Un identificativo (di norma un COE) indicato dall'ispettore.
+
+    Sta su un fascicolo di caricamento oppure su un singolo file (uno dei due).
+    Il primo è il soggetto principale, gli altri sono collegati. Un file che ne
+    dichiara di propri non eredita quelli del caricamento.
+    """
+
+    fascicolo = models.ForeignKey(
+        Fascicolo, null=True, blank=True, on_delete=models.CASCADE, related_name="soggetti_dichiarati"
+    )
+    file = models.ForeignKey(
+        FileCaricato, null=True, blank=True, on_delete=models.CASCADE, related_name="soggetti_dichiarati"
+    )
+    tipo = models.ForeignKey("decodifiche.TipoIdentificativo", on_delete=models.PROTECT, related_name="+")
+    valore_originale = models.CharField(max_length=60)
+    valore_normalizzato = models.CharField(max_length=60)
+    principale = models.BooleanField(default=False)
+    soggetto = models.ForeignKey("soggetti.Soggetto", on_delete=models.PROTECT, related_name="+")
+
+    def __str__(self):
+        return f"{self.tipo.codice} {self.valore_normalizzato}"
+
+
+class Evento(models.Model):
+    """Registro: chi ha fatto cosa su un caricamento."""
+
+    fascicolo = models.ForeignKey(
+        Fascicolo, null=True, blank=True, on_delete=models.SET_NULL, related_name="eventi"
+    )
+    utente = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    quando = models.DateTimeField(auto_now_add=True)
+    azione = models.CharField(max_length=30)
+    dettaglio = models.CharField(max_length=500, blank=True, default="")

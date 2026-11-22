@@ -1,0 +1,37 @@
+{% load i18n %}
+{# Campi COE: uguali per il caricamento e per il singolo file. Vuole: soggetti, in_bozza, tipi #}
+<table>
+  {% for s in soggetti %}
+    <tr>
+      <td>{{ s.etichetta }}</td>
+      <td>{% if s.riga.principale %}<strong>{% translate "principale" %}</strong>{% else %}<span class="tenue">{% translate "collegato" %}</span>{% endif %}</td>
+      <td>
+        {% if in_bozza and modificabili %}
+          {% if not s.riga.principale %}
+            <form method="post">{% csrf_token %}
+              <input type="hidden" name="azione" value="coe_principale"><input type="hidden" name="riga" value="{{ s.riga.pk }}">
+              <button type="submit" class="secondario">{% translate "Rendi principale" %}</button>
+            </form>
+          {% endif %}
+          <form method="post">{% csrf_token %}
+            <input type="hidden" name="azione" value="coe_togli"><input type="hidden" name="riga" value="{{ s.riga.pk }}">
+            <button type="submit" class="secondario">{% translate "Togli" %}</button>
+          </form>
+        {% endif %}
+      </td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="3" class="tenue">{% translate "Nessun soggetto indicato." %}</td></tr>
+  {% endfor %}
+</table>
+{% if in_bozza %}
+  <form method="post" class="in-riga">
+    {% csrf_token %}
+    <input type="hidden" name="azione" value="coe_aggiungi">
+    <select name="tipo" aria-label="{% translate 'Tipo di identificativo' %}">
+      {% for tipo in tipi %}<option value="{{ tipo.pk }}"{% if tipo.codice == "COE" %} selected{% endif %}>{{ tipo.codice }}</option>{% endfor %}
+    </select>
+    <input type="text" name="valore" maxlength="60" required placeholder="{% translate 'es. 12345' %}">
+    <button type="submit">{% translate "Aggiungi" %}</button>
+  </form>
+{% endif %}

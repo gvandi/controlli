@@ -51,6 +51,26 @@
 </div>
 {% endif %}
 
+{% if puo_caricare %}
+<div class="scheda">
+  <h2>{% translate "Nuovo caricamento" %}</h2>
+  <p class="tenue">{% translate "Si apre un fascicolo in bozza: potrai aggiungere i file, completare i metadati e solo alla fine confermare." %}</p>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="azione" value="nuovo_caricamento">
+    <label for="titolo_caricamento">{% translate "Titolo" %}</label>
+    <input type="text" id="titolo_caricamento" name="titolo" maxlength="200" required>
+    <label for="indagine">{% translate "Chi può vedere questo caricamento" %}</label>
+    <select id="indagine" name="indagine">
+      <option value="">{% translate "Generale: chiunque consulti l'archivio" %}</option>
+      {% for i in indagini %}<option value="{{ i.pk }}">{% translate "Riservato all'indagine:" %} {{ i.titolo }}</option>{% endfor %}
+    </select>
+    <p class="tenue">{% translate "La scelta va fatta ora e non si cambia dopo: i file la ereditano." %}</p>
+    <p><button type="submit">{% translate "Apri il caricamento" %}</button></p>
+  </form>
+</div>
+{% endif %}
+
 {% if puo_aggiungere_aziende %}
 <div class="scheda">
   <h2>{% translate "Aggiungi un'azienda" %}</h2>

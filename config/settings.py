@@ -162,6 +162,18 @@ OAUTH2_PROVIDER = {
     "REFRESH_TOKEN_EXPIRE_SECONDS": int(os.environ.get("CONTROLLI_OAUTH_GIORNI_RINNOVO", "7")) * 86400,
 }
 
+# Caricamento dei file (app archivio). Il contenuto dei file sta nel deposito, fuori
+# dal repository; i limiti proteggono il server da caricamenti enormi.
+ARCHIVIO_DEPOSITO = Path(os.environ.get("CONTROLLI_ARCHIVIO_DEPOSITO", MEDIA_ROOT / "archivio"))
+ARCHIVIO_MASSIMO_BYTE_PER_FILE = int(os.environ.get("CONTROLLI_MASSIMO_MB_PER_FILE", "500")) * 1024 * 1024
+ARCHIVIO_ZIP_MASSIMO_FILE = int(os.environ.get("CONTROLLI_ZIP_MASSIMO_FILE", "2000"))
+ARCHIVIO_ZIP_MASSIMO_BYTE = int(os.environ.get("CONTROLLI_ZIP_MASSIMO_MB", "2048")) * 1024 * 1024
+# Una cartella scelta dal browser arriva come tanti file in una sola richiesta:
+# il limite predefinito di Django (100) è troppo basso.
+DATA_UPLOAD_MAX_NUMBER_FILES = ARCHIVIO_ZIP_MASSIMO_FILE
+# Ogni file porta con sé il campo del proprio percorso
+DATA_UPLOAD_MAX_NUMBER_FIELDS = ARCHIVIO_ZIP_MASSIMO_FILE + 1000
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 if not DEBUG:

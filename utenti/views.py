@@ -12,6 +12,7 @@ def home(request):
         "puo_configurare": utente.has_module_perms("decodifiche"),
         "puo_entrare_in_admin": utente.is_staff,
         "puo_vedere_l_archivio": utente.has_perm("archivio.view_fascicolo"),
+        "puo_caricare_file": utente.has_perm("archivio.add_filecaricato"),
         "puo_usare_la_chat": utente.has_perm("grafo.usa_chat"),
         "puo_amministrare_il_grafo": utente.has_perm("grafo.change_parametro"),
     }
