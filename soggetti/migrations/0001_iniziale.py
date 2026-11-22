@@ -11,8 +11,10 @@ class Migration(migrations.Migration):
 
     initial = True
 
+    # "__latest__" e non "__first__": i tipi di identificativo sono arrivati in
+    # decodifiche dopo la sua prima migrazione, e questa tabella ha bisogno di trovarli.
     dependencies = [
-        ("decodifiche", "__first__"),
+        ("decodifiche", "__latest__"),
     ]
 
     operations = [
