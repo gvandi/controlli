@@ -10,6 +10,10 @@ soggetti e caricare file; solo l'Analista apre indagini (diritto "apre_indagini"
 diritto di consultare non basta per vedere un'indagine: bisogna esservi assegnati.
 L'Amministratore non ha diritti sull'archivio.
 
+Elaborazione (app elaborazione): chi consulta l'archivio vede testo ed entità dei
+file che può vedere; l'Analista conferma o scarta le entità da rivedere; il
+Configuratore gestisce il catalogo delle entità.
+
 Analisi di rete (app grafo): l'Analista può interrogarla dalla chat (diritto
 "usa_chat"); l'Amministratore ne modifica i parametri dal cruscotto e consulta
 il registro di sessioni, richieste e mappe, ma non interroga i dati.
@@ -30,6 +34,8 @@ APRE_INDAGINI = ("apre",)
 AGGIUNGE_E_LEGGE = ("add", "view")
 # Caricare file: il diritto che conta è archivio.add_filecaricato
 CARICA = ("add", "change", "delete")
+# Rivedere le entità estratte: confermarle o scartarle (elaborazione.change_entitaestratta)
+RIVEDE = ("change",)
 
 # ruolo -> elenco di (app, modello o None per tutti i modelli dell'app, azioni)
 DIRITTI = {
@@ -46,6 +52,7 @@ DIRITTI = {
         ("archivio", None, SOLO_LETTURA),
         ("archivio", "filecaricato", CARICA),
         ("soggetti", None, AGGIUNGE_E_LEGGE),
+        ("elaborazione", None, SOLO_LETTURA),
     ],
     ANALISTA: [
         ("decodifiche", None, SOLO_LETTURA),
@@ -54,13 +61,17 @@ DIRITTI = {
         ("archivio", "fascicolo", APRE_INDAGINI),
         ("archivio", "filecaricato", CARICA),
         ("soggetti", None, AGGIUNGE_E_LEGGE),
+        ("elaborazione", None, SOLO_LETTURA),
+        ("elaborazione", "entitaestratta", RIVEDE),
     ],
     CONFIGURATORE: [
         ("decodifiche", None, TUTTE),
+        ("elaborazione", "vocecatalogo", TUTTE),
     ],
     LETTORE: [
         ("decodifiche", None, SOLO_LETTURA),
         ("archivio", None, SOLO_LETTURA),
         ("soggetti", None, SOLO_LETTURA),
+        ("elaborazione", None, SOLO_LETTURA),
     ],
 }

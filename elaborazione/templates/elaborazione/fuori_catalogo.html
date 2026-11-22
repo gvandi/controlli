@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block titolo %}{% translate "Entità fuori catalogo" %}{% endblock %}
+{% block contenuto %}
+<style>
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: 0.35rem 0.6rem 0.35rem 0; border-bottom: 1px solid var(--bordo); }
+  td form { display: inline; } td select { width: auto; display: inline-block; }
+</style>
+<h1>{% translate "Entità fuori catalogo" %}</h1>
+<p class="tenue">{% translate "Etichette che il modello ha usato e che nessuna voce del catalogo riconosce. Le entità sono state raccolte comunque. Riconoscere un'etichetta come altro nome di una voce le rende significative, senza rileggere i file. Qui compaiono solo le etichette, non i valori." %}</p>
+{% if messaggio %}<p style="color:#1e6b3a">{{ messaggio }}</p>{% endif %}
+<div class="scheda">
+  <table>
+    <tr><th>{% translate "Etichetta" %}</th><th>{% translate "Quante volte" %}</th><th>{% translate "È un altro nome di" %}</th></tr>
+    {% for etichetta, numero in etichette %}
+      <tr>
+        <td>{{ etichetta }}</td><td>{{ numero }}</td>
+        <td>
+          <form method="post">{% csrf_token %}
+            <input type="hidden" name="etichetta" value="{{ etichetta }}">
+            <select name="voce">{% for voce in voci %}<option value="{{ voce.pk }}">{{ voce.codice }}</option>{% endfor %}</select>
+            <button type="submit" class="secondario">{% translate "Riconosci" %}</button>
+          </form>
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="3" class="tenue">{% translate "Nessuna etichetta fuori catalogo." %}</td></tr>
+    {% endfor %}
+  </table>
+  <p class="tenue">{% translate "Per aggiungere una voce nuova al catalogo usa le tabelle di configurazione." %}</p>
+</div>
+{% endblock %}

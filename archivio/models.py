@@ -241,3 +241,23 @@ class Evento(models.Model):
     quando = models.DateTimeField(auto_now_add=True)
     azione = models.CharField(max_length=30)
     dettaglio = models.CharField(max_length=500, blank=True, default="")
+
+
+class CollegamentoFile(models.Model):
+    """Un file collegato a un fascicolo diverso da quello in cui è stato caricato.
+
+    Il file resta dov'è (nel suo fascicolo di caricamento e nel deposito): qui si
+    scrive solo che riguarda anche un'azienda. Chi consulta il fascicolo
+    dell'azienda vede il file solo se può vedere il caricamento da cui viene.
+    """
+
+    file = models.ForeignKey(FileCaricato, on_delete=models.CASCADE, related_name="collegamenti")
+    fascicolo = models.ForeignKey(Fascicolo, on_delete=models.CASCADE, related_name="file_collegati")
+    # "dichiarato" dall'ispettore nei campi COE, oppure "estratto" dal contenuto del file
+    origine = models.CharField(max_length=20, blank=True, default="")
+    collegato_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["file", "fascicolo"], name="collegamento_unico"),
+        ]

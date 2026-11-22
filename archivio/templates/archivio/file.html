@@ -26,7 +26,10 @@
     <tr><th>{% translate "Impronta (SHA-256)" %}</th><td class="percorso">{{ file.impronta }}</td></tr>
     {% if file.ultimo_errore %}<tr><th>{% translate "Ultimo errore" %}</th><td>{{ file.ultimo_errore }}</td></tr>{% endif %}
   </table>
-  <p><a class="bottone" href="{% url 'archivio:scarica' file.pk %}">{% translate "Scarica l'originale" %}</a></p>
+  <p>
+    <a class="bottone" href="{% url 'archivio:scarica' file.pk %}">{% translate "Scarica l'originale" %}</a>
+    <a class="bottone" href="{% url 'elaborazione:file' file.pk %}">{% translate "Testo ed entità estratte" %}</a>
+  </p>
 </div>
 
 <div class="scheda">

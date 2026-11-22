@@ -26,6 +26,7 @@ urlpatterns = [
     path("uscita/", auth_views.LogoutView.as_view(), name="logout"),
     path("admin/", admin.site.urls),
     path("archivio/", include("archivio.urls")),
+    path("elaborazione/", include("elaborazione.urls")),
     path("grafo/", include("grafo.urls")),
     path("o/", include((INDIRIZZI_OAUTH, "oauth2_provider"))),
     # I documenti "well-known" vanno cercati alla radice del sito: è lì che la chat

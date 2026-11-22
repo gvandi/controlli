@@ -1,0 +1,9 @@
+# Librerie per leggere scansioni e PDF con il modello locale (lettore "modello-visivo").
+# Servono solo sul computer che esegue "python manage.py elabora_coda"; non servono
+# all'applicativo web né alle prove.
+#
+# pdf2image richiede anche il programma poppler del sistema:
+#     sudo apt install poppler-utils
+openai>=1.40
+pdf2image>=1.17
+Pillow>=10

@@ -25,6 +25,11 @@ from soggetti import servizi as anagrafica
 from . import deposito, ingresso, models
 from .models import Caricamento, Evento, Faldone, Fascicolo, FileCaricato, SoggettoDichiarato
 
+# Funzioni da chiamare quando un caricamento viene annullato, con il fascicolo: chi ha
+# derivato dati dai suoi file (l'app elaborazione) vi si iscrive per ritirarli. Così
+# l'archivio non ha bisogno di conoscere chi lo usa.
+AL_RITIRO = []
+
 CAMPI_EREDITABILI = ("provenienza", "tipo_documento", "natura", "periodo_dal", "periodo_al")
 
 
@@ -369,5 +374,8 @@ def annulla(fascicolo, utente):
     with transaction.atomic():
         numero = fascicolo.file.exclude(stato=models.FILE_ANNULLATO).update(stato=models.FILE_ANNULLATO)
         Fascicolo.objects.filter(pk=fascicolo.pk).update(stato=models.ANNULLATO)
+        models.CollegamentoFile.objects.filter(file__fascicolo=fascicolo).delete()
+        for ritira in AL_RITIRO:
+            ritira(fascicolo)
         _registra(fascicolo, utente, "annullato", f"{numero} file")
     fascicolo.stato = models.ANNULLATO

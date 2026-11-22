@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     "decodifiche",
     "soggetti",
     "archivio",
+    "elaborazione",
     "grafo",
     "oauth2_provider",
 ]
@@ -173,6 +174,20 @@ ARCHIVIO_ZIP_MASSIMO_BYTE = int(os.environ.get("CONTROLLI_ZIP_MASSIMO_MB", "2048
 DATA_UPLOAD_MAX_NUMBER_FILES = ARCHIVIO_ZIP_MASSIMO_FILE
 # Ogni file porta con sé il campo del proprio percorso
 DATA_UPLOAD_MAX_NUMBER_FIELDS = ARCHIVIO_ZIP_MASSIMO_FILE + 1000
+
+# Elaborazione dei file (app elaborazione): lettura di scansioni e PDF con il modello
+# locale. L'indirizzo predefinito è quello del server Unsloth in uso (127.0.0.0, non
+# 127.0.0.1); la chiave si legge dalla variabile d'ambiente indicata, mai dal repository.
+ELABORAZIONE_MODELLO_URL = os.environ.get("CONTROLLI_MODELLO_URL", "http://127.0.0.0:8888/v1")
+ELABORAZIONE_MODELLO_NOME = os.environ.get("CONTROLLI_MODELLO_NOME", "unsloth/Qwen3-VL-8B-Thinking-GGUF")
+ELABORAZIONE_MODELLO_VARIABILE_CHIAVE = "UNSLOTH_STUDIO_AUTH_TOKEN"
+ELABORAZIONE_MODELLO_OPZIONI = {"reasoning_effort": "low"}
+ELABORAZIONE_MODELLO_MASSIMO_TOKEN = int(os.environ.get("CONTROLLI_MODELLO_MASSIMO_TOKEN", "6000"))
+ELABORAZIONE_PUNTI_PER_POLLICE = int(os.environ.get("CONTROLLI_PUNTI_PER_POLLICE", "200"))
+ELABORAZIONE_MASSIMO_TENTATIVI = 3
+# Identificativi e importi letti da una scansione aspettano la conferma di una persona,
+# finché non si è misurato quanto sbaglia la trascrizione del modello (DECISIONI.md, n. 74)
+ELABORAZIONE_RIVEDI_LE_SCANSIONI = os.environ.get("CONTROLLI_RIVEDI_LE_SCANSIONI", "1") == "1"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
