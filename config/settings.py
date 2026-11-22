@@ -46,6 +46,8 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "utenti",
     "decodifiche",
+    "soggetti",
+    "archivio",
     "grafo",
     "oauth2_provider",
 ]

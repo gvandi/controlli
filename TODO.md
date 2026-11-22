@@ -14,11 +14,26 @@ Elenco unico delle cose da fare. Ogni passo si chiude con questo file aggiornato
 - [x] 1. Scheletro: accesso, utenti, ruoli, amministratore, tabelle di decodifica
 - [x] 1c. Tabelle di decodifica per soggetti e documenti: tipi di identificativo, tipi di documento, ruoli nel documento
 - [ ] 2. Anagrafica unica dei soggetti e loro identificativi fiscali (DECISIONI.md, n. 13-14)
-- [ ] 3. Fascicoli d'indagine e visibilità: va fatto prima del caricamento, perché ogni
-      pagina che elenca file o documenti deve già rispettarla (DECISIONI.md, n. 17-19)
-- [ ] 4. Caricamento: invio del file, salvataggio sul server, scheda del file, natura del
-      file (estratto di dati o documenti), visibilità, stato di elaborazione
-      (ricevuto, in coda, elaborato, errore)
+  - [x] versione minima (app `soggetti`): soggetto con chiave interna, identificativi con
+        tipo e valore normalizzato, soggetti provvisori
+  - [ ] dati dell'anagrafica ufficiale (attività, forma giuridica, dimensione), storia
+        degli identificativi, unione di due soggetti che risultano lo stesso
+- [x] 3. Faldoni, fascicoli e visibilità (app `archivio`; DECISIONI.md, n. 17-19 e 62-63):
+      faldoni Caricamenti, Aziende, Indagini; indagini visibili solo alle persone assegnate
+  - [ ] **Prima esecuzione**: `migrate`, `crea_ruoli`, `test soggetti archivio`. In fase di
+        scrittura Django non era disponibile: modelli, migrazioni, pagine e prove non sono
+        mai stati eseguiti
+  - [ ] faldone Sanzioni, visibile a tutti (DECISIONI.md, n. 62): un fascicolo per sanzione,
+        con tipo di irregolarità, data e verbale; è il dato che oggi l'analisi di rete simula
+  - [ ] chiusura di un'indagine; registro di chi ha aperto quale fascicolo
+- [ ] 4. Caricamento (DECISIONI.md, n. 64-68)
+  - [ ] parte 2: fascicolo di caricamento in bozza, scelta di una cartella o di un file ZIP
+        (con limiti), percorso originale e file omonimi, file salvati una volta sola per
+        impronta, metadati sul fascicolo ereditati dai file, campi COE (principale e
+        collegati), visibilità generale o legata a un'indagine, conferma, annullamento
+  - [ ] parte 3: stati di elaborazione (bozza, ricevuto, in elaborazione, elaborato, da
+        rivedere, errore, annullato) con priorità e tentativi; elaboratore finto che collega
+        il file ai fascicoli delle aziende dichiarate
 - [ ] 5. Generatore di dati sintetici (soggetti, transazioni ed elenchi di documenti finti,
       con anomalie inserite apposta)
 - [ ] 6. Importazione degli estratti: soggetti, attività, dati economici, transazioni, con validazione

@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block titolo %}{{ fascicolo.titolo }}{% endblock %}
+{% block contenuto %}
+<style>
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: 0.35rem 0.6rem 0.35rem 0; border-bottom: 1px solid var(--bordo); }
+  td form { display: inline; }
+</style>
+<p>
+  <a href="{% url 'archivio:faldoni' %}">{% translate "Archivio" %}</a> &rsaquo;
+  <a href="{% url 'archivio:faldone' fascicolo.faldone.codice %}">{{ fascicolo.faldone.nome }}</a> &rsaquo;
+  {% translate "Fascicolo" %} {{ fascicolo.pk }}
+</p>
+<h1>{{ fascicolo.titolo }}</h1>
+{% if errore %}<p class="errore">{{ errore }}</p>{% endif %}
+
+<div class="scheda">
+  <table>
+    <tr><th>{% translate "Faldone" %}</th><td>{{ fascicolo.faldone.nome }}</td></tr>
+    <tr><th>{% translate "Stato" %}</th><td>{{ fascicolo.stato }}</td></tr>
+    <tr><th>{% translate "Creato il" %}</th><td>{{ fascicolo.creato_il|date:"Y-m-d H:i" }}</td></tr>
+    {% if fascicolo.creato_da %}<tr><th>{% translate "Creato da" %}</th><td>{{ fascicolo.creato_da.get_username }}</td></tr>{% endif %}
+    {% if fascicolo.descrizione %}<tr><th>{% translate "Descrizione" %}</th><td>{{ fascicolo.descrizione }}</td></tr>{% endif %}
+  </table>
+</div>
+
+{% if indagine %}
+<div class="scheda">
+  <h2>{% translate "Persone assegnate" %}</h2>
+  <p class="tenue">{% translate "Solo queste persone vedono il fascicolo. Le decide chi ha aperto l'indagine." %}</p>
+  <table>
+    {% for a in assegnazioni %}
+      <tr>
+        <td>{{ a.utente.get_username }}</td>
+        <td class="tenue">{% translate "dal" %} {{ a.assegnato_il|date:"Y-m-d" }}</td>
+        <td>
+          {% if decide_le_persone and a.utente_id != fascicolo.creato_da_id %}
+            <form method="post">{% csrf_token %}
+              <input type="hidden" name="azione" value="revoca"><input type="hidden" name="utente" value="{{ a.utente_id }}">
+              <button type="submit" class="secondario">{% translate "Togli" %}</button>
+            </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+  </table>
+  {% if decide_le_persone %}
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="azione" value="assegna">
+      <label for="utente">{% translate "Assegna una persona" %}</label>
+      <select id="utente" name="utente">
+        {% for persona in persone_assegnabili %}<option value="{{ persona.pk }}">{{ persona.get_username }}</option>{% endfor %}
+      </select>
+      <p><button type="submit">{% translate "Assegna" %}</button></p>
+    </form>
+  {% endif %}
+</div>
+
+<div class="scheda">
+  <h2>{% translate "Soggetti dell'indagine" %}</h2>
+  <p class="tenue">{% translate "Questo elenco si vede solo da qui: dal fascicolo dell'azienda non si risale all'indagine." %}</p>
+  <table>
+    {% for s in soggetti %}
+      <tr>
+        <td>{{ s.etichetta }}</td>
+        <td class="tenue">{{ s.riga.nota }}</td>
+        <td>
+          <form method="post">{% csrf_token %}
+            <input type="hidden" name="azione" value="togli_soggetto"><input type="hidden" name="riga" value="{{ s.riga.pk }}">
+            <button type="submit" class="secondario">{% translate "Togli" %}</button>
+          </form>
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="3" class="tenue">{% translate "Nessun soggetto." %}</td></tr>
+    {% endfor %}
+  </table>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="azione" value="aggiungi_soggetto">
+    <label for="tipo">{% translate "Tipo di identificativo" %}</label>
+    <select id="tipo" name="tipo">
+      {% for tipo in tipi %}<option value="{{ tipo.pk }}"{% if tipo.codice == "COE" %} selected{% endif %}>{{ tipo }}</option>{% endfor %}
+    </select>
+    <label for="valore">{% translate "Valore" %}</label>
+    <input type="text" id="valore" name="valore" maxlength="60" required>
+    <label for="nota">{% translate "Nota" %}</label>
+    <input type="text" id="nota" name="nota" maxlength="255">
+    <p><button type="submit">{% translate "Aggiungi il soggetto" %}</button></p>
+  </form>
+</div>
+{% elif identificativi %}
+<div class="scheda">
+  <h2>{% translate "Identificativi" %}</h2>
+  <table>
+    {% for i in identificativi %}
+      <tr><td>{{ i.tipo.descrizione }}</td><td>{{ i.valore_normalizzato }}</td></tr>
+    {% endfor %}
+  </table>
+  <p class="tenue">{% translate "I documenti dell'azienda compariranno qui con il caricamento dei file." %}</p>
+</div>
+{% endif %}
+{% endblock %}

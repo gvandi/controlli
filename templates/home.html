@@ -8,6 +8,16 @@
 </p>
 
 <div class="scheda">
+  <h2>{% translate "Archivio" %}</h2>
+  {% if puo_vedere_l_archivio %}
+    <p>{% translate "Faldoni e fascicoli: caricamenti, aziende, indagini." %}</p>
+    <p><a class="bottone" href="{% url 'archivio:faldoni' %}">{% translate "Apri l'archivio" %}</a></p>
+  {% else %}
+    <p class="tenue">{% translate "Non hai i diritti per consultare l'archivio." %}</p>
+  {% endif %}
+</div>
+
+<div class="scheda">
   <h2>{% translate "Caricamento dati" %}</h2>
   <p class="tenue">{% translate "Invio dei file da analizzare e loro conservazione sul server. In arrivo con uno dei prossimi passi (vedi TODO.md)." %}</p>
 </div>
