@@ -37,8 +37,11 @@ class ArchivioTest(TestCase):
         cls.capo = Utente.objects.create_superuser("capo", password="x")
 
     # ---- attrezzi -------------------------------------------------------
-    def pagina(self, utente, nome, *argomenti, **dati):
-        self.client.force_login(utente)
+    def pagina(self, chi, nome, /, *argomenti, **dati):
+        """Apre la pagina come l'utente 'chi'; con dei dati li invia come modulo.
+        I primi due parametri sono solo posizionali: i moduli hanno campi che si
+        chiamano 'utente' e 'nome' e non devono scontrarsi con loro."""
+        self.client.force_login(chi)
         indirizzo = reverse(f"archivio:{nome}", args=argomenti)
         return self.client.post(indirizzo, dati) if dati else self.client.get(indirizzo)
 
