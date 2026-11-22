@@ -1,6 +1,6 @@
 # Registro delle novità
 
-Versione corrente: 20
+Versione corrente: 21
 
 Elenco completo delle novità rispetto alla versione 12 (ultimo file unico di partenza).
 È l'UNICO posto in cui le novità si scrivono a mano: `aggiorna_intestazioni.py` ricopia
@@ -38,6 +38,8 @@ Dalla 20 il numero di versione del codice è un intero.
 - [20] (contratto) Schema 4.1 (migrazione 0002, sola espansione): tabelle grafo_parametro, grafo_token, grafo_sessione, grafo_richiesta, grafo_mappa; SCHEMA_RICHIESTO passa a ~=4.1.
 - [20] (contratto) Restrizioni dell'amministratore sulle versioni accettate (PARAMETRI, accettata(), restrizione_valida()): si aggiungono a ciò che il codice sa leggere, possono restringere e mai allargare; una restrizione scritta male viene ignorata.
 - [20] (contratto) Sesto strumento mappa in NOMI_STRUMENTI; versioni del protocollo MCP parlate dal servizio HTTP (PROTOCOLLI_MCP).
+- [21] (contratto) Schema 4.2 (migrazione 0003, sola espansione): su grafo_sessione le colonne accesso e client_oauth; nuovo parametro token_personali_ammessi; SCHEMA_RICHIESTO passa a ~=4.2.
+- [21] (contratto) Nuove costanti ACCESSO_TOKEN, ACCESSO_OAUTH e AMBITO_OAUTH (l'ambito "grafo" richiesto dal servizio MCP).
 
 ## calcolo
 
@@ -119,6 +121,12 @@ Dalla 20 il numero di versione del codice è un intero.
 - [20] (server) Nuovo strumento mappa(societa): produce la mappa investigativa e restituisce il collegamento alla pagina /grafo/mappe/N/, visibile dopo l'accesso solo a chi l'ha chiesta.
 - [20] (server) Nuove pagine: /grafo/collegamento/ (l'analista crea e revoca i propri token, ritrova le proprie mappe) e /grafo/cruscotto/ (l'amministratore vede le quattro versioni, i calcoli presenti, le sessioni, e modifica i parametri).
 - [20] (server) Il server stdio (grafo_server_mcp) resta per le prove su un solo computer: non riconosce l'utente e non registra sessioni.
+- [21] (server) Accesso OAuth 2.0 dal browser: l'applicativo è il server di autorizzazione (libreria django-oauth-toolkit 3.4, indirizzi sotto /o/); la chat si registra da sola, l'analista accede e autorizza, il token non si copia più a mano.
+- [21] (server) Il rifiuto 401 indica alla chat il documento da cui partire (intestazione WWW-Authenticate con resource_metadata); i documenti di scoperta sono alla radice del sito (/.well-known/...).
+- [21] (server) views.py riconosce chi chiama in un solo punto (_identita_della_richiesta): token OAuth verificato dalla libreria (scadenza, ambito, servizio a cui è destinato) oppure token personale.
+- [21] (server) Utente riconosciuto ma senza il diritto usa_chat: risposta 403, distinta dal 401 che fa ripartire l'accesso.
+- [21] (server) Nuova pagina di consenso in italiano (templates/oauth2_provider/authorize.html): mostra il programma che chiede l'accesso e l'indirizzo a cui si viene rimandati.
+- [21] (server) La pagina "Collegamento alla chat" indica l'accesso OAuth come via normale e i token personali come ripiego; il cruscotto mostra per ogni sessione il tipo di accesso.
 
 ## mappa
 
@@ -146,3 +154,6 @@ Dalla 20 il numero di versione del codice è un intero.
 - [20] (sessioni) Un parametro viene controllato prima del salvataggio: una restrizione che escluderebbe lo schema attuale o tutti i calcoli presenti è rifiutata.
 - [20] (sessioni) Nuovo diritto grafo.usa_chat (ruolo Analista); cruscotto e registro sono del ruolo Amministratore.
 - [20] (sessioni) Nuovo comando python manage.py grafo_token UTENTE.
+- [21] (sessioni) Le sessioni ricevono un'identità già verificata (Identita: utente, tipo di accesso, token o programma della chat) e non sanno più nulla di token: identita_da_token(), identita_oauth(), puo_usare_la_chat().
+- [21] (sessioni) Ogni sessione registra come è stato fatto l'accesso (token oppure oauth) e, per OAuth, il nome con cui la chat si è registrata.
+- [21] (sessioni) I token personali diventano un ripiego che l'amministratore può spegnere dal cruscotto (parametro token_personali_ammessi: si / no).

@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   views.py  -  app grafo, VERSIONE 20
+#   views.py  -  app grafo, VERSIONE 21
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: server
@@ -33,12 +33,27 @@
 #        calcoli presenti, le sessioni, e modifica i parametri).
 #   [20] Il server stdio (grafo_server_mcp) resta per le prove su un solo computer: non
 #        riconosce l'utente e non registra sessioni.
+#   [21] Accesso OAuth 2.0 dal browser: l'applicativo è il server di autorizzazione (libreria
+#        django-oauth-toolkit 3.4, indirizzi sotto /o/); la chat si registra da sola, l'analista
+#        accede e autorizza, il token non si copia più a mano.
+#   [21] Il rifiuto 401 indica alla chat il documento da cui partire (intestazione WWW-
+#        Authenticate con resource_metadata); i documenti di scoperta sono alla radice del sito
+#        (/.well-known/...).
+#   [21] views.py riconosce chi chiama in un solo punto (_identita_della_richiesta): token OAuth
+#        verificato dalla libreria (scadenza, ambito, servizio a cui è destinato) oppure token
+#        personale.
+#   [21] Utente riconosciuto ma senza il diritto usa_chat: risposta 403, distinta dal 401 che fa
+#        ripartire l'accesso.
+#   [21] Nuova pagina di consenso in italiano (templates/oauth2_provider/authorize.html): mostra
+#        il programma che chiede l'accesso e l'indirizzo a cui si viene rimandati.
+#   [21] La pagina "Collegamento alla chat" indica l'accesso OAuth come via normale e i token
+#        personali come ripiego; il cruscotto mostra per ogni sessione il tipo di accesso.
 #
 # <<< NOVITA
 """
 PAGINE E SERVIZIO HTTP dell'app grafo.
 
-    /grafo/mcp/             servizio MCP per la chat (POST con token personale)
+    /grafo/mcp/             servizio MCP per la chat (POST con accesso OAuth o token personale)
     /grafo/mappe/<n>/       mappa investigativa n, per chi ha fatto l'accesso
     /grafo/collegamento/    l'analista crea e revoca i propri token
     /grafo/cruscotto/       l'amministratore vede le versioni e cambia i parametri
@@ -56,6 +71,7 @@ from django.shortcuts import render
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
+from oauth2_provider.oauth2_backends import get_oauthlib_core
 
 from . import calcolo_cartella, contratto, interrogazione, protocollo_mcp, servizio_mcp, sessioni
 from .models import Esecuzione, InfoArchivio, MappaProdotta, Richiesta, Sessione, TokenAccesso
@@ -73,33 +89,79 @@ def _indirizzo_pubblico(request):
 # =====================================================================
 # 1. SERVIZIO MCP
 # =====================================================================
-def _non_autorizzato():
+def _metadati_della_risorsa(request):
+    """
+    Indirizzo del documento che dice alla chat dove chiedere l'accesso (RFC 9728),
+    nella forma con il percorso del servizio: .../.well-known/oauth-protected-resource/grafo/mcp
+    """
+    return _indirizzo_pubblico(request) + "/.well-known/oauth-protected-resource" + reverse("grafo:mcp").rstrip("/")
+
+
+def _non_autorizzato(request, errore=None):
+    """
+    401: manca un accesso valido. L'intestazione WWW-Authenticate indica alla chat
+    il documento da cui partire per l'accesso OAuth dal browser.
+    """
     risposta = JsonResponse(
-        {"errore": "Token mancante, non valido o revocato. Crearne uno nella pagina 'Collegamento alla chat'."},
-        status=401,
+        {"errore": "Accesso mancante, scaduto o revocato: collegare la chat con l'accesso OAuth."}, status=401
     )
-    risposta["WWW-Authenticate"] = 'Bearer realm="controlli"'
+    parti = ['realm="controlli"']
+    if errore:
+        parti.append(f'error="{errore}"')
+    parti.append(f'resource_metadata="{_metadati_della_risorsa(request)}"')
+    risposta["WWW-Authenticate"] = "Bearer " + ", ".join(parti)
     return risposta
 
 
-def _token_della_richiesta(request):
+def _vietato():
+    """403: l'utente è stato riconosciuto ma non ha il diritto di usare la chat. Rifare l'accesso non serve."""
+    return JsonResponse(
+        {"errore": "L'utente non ha il diritto di interrogare l'analisi di rete (ruolo Analista)."}, status=403
+    )
+
+
+def _identita_della_richiesta(request):
+    """
+    Restituisce (identità, None) oppure (None, risposta di rifiuto).
+
+    Due modi di presentarsi, entrambi nell'intestazione "Authorization: Bearer ...":
+      - token personale (comincia con ctrl_): ripiego della versione 20, se l'amministratore lo ammette;
+      - token OAuth rilasciato dall'applicativo dopo l'accesso dal browser: lo
+        verifica la libreria (validità, scadenza, ambito, servizio a cui è destinato).
+    """
     schema, _, valore = request.headers.get("Authorization", "").partition(" ")
-    return sessioni.token_valido(valore.strip()) if schema.lower() == "bearer" else None
+    valore = valore.strip()
+    if schema.lower() != "bearer" or not valore:
+        return None, _non_autorizzato(request)
+
+    if valore.startswith(sessioni.PREFISSO_TOKEN):
+        riga = sessioni.token_valido(valore)
+        return (sessioni.identita_da_token(riga), None) if riga else (None, _non_autorizzato(request, "invalid_token"))
+
+    request.body  # letto ora: resta disponibile dopo la verifica della libreria
+    valido, richiesta_oauth = get_oauthlib_core().verify_request(request, scopes=[contratto.AMBITO_OAUTH])
+    utente = getattr(richiesta_oauth, "user", None) if valido else None
+    if utente is None:
+        return None, _non_autorizzato(request, "invalid_token")
+    if not sessioni.puo_usare_la_chat(utente):
+        return None, _vietato()
+    client = getattr(richiesta_oauth, "client", None)
+    return sessioni.identita_oauth(utente, getattr(client, "name", "") or getattr(client, "client_id", "")), None
 
 
-@csrf_exempt  # non usa i cookie dell'applicativo: l'identità è nel token
+@csrf_exempt  # non usa i cookie dell'applicativo: l'identità è nell'intestazione Authorization
 @require_http_methods(["POST", "DELETE"])
 def mcp(request):
     """Punto di ingresso della chat: un messaggio JSON-RPC (o un elenco) per ogni POST."""
-    token = _token_della_richiesta(request)
-    if token is None:
-        return _non_autorizzato()
+    identita, rifiuto = _identita_della_richiesta(request)
+    if rifiuto is not None:
+        return rifiuto
     id_connessione = request.headers.get(INTESTAZIONE_CONNESSIONE, "")
 
     if request.method == "DELETE":
         # La chat dichiara di aver finito: la sessione si chiude subito
         if id_connessione:
-            sessioni.chiudi_connessione(token, id_connessione)
+            sessioni.chiudi_connessione(identita, id_connessione)
         return HttpResponse(status=204)
 
     try:
@@ -119,9 +181,9 @@ def mcp(request):
         sessioni.chiudi_scadute()
         info = (iniziali[0].get("params") or {}).get("clientInfo") or {}
         descrizione = " ".join(str(info.get(campo, "")) for campo in ("name", "version")).strip()
-        nuova = sessioni.apri_sessione(token, descrizione or client, indirizzo)
+        nuova = sessioni.apri_sessione(identita, descrizione or client, indirizzo)
         id_connessione = nuova.id_connessione
-    elif id_connessione and not sessioni.connessione_nota(token, id_connessione):
+    elif id_connessione and not sessioni.connessione_nota(identita, id_connessione):
         # Per il protocollo: 404 significa "sessione terminata, ricollegarsi"
         return JsonResponse(
             {"jsonrpc": "2.0", "id": None, "error": {"code": -32001, "message": "Sessione terminata: ricollegarsi."}},
@@ -131,7 +193,7 @@ def mcp(request):
     indirizzo_pubblico = _indirizzo_pubblico(request)
 
     def esegui(nome, parametri, domanda):
-        sessione = sessioni.sessione_per_richiesta(token, id_connessione, client, indirizzo)
+        sessione = sessioni.sessione_per_richiesta(identita, id_connessione, client, indirizzo)
         if sessione is None:
             return "Sessione terminata: ricollegare il server MCP nella chat.", True
         return servizio_mcp.esegui_strumento(
@@ -190,6 +252,7 @@ def collegamento(request):
         "token_appena_creato": token_appena_creato,
         "token": TokenAccesso.objects.filter(utente=request.user).order_by("-creato_il"),
         "indirizzo_servizio": _indirizzo_pubblico(request) + reverse("grafo:mcp"),
+        "token_personali_ammessi": sessioni.token_personali_ammessi(),
         "mappe": MappaProdotta.objects.filter(sessione__utente=request.user)
         .select_related("sessione").order_by("-prodotta_il")[:20],
     })

@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   sessioni.py  -  app grafo, VERSIONE 20
+#   sessioni.py  -  app grafo, VERSIONE 21
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: sessioni
@@ -19,6 +19,13 @@
 #   [20] Nuovo diritto grafo.usa_chat (ruolo Analista); cruscotto e registro sono del ruolo
 #        Amministratore.
 #   [20] Nuovo comando python manage.py grafo_token UTENTE.
+#   [21] Le sessioni ricevono un'identità già verificata (Identita: utente, tipo di accesso,
+#        token o programma della chat) e non sanno più nulla di token: identita_da_token(),
+#        identita_oauth(), puo_usare_la_chat().
+#   [21] Ogni sessione registra come è stato fatto l'accesso (token oppure oauth) e, per OAuth,
+#        il nome con cui la chat si è registrata.
+#   [21] I token personali diventano un ripiego che l'amministratore può spegnere dal cruscotto
+#        (parametro token_personali_ammessi: si / no).
 #
 # <<< NOVITA
 """
@@ -26,14 +33,16 @@ SESSIONI DELLA CHAT: chi sta interrogando, da quando, cosa ha chiesto e quali
 mappe ha prodotto. Tutto finisce nel database (schema 4.1).
 
   PARAMETRI   impostazioni che l'amministratore modifica dal cruscotto
-  TOKEN       token personali con cui la chat si presenta (fino alla versione 21,
-              quando li rilascerà l'accesso OAuth)
+  TOKEN       token personali copiati a mano: dalla versione 21 sono un ripiego,
+              che l'amministratore può spegnere
+  IDENTITÀ    chi sta chiamando, con token personale o con accesso OAuth
   SESSIONI    nascono alla connessione della chat, si chiudono per inattività
   REGISTRO    richieste dell'ispettore e mappe prodotte
 
 Usa i modelli Django. Importa contratto.py e models.py; non importa
 interrogazione.py: non sa nulla di aziende e punteggi.
 """
+import collections
 import datetime
 import hashlib
 import secrets
@@ -79,6 +88,8 @@ def errore_parametro(nome, valore, schema_attuale=None, calcoli_presenti=()):
     valore = (valore or "").strip()
     if nome not in contratto.PARAMETRI:
         return f"Parametro sconosciuto: {nome}."
+    if nome == contratto.PARAMETRO_TOKEN_PERSONALI:
+        return None if valore.lower() in ("si", "no") else "Scrivere si oppure no."
     if nome == contratto.PARAMETRO_INATTIVITA:
         if not valore.isdigit() or not 1 <= int(valore) <= 1440:
             return "Indicare un numero intero di minuti fra 1 e 1440."
@@ -142,6 +153,8 @@ def token_valido(token_in_chiaro):
     )
     if riga is None or not riga.utente.is_active or not riga.utente.has_perm("grafo.usa_chat"):
         return None
+    if not token_personali_ammessi():
+        return None
     adesso = timezone.now()
     # Una scrittura al minuto basta per sapere se un token è ancora usato
     if riga.ultimo_uso is None or adesso - riga.ultimo_uso > datetime.timedelta(minutes=1):
@@ -158,9 +171,37 @@ def revoca_token(riga):
     )
 
 
+def token_personali_ammessi():
+    """Falso se l'amministratore ha scelto di accettare solo l'accesso OAuth."""
+    return leggi_parametri()[contratto.PARAMETRO_TOKEN_PERSONALI].lower() != "no"
+
+
 # =====================================================================
-# 3. SESSIONI
+# 3. IDENTITÀ E SESSIONI
 # =====================================================================
+# Chi sta chiamando, comunque abbia dimostrato di esserlo. Le sessioni non
+# sanno nulla di token e di OAuth: ricevono un'identità già verificata.
+#   utente        l'utente dell'applicativo
+#   accesso       contratto.ACCESSO_TOKEN oppure contratto.ACCESSO_OAUTH
+#   token         la riga del token personale (solo per ACCESSO_TOKEN)
+#   client_oauth  il nome del programma della chat (solo per ACCESSO_OAUTH)
+Identita = collections.namedtuple("Identita", "utente accesso token client_oauth")
+
+
+def identita_da_token(riga):
+    """Identità di chi si presenta con un token personale valido (vedi token_valido)."""
+    return Identita(riga.utente, contratto.ACCESSO_TOKEN, riga, "")
+
+
+def identita_oauth(utente, client_oauth=""):
+    """Identità di chi ha fatto l'accesso dal browser: il token l'ha già verificato chi chiama."""
+    return Identita(utente, contratto.ACCESSO_OAUTH, None, (client_oauth or "")[:255])
+
+
+def puo_usare_la_chat(utente):
+    return bool(utente and utente.is_active and utente.has_perm("grafo.usa_chat"))
+
+
 def _scaduta(sessione, adesso, minuti):
     return adesso - sessione.ultima_attivita > datetime.timedelta(minutes=minuti)
 
@@ -178,11 +219,13 @@ def chiudi_scadute():
     return chiuse
 
 
-def apri_sessione(token, client="", indirizzo=None, id_connessione=None):
-    """Nuova sessione per l'utente del token. Il numero di sessione è sessione.pk."""
+def apri_sessione(identita, client="", indirizzo=None, id_connessione=None):
+    """Nuova sessione per l'utente. Il numero di sessione è sessione.pk."""
     return Sessione.objects.create(
-        utente=token.utente,
-        token=token,
+        utente=identita.utente,
+        token=identita.token,
+        accesso=identita.accesso,
+        client_oauth=identita.client_oauth,
         id_connessione=id_connessione or secrets.token_urlsafe(24),
         ultima_attivita=timezone.now(),
         client=(client or "")[:200],
@@ -191,14 +234,14 @@ def apri_sessione(token, client="", indirizzo=None, id_connessione=None):
     )
 
 
-def connessione_nota(token, id_connessione):
+def connessione_nota(identita, id_connessione):
     """
     Vero se l'identificativo di connessione appartiene a questo utente e la chat
     può continuare a usarlo. Falso se è sconosciuto, oppure se la sessione è stata
     chiusa dalla chat o per revoca del token: la chat deve ricollegarsi.
     """
     sessione = (
-        Sessione.objects.filter(id_connessione=id_connessione, utente=token.utente)
+        Sessione.objects.filter(id_connessione=id_connessione, utente=identita.utente)
         .order_by("-pk")
         .first()
     )
@@ -207,7 +250,7 @@ def connessione_nota(token, id_connessione):
     )
 
 
-def sessione_per_richiesta(token, id_connessione="", client="", indirizzo=None):
+def sessione_per_richiesta(identita, id_connessione="", client="", indirizzo=None):
     """
     La sessione su cui registrare una richiesta dell'ispettore, aggiornando l'ora
     dell'ultima attività. Conta come attività solo la chiamata a uno strumento:
@@ -219,16 +262,20 @@ def sessione_per_richiesta(token, id_connessione="", client="", indirizzo=None):
     ma con un nuovo numero di sessione. Restituisce None solo se la connessione
     non è più valida (vedi connessione_nota).
     """
-    sessioni_utente = Sessione.objects.filter(utente=token.utente)
+    sessioni_utente = Sessione.objects.filter(utente=identita.utente)
     if id_connessione:
         sessione = sessioni_utente.filter(id_connessione=id_connessione).order_by("-pk").first()
         if sessione is None:
             return None
     else:
-        # Chat che non rimanda l'identificativo: vale l'ultima sessione aperta con questo token
-        sessione = sessioni_utente.filter(token=token, chiusa_il__isnull=True).order_by("-pk").first()
+        # Chat che non rimanda l'identificativo: vale l'ultima sessione aperta dallo
+        # stesso utente con lo stesso tipo di accesso (e lo stesso token, se personale)
+        sessione = (
+            sessioni_utente.filter(accesso=identita.accesso, token=identita.token, chiusa_il__isnull=True)
+            .order_by("-pk").first()
+        )
         if sessione is None:
-            return apri_sessione(token, client, indirizzo)
+            return apri_sessione(identita, client, indirizzo)
     adesso, minuti = timezone.now(), minuti_di_inattivita()
     if sessione.chiusa_il is None and not _scaduta(sessione, adesso, minuti):
         Sessione.objects.filter(pk=sessione.pk).update(ultima_attivita=adesso)
@@ -241,13 +288,13 @@ def sessione_per_richiesta(token, id_connessione="", client="", indirizzo=None):
         )
     elif sessione.motivo_chiusura != CHIUSA_PER_INATTIVITA:
         return None
-    return apri_sessione(token, client or sessione.client, indirizzo, sessione.id_connessione)
+    return apri_sessione(identita, client or sessione.client, indirizzo, sessione.id_connessione)
 
 
-def chiudi_connessione(token, id_connessione, motivo=CHIUSA_DAL_CLIENT):
+def chiudi_connessione(identita, id_connessione, motivo=CHIUSA_DAL_CLIENT):
     """Chiude la sessione aperta su una connessione (la chat ha terminato)."""
     return Sessione.objects.filter(
-        id_connessione=id_connessione, utente=token.utente, chiusa_il__isnull=True
+        id_connessione=id_connessione, utente=identita.utente, chiusa_il__isnull=True
     ).update(chiusa_il=timezone.now(), motivo_chiusura=motivo)
 
 

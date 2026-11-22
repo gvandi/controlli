@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% load i18n %}
+{# Pagina di consenso dell'accesso OAuth: sostituisce quella della libreria, che carica #}
+{# un foglio di stile da un server esterno. #}
+{% block titolo %}{% translate "Autorizzazione della chat" %}{% endblock %}
+{% block contenuto %}
+<div class="scheda">
+  {% if not error %}
+    <h2>{% translate "Autorizzare la chat a interrogare a tuo nome?" %}</h2>
+    <p>
+      {% translate "Programma che chiede l'accesso:" %}
+      <strong>{{ application.name|default:application.client_id }}</strong>
+    </p>
+    <p>
+      {% translate "Dopo l'autorizzazione verrai rimandato a:" %}
+      <code>{{ form.redirect_uri.value }}</code>
+    </p>
+    <p class="tenue">{% translate "Controlla che sia l'indirizzo della tua chat. Se non stai collegando la chat in questo momento, annulla." %}</p>
+    <p>{% translate "Il programma potrà:" %}</p>
+    <ul>
+      {% for scope in scopes_descriptions %}<li>{{ scope }}</li>{% endfor %}
+    </ul>
+    <p class="tenue">
+      {% blocktranslate with nome=user.get_username %}Le richieste verranno registrate a nome dell'utente {{ nome }}.{% endblocktranslate %}
+    </p>
+    <form id="authorizationForm" method="post">
+      {% csrf_token %}
+      {% for field in form %}{% if field.is_hidden %}{{ field }}{% endif %}{% endfor %}
+      {{ form.errors }}
+      {{ form.non_field_errors }}
+      <p>
+        <button type="submit" name="allow" value="Authorize">{% translate "Autorizza" %}</button>
+        &nbsp;
+        <button type="submit" class="secondario">{% translate "Annulla" %}</button>
+      </p>
+    </form>
+  {% else %}
+    <h2>{% translate "Autorizzazione non riuscita" %}</h2>
+    <p class="errore">{{ error.error }}</p>
+    <p>{{ error.description }}</p>
+  {% endif %}
+</div>
+{% endblock %}

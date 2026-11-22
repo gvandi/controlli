@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   server_mcp.py  -  app grafo, VERSIONE 20
+#   server_mcp.py  -  app grafo, VERSIONE 21
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: server
@@ -33,6 +33,21 @@
 #        calcoli presenti, le sessioni, e modifica i parametri).
 #   [20] Il server stdio (grafo_server_mcp) resta per le prove su un solo computer: non
 #        riconosce l'utente e non registra sessioni.
+#   [21] Accesso OAuth 2.0 dal browser: l'applicativo è il server di autorizzazione (libreria
+#        django-oauth-toolkit 3.4, indirizzi sotto /o/); la chat si registra da sola, l'analista
+#        accede e autorizza, il token non si copia più a mano.
+#   [21] Il rifiuto 401 indica alla chat il documento da cui partire (intestazione WWW-
+#        Authenticate con resource_metadata); i documenti di scoperta sono alla radice del sito
+#        (/.well-known/...).
+#   [21] views.py riconosce chi chiama in un solo punto (_identita_della_richiesta): token OAuth
+#        verificato dalla libreria (scadenza, ambito, servizio a cui è destinato) oppure token
+#        personale.
+#   [21] Utente riconosciuto ma senza il diritto usa_chat: risposta 403, distinta dal 401 che fa
+#        ripartire l'accesso.
+#   [21] Nuova pagina di consenso in italiano (templates/oauth2_provider/authorize.html): mostra
+#        il programma che chiede l'accesso e l'indirizzo a cui si viene rimandati.
+#   [21] La pagina "Collegamento alla chat" indica l'accesso OAuth come via normale e i token
+#        personali come ripiego; il cruscotto mostra per ogni sessione il tipo di accesso.
 #
 # <<< NOVITA
 """

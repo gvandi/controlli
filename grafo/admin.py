@@ -22,8 +22,8 @@ class SolaLettura(admin.ModelAdmin):
 
 @admin.register(models.Sessione)
 class SessioneAdmin(SolaLettura):
-    list_display = ("id", "utente", "iniziata_il", "ultima_attivita", "chiusa_il", "motivo_chiusura", "client")
-    list_filter = ("motivo_chiusura", "utente")
+    list_display = ("id", "utente", "accesso", "iniziata_il", "ultima_attivita", "chiusa_il", "motivo_chiusura", "client")
+    list_filter = ("accesso", "motivo_chiusura", "utente")
     ordering = ("-id",)
 
 

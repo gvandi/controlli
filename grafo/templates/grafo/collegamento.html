@@ -8,6 +8,7 @@
   code, pre { background: var(--sfondo); padding: 0.1rem 0.3rem; border-radius: 3px; }
   pre { padding: 0.6rem; overflow-x: auto; }
   .evidenza { border-color: #1e6b3a; }
+  .avviso { color: #a12622; }
 </style>
 <h1>{% translate "Collegamento alla chat" %}</h1>
 
@@ -21,15 +22,20 @@
 
 <div class="scheda">
   <h2>{% translate "Impostazioni per Unsloth Studio" %}</h2>
-  <p>{% translate "Nel server MCP della chat indicare:" %}</p>
+  <p>{% translate "Nel server MCP della chat indicare l'indirizzo e attivare l'accesso OAuth (Use OAuth sign-in), senza intestazioni personalizzate:" %}</p>
   <table>
     <tr><th>{% translate "Indirizzo (URL)" %}</th><td><code>{{ indirizzo_servizio }}</code></td></tr>
-    <tr><th>{% translate "Intestazione" %}</th><td><code>Authorization: Bearer {% translate "IL-TUO-TOKEN" %}</code></td></tr>
   </table>
+  <p class="tenue">{% translate "Al primo collegamento si apre il browser: accedi con il tuo utente e autorizza. Non c'è nulla da copiare." %}</p>
 </div>
 
 <div class="scheda">
-  <h2>{% translate "I tuoi token" %}</h2>
+  <h2>{% translate "Token personali (ripiego)" %}</h2>
+  {% if token_personali_ammessi %}
+    <p class="tenue">{% translate "Servono solo se la chat non riesce a usare l'accesso OAuth. In quel caso: accesso OAuth disattivato e intestazione" %} <code>Authorization: Bearer {% translate "IL-TUO-TOKEN" %}</code></p>
+  {% else %}
+    <p class="avviso">{% translate "L'amministratore ha disattivato i token personali: quelli elencati non vengono accettati." %}</p>
+  {% endif %}
   <table>
     <tr><th>{% translate "N." %}</th><th>{% translate "Etichetta" %}</th><th>{% translate "Creato" %}</th><th>{% translate "Ultimo uso" %}</th><th></th></tr>
     {% for t in token %}

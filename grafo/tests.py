@@ -8,7 +8,9 @@ Non richiede PyTorch, pyvis né la libreria mcp. Se un filo fra le parti si
 stacca, o una regola di compatibilità viene violata, qui si vede.
 """
 import ast
+import base64
 import datetime
+import hashlib
 import json
 import pathlib
 import random
@@ -16,6 +18,7 @@ import sys
 import tempfile
 from io import StringIO
 from unittest import mock
+from urllib.parse import parse_qs, urlsplit
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Permission
@@ -347,7 +350,7 @@ def _mappa_finta(report_html, bolla, nome_file):
 
 
 class SessioniTest(ConArchivio):
-    """Versione 20: servizio MCP su HTTP, token, sessioni, registro, mappa, cruscotto."""
+    """Versioni 20 e 21: servizio MCP su HTTP, accesso (OAuth e token), sessioni, registro, mappa, cruscotto."""
 
     @classmethod
     def setUpTestData(cls):
@@ -412,6 +415,124 @@ class SessioniTest(ConArchivio):
         self.assertEqual(self.invia({"jsonrpc": "2.0", "id": 1, "method": "ping"}, connessione=connessione).status_code, 401)
         self.assertEqual(Sessione.objects.get().motivo_chiusura, sessioni.CHIUSA_PER_REVOCA)
 
+    # ---- accesso OAuth (versione 21) -----------------------------------
+    SERVIZIO = "http://testserver/grafo/mcp"
+
+    def accesso_oauth(self, utente, risorsa=SERVIZIO):
+        """
+        Tutto il percorso che fa la chat: si registra come client, l'utente accede e
+        autorizza nel browser, la chat scambia il codice con il token (con PKCE).
+        Restituisce il token di accesso.
+        """
+        ritorno = "http://127.0.0.1:8765/callback"
+        registrazione = self.client.post(
+            reverse("oauth2_provider:dcr-register"),
+            data=json.dumps({
+                "client_name": "Studio di prova", "redirect_uris": [ritorno],
+                "grant_types": ["authorization_code", "refresh_token"], "response_types": ["code"],
+                "token_endpoint_auth_method": "none",
+            }),
+            content_type="application/json",
+        )
+        self.assertEqual(registrazione.status_code, 201, registrazione.content)
+        client_id = registrazione.json()["client_id"]
+
+        segreto = "v" * 64  # PKCE: la chat tiene il segreto e ne manda solo l'impronta
+        sfida = base64.urlsafe_b64encode(hashlib.sha256(segreto.encode()).digest()).rstrip(b"=").decode()
+        richiesta = {
+            "response_type": "code", "client_id": client_id, "redirect_uri": ritorno,
+            "scope": contratto.AMBITO_OAUTH, "state": "stato-di-prova",
+            "code_challenge": sfida, "code_challenge_method": "S256", "resource": risorsa,
+        }
+        autorizzazione = reverse("oauth2_provider:authorize")
+        self.client.logout()
+        self.assertEqual(self.client.get(autorizzazione, richiesta).status_code, 302)  # prima si accede
+        self.client.force_login(utente)
+        consenso = self.client.get(autorizzazione, richiesta)
+        self.assertContains(consenso, "Studio di prova")
+        self.assertContains(consenso, ritorno)
+        approvata = self.client.post(autorizzazione, {**richiesta, "allow": "Authorize"})
+        self.assertEqual(approvata.status_code, 302, approvata.content)
+        destinazione = urlsplit(approvata["Location"])
+        self.assertTrue(approvata["Location"].startswith(ritorno))
+        esito = parse_qs(destinazione.query)
+        self.assertEqual(esito["state"], ["stato-di-prova"])
+        self.client.logout()
+
+        scambio = self.client.post(reverse("oauth2_provider:token"), {
+            "grant_type": "authorization_code", "code": esito["code"][0], "redirect_uri": ritorno,
+            "client_id": client_id, "code_verifier": segreto, "resource": risorsa,
+        })
+        self.assertEqual(scambio.status_code, 200, scambio.content)
+        return scambio.json()["access_token"]
+
+    def test_la_chat_scopre_da_sola_dove_chiedere_l_accesso(self):
+        messaggio = {"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
+        rifiuto = self.client.post(reverse("grafo:mcp"), data=json.dumps(messaggio), content_type="application/json")
+        self.assertEqual(rifiuto.status_code, 401)
+        documento = "http://testserver/.well-known/oauth-protected-resource/grafo/mcp"
+        self.assertIn(f'resource_metadata="{documento}"', rifiuto["WWW-Authenticate"])
+
+        risorsa = self.client.get(urlsplit(documento).path).json()
+        self.assertEqual(risorsa["resource"], self.SERVIZIO)
+        self.assertEqual(risorsa["authorization_servers"], ["http://testserver/o"])
+        self.assertIn(contratto.AMBITO_OAUTH, risorsa["scopes_supported"])
+
+        for indirizzo in ("/.well-known/oauth-authorization-server/o", "/o/.well-known/oauth-authorization-server"):
+            server = self.client.get(indirizzo).json()
+            self.assertEqual(server["issuer"], "http://testserver/o", indirizzo)
+            self.assertEqual(server["authorization_endpoint"], "http://testserver/o/authorize/")
+            self.assertEqual(server["token_endpoint"], "http://testserver/o/token/")
+            self.assertEqual(server["registration_endpoint"], "http://testserver/o/register/")
+            self.assertIn("S256", server["code_challenge_methods_supported"])
+            self.assertEqual(server["grant_types_supported"], ["authorization_code", "refresh_token"])
+        # le pagine della libreria per creare applicazioni a mano non sono esposte
+        self.client.force_login(self.analista)
+        self.assertEqual(self.client.get("/o/applications/").status_code, 404)
+
+    def test_con_l_accesso_oauth_la_sessione_nasce_a_nome_dell_utente(self):
+        accesso = self.accesso_oauth(self.analista)
+        connessione, _ = self.collega_chat(accesso)
+        sessione = Sessione.objects.get()
+        self.assertEqual((sessione.utente, sessione.accesso, sessione.token), (self.analista, contratto.ACCESSO_OAUTH, None))
+        self.assertEqual(sessione.client_oauth, "Studio di prova")
+        self.assertIn("1. Società", self.chiama(connessione, "classifica", accesso)["content"][0]["text"])
+        self.assertEqual(Richiesta.objects.get().sessione, sessione)
+
+        # il token di un altro utente non può usare questa connessione
+        altro = self.accesso_oauth(self.collega)
+        self.assertEqual(self.invia({"jsonrpc": "2.0", "id": 2, "method": "ping"}, altro, connessione).status_code, 404)
+
+        # token scaduto: 401, e la chat sa di dover rifare l'accesso
+        from oauth2_provider.models import AccessToken
+        AccessToken.objects.all().update(expires=sessione.iniziata_il - datetime.timedelta(days=1))
+        scaduto = self.invia({"jsonrpc": "2.0", "id": 3, "method": "ping"}, accesso, connessione)
+        self.assertEqual(scaduto.status_code, 401)
+        self.assertIn("resource_metadata=", scaduto["WWW-Authenticate"])
+
+    def test_l_accesso_oauth_non_basta_senza_il_diritto_e_vale_solo_per_questo_servizio(self):
+        # utente riconosciuto ma senza il diritto usa_chat: 403, rifare l'accesso non serve
+        senza_diritto = self.accesso_oauth(self.senza_diritti)
+        ping = {"jsonrpc": "2.0", "id": 1, "method": "ping"}
+        rifiuto = self.invia(ping, senza_diritto)
+        self.assertEqual(rifiuto.status_code, 403)
+        self.assertNotIn("WWW-Authenticate", rifiuto)
+        # token rilasciato per un altro servizio: qui non vale
+        per_altro = self.accesso_oauth(self.analista, risorsa="http://testserver/altro-servizio")
+        self.assertEqual(self.invia(ping, per_altro).status_code, 401)
+        self.assertEqual(self.invia(ping, "token-inventato").status_code, 401)
+        self.assertEqual(Sessione.objects.count(), 0)
+
+    def test_l_amministratore_puo_spegnere_i_token_personali(self):
+        ping = {"jsonrpc": "2.0", "id": 1, "method": "ping"}
+        self.assertEqual(self.invia(ping).status_code, 200)
+        self.assertTrue(sessioni.errore_parametro(contratto.PARAMETRO_TOKEN_PERSONALI, "forse"))
+        self.assertIsNone(sessioni.errore_parametro(contratto.PARAMETRO_TOKEN_PERSONALI, "no"))
+        sessioni.salva_parametro(contratto.PARAMETRO_TOKEN_PERSONALI, "no")
+        self.assertEqual(self.invia(ping).status_code, 401)
+        # l'accesso OAuth continua a funzionare
+        self.assertEqual(self.invia(ping, self.accesso_oauth(self.analista)).status_code, 200)
+
     # ---- sessioni e registro -------------------------------------------
     def test_la_sessione_nasce_alla_connessione_e_registra_le_richieste(self):
         connessione, presentazione = self.collega_chat()
@@ -420,6 +541,7 @@ class SessioniTest(ConArchivio):
         sessione = Sessione.objects.get()
         self.assertEqual((sessione.utente, sessione.id_connessione, sessione.chiusa_il), (self.analista, connessione, None))
         self.assertEqual(sessione.client, "prova 1")
+        self.assertEqual((sessione.accesso, sessione.token), (contratto.ACCESSO_TOKEN, self.riga_token))
 
         elenco = self.invia({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}, connessione=connessione).json()
         self.assertEqual(tuple(s["name"] for s in elenco["result"]["tools"]), contratto.NOMI_STRUMENTI)
@@ -677,6 +799,9 @@ class StrutturaTest(SimpleTestCase):
         self.assertNotIn("django", self._importazioni("protocollo_mcp.py")[1])
         for nome_file in ("protocollo_mcp.py", "servizio_mcp.py", "views.py", "sessioni.py"):
             self.assertNotIn("mcp", self._importazioni(nome_file)[1], nome_file)
+        # la libreria OAuth si usa in un solo punto: dove si verifica il token (views.py)
+        for nome_file in ("sessioni.py", "servizio_mcp.py", "protocollo_mcp.py", "interrogazione.py", "models.py"):
+            self.assertNotIn("oauth2_provider", self._importazioni(nome_file)[1], nome_file)
         self.assertNotIn("torch", sys.modules)  # queste prove hanno caricato l'app senza PyTorch
 
     def test_registro_e_intestazioni_sono_allineati(self):

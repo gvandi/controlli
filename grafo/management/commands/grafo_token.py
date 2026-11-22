@@ -5,7 +5,7 @@ from grafo import sessioni
 
 
 class Command(BaseCommand):
-    help = "Crea un token personale per collegare la chat al servizio MCP (mostrato una sola volta)."
+    help = "Crea un token personale (ripiego all'accesso OAuth) per il servizio MCP: mostrato una sola volta."
 
     def add_arguments(self, parser):
         parser.add_argument("utente", help="Nome utente dell'applicativo.")

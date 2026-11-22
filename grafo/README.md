@@ -1,11 +1,12 @@
-# App grafo - versione 20
+# App grafo - versione 21
 
 Analisi di rete del progetto controlli UAE: una GNN assegna a ogni azienda un punteggio di
 rischio per tipo di irregolarità; i risultati si interrogano da una chat.
 
 **Stato: prototipo su dati simulati.** Dalla versione 19 è un'app Django dell'applicativo e
 usa il suo database PostgreSQL. Dalla versione 20 la chat si collega dalla rete, riconosce
-l'utente e registra sessioni, richieste e mappe. Non applica ancora i fascicoli: cosa manca è
+l'utente e registra sessioni, richieste e mappe; dalla 21 l'utente si riconosce con
+l'accesso OAuth 2.0 dal browser. Non applica ancora i fascicoli: cosa manca è
 in [TODO.md](../TODO.md).
 
 Le regole per far coesistere versioni diverse di codice e dati, e per modificare lo schema,
@@ -71,26 +72,54 @@ Senza i due file JSON il prototipo funziona con nomi generici e senza ricerca pe
 | Indirizzo | Per chi | Cosa fa |
 |---|---|---|
 | `/grafo/mcp/` | la chat | Servizio MCP: una POST per messaggio, con il token nell'intestazione |
-| `/grafo/collegamento/` | Analista | Crea e revoca i propri token; elenco delle proprie mappe |
+| `/o/authorize/`, `/o/token/`, `/o/register/` | la chat e il browser | Accesso OAuth 2.0 (django-oauth-toolkit) |
+| `/.well-known/oauth-...` | la chat | Documenti con cui la chat scopre dove chiedere l'accesso |
+| `/grafo/collegamento/` | Analista | Istruzioni per la chat, token personali di ripiego, elenco delle proprie mappe |
 | `/grafo/mappe/N/` | chi ha chiesto la mappa N | Mostra la mappa, dopo l'accesso all'applicativo |
 | `/grafo/cruscotto/` | Amministratore | Versioni, calcoli presenti, sessioni, parametri |
 
-Dopo l'aggiornamento: `python manage.py migrate` e `python manage.py crea_ruoli` (assegna i
-nuovi diritti ai ruoli Analista e Amministratore).
+Dopo l'aggiornamento: `pip install -r requirements.txt` (la versione 21 aggiunge
+`django-oauth-toolkit`), `python manage.py migrate` e `python manage.py crea_ruoli`.
 
 ## Collegare la chat (Unsloth Studio)
 
-1. L'analista accede all'applicativo, apre **Collegamento alla chat** e crea un token. Il
-   token viene mostrato una volta sola.
-2. In Studio aggiunge un server MCP di tipo HTTP con l'indirizzo indicato nella pagina
-   (`https://NOME-DEL-SERVER/grafo/mcp/`) e l'intestazione `Authorization: Bearer IL-TOKEN`.
-3. Incolla `grafo/prompt_di_sistema.txt` come prompt di sistema della chat.
+1. In Studio aggiungere un server MCP di tipo HTTP con l'indirizzo
+   `https://NOME-DEL-SERVER/grafo/mcp/`, attivare **Use OAuth sign-in** e non aggiungere
+   intestazioni personalizzate.
+2. Al primo collegamento si apre il browser: l'analista accede all'applicativo con il proprio
+   utente e preme **Autorizza**. Da quel momento la chat lavora a suo nome.
+3. Incollare `grafo/prompt_di_sistema.txt` come prompt di sistema della chat.
 
-Il token viaggia a ogni richiesta: **fuori dalle prove il servizio va raggiunto solo in
-HTTPS**. Con `CONTROLLI_DEBUG=0` l'applicativo rifiuta già le richieste in chiaro. Se gli
-analisti raggiungono l'applicativo con un nome diverso da quello che il server vede (proxy),
-impostare `CONTROLLI_URL_PUBBLICO` nel file `.env`: è l'indirizzo usato nei collegamenti alle
-mappe.
+### Cosa succede dietro (OAuth 2.0)
+
+```
+chat --POST /grafo/mcp/ senza accesso-->  401 + indirizzo del documento della risorsa
+chat --GET /.well-known/oauth-protected-resource/grafo/mcp-->  quale server autorizza
+chat --GET /.well-known/oauth-authorization-server/o-->  indirizzi di accesso, token, registrazione
+chat --POST /o/register/-->  la chat si registra come client
+browser --/o/authorize/-->  accesso con l'utente dell'applicativo + consenso
+chat --POST /o/token/ (codice + PKCE)-->  token legato all'utente e al servizio MCP
+chat --POST /grafo/mcp/ con il token-->  sessione a nome dell'utente
+```
+
+- Il token vale per il solo ambito `grafo` e per il solo servizio MCP; dura 8 ore e la chat
+  lo rinnova da sola per 7 giorni (`CONTROLLI_OAUTH_ORE_TOKEN`, `CONTROLLI_OAUTH_GIORNI_RINNOVO`
+  nel file `.env`).
+- Client registrati, autorizzazioni e token si vedono e si revocano dall'amministrazione
+  (sezione della libreria OAuth).
+- L'accesso non basta: serve il diritto `usa_chat` (ruolo Analista), altrimenti la risposta è 403.
+
+**Fuori dalle prove il servizio va raggiunto solo in HTTPS.** Se gli analisti raggiungono
+l'applicativo con un nome diverso da quello che il server vede (proxy), impostare
+`CONTROLLI_URL_PUBBLICO` e gli header del proxy (`SECURE_PROXY_SSL_HEADER`): il token è legato
+all'indirizzo del servizio e un indirizzo visto in modo diverso lo fa rifiutare.
+
+### Ripiego: token personale
+
+Se la chat non riesce a usare l'accesso OAuth: pagina **Collegamento alla chat**, creare un
+token, e in Studio usare l'intestazione `Authorization: Bearer IL-TOKEN` con l'accesso OAuth
+disattivato. L'amministratore può spegnere questa via dal cruscotto
+(`token_personali_ammessi = no`).
 
 ### Sessioni
 

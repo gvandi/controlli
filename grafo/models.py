@@ -8,7 +8,7 @@ Quattro gruppi di tabelle:
   RISULTATI           uno per ogni Esecuzione (versione del calcolo + versione dei
                       dati): NodoSoggetto, PunteggioRischio, Spiegazione,
                       RichiestaSpiegazione
-  SESSIONI (4.1)      Parametro (impostazioni dell'amministratore), TokenAccesso,
+  SESSIONI (4.1-4.2)      Parametro (impostazioni dell'amministratore), TokenAccesso,
                       Sessione, Richiesta, MappaProdotta
 
 Nulla viene cancellato quando arrivano dati nuovi o cambia il calcolo: si
@@ -300,6 +300,10 @@ class Sessione(models.Model):
     client = models.CharField(max_length=200, blank=True, default="")
     indirizzo = models.GenericIPAddressField(null=True, blank=True)
     versione_codice = models.CharField(max_length=20, blank=True, default="")
+    # 4.2: come è stato fatto l'accesso (contratto.ACCESSO_TOKEN / ACCESSO_OAUTH) e,
+    # per OAuth, il nome con cui il programma della chat si è registrato
+    accesso = models.CharField(max_length=10, blank=True, default="token")
+    client_oauth = models.CharField(max_length=255, blank=True, default="")
 
     class Meta:
         db_table = "grafo_sessione"
