@@ -1,17 +1,18 @@
 # Registro delle novità
 
-Versione corrente: 19.0
+Versione corrente: 20
 
 Elenco completo delle novità rispetto alla versione 12 (ultimo file unico di partenza).
 È l'UNICO posto in cui le novità si scrivono a mano: `aggiorna_intestazioni.py` ricopia
 in testa a ogni file le voci della sua parte.
 
 Formato di una voce: `- [versione] (parte) testo`, su una sola riga.
-Parti: `contratto`, `calcolo`, `interrogazione`, `server`, `mappa`.
+Parti: `contratto`, `calcolo`, `interrogazione`, `server`, `mappa`, `sessioni`.
 Fino alla versione 15 il programma era un solo file (`fac_simile_addestramento_gat_ver.NN.py`):
 le voci 13-15 sono assegnate alla parte in cui quel codice si trova oggi.
 Dalla 16 alla 18 era un prototipo autonomo su SQLite (cartella `prototipo_grafo`); dalla 19 è
 l'app Django `grafo` dell'applicativo, su PostgreSQL.
+Dalla 20 il numero di versione del codice è un intero.
 
 ## contratto
 
@@ -33,6 +34,10 @@ l'app Django `grafo` dell'applicativo, su PostgreSQL.
 - [19] (contratto) Schema 4.0: chiave interna del soggetto (Soggetto), fotografie dei dati (VersioneDati) e risultati per coppia calcolo/dati (Esecuzione); la versione dello schema la scrivono le migrazioni nella tabella grafo_info.
 - [19] (contratto) Documenti JSON auto-descrittivi: SCHEMA_SPIEGAZIONE "spiegazione/1.0" e SPIEGAZIONE_ACCETTATA.
 - [19] (contratto) Le regole complete sono in COMPATIBILITA.md, con la lista di controllo per le modifiche di schema.
+- [20] (contratto) Il numero di versione del codice diventa un intero (20); schema e calcolo restano a due numeri.
+- [20] (contratto) Schema 4.1 (migrazione 0002, sola espansione): tabelle grafo_parametro, grafo_token, grafo_sessione, grafo_richiesta, grafo_mappa; SCHEMA_RICHIESTO passa a ~=4.1.
+- [20] (contratto) Restrizioni dell'amministratore sulle versioni accettate (PARAMETRI, accettata(), restrizione_valida()): si aggiungono a ciò che il codice sa leggere, possono restringere e mai allargare; una restrizione scritta male viene ignorata.
+- [20] (contratto) Sesto strumento mappa in NOMI_STRUMENTI; versioni del protocollo MCP parlate dal servizio HTTP (PROTOCOLLI_MCP).
 
 ## calcolo
 
@@ -96,6 +101,8 @@ l'app Django `grafo` dell'applicativo, su PostgreSQL.
 - [19] (interrogazione) I testi dichiarano la coppia in uso ("calcolo 1.0 / dati 2"); nuove esecuzioni_disponibili() ed etichetta_esecuzione().
 - [19] (interrogazione) La versione del progetto non produce più avvisi: è solo provenienza.
 - [19] (interrogazione) Si prova senza chat con python manage.py grafo_consulta "domanda".
+- [20] (interrogazione) apri() legge le restrizioni dell'amministratore (restrizioni_in_vigore) e le applica a schema, calcolo e documenti di spiegazione; i messaggi di errore dicono quando il rifiuto viene da una restrizione.
+- [20] (interrogazione) in_esclusiva diventa un nome pubblico: lo usa lo strumento mappa.
 
 ## server
 
@@ -105,6 +112,13 @@ l'app Django `grafo` dell'applicativo, su PostgreSQL.
 - [17] (server) Strumenti registrati con add_tool() e trasporto stdio indicato in modo esplicito.
 - [18] (server) Registra anche il quinto strumento, indicatore (nessuna modifica al codice: l'elenco viene da contratto.py).
 - [19] (server) Si avvia con python manage.py grafo_server_mcp, che carica le impostazioni dell'applicativo.
+- [20] (server) Nuovo servizio MCP su HTTP dentro l'applicativo (views.py, indirizzo /grafo/mcp/): la chat si collega dalla rete e si presenta con un token personale; senza token valido la risposta è 401.
+- [20] (server) Il protocollo è scritto in protocollo_mcp.py (initialize, ping, tools/list, tools/call), senza la libreria mcp, che resta solo per il trasporto stdio.
+- [20] (server) Ogni chiamata passa da servizio_mcp.esegui_strumento(): la richiesta viene registrata nella sessione prima dell'esecuzione e completata con esito, durata e coppia calcolo/dati.
+- [20] (server) Ogni strumento ha in più il parametro facoltativo domanda, in cui il modello della chat ricopia la domanda dell'ispettore per il registro.
+- [20] (server) Nuovo strumento mappa(societa): produce la mappa investigativa e restituisce il collegamento alla pagina /grafo/mappe/N/, visibile dopo l'accesso solo a chi l'ha chiesta.
+- [20] (server) Nuove pagine: /grafo/collegamento/ (l'analista crea e revoca i propri token, ritrova le proprie mappe) e /grafo/cruscotto/ (l'amministratore vede le quattro versioni, i calcoli presenti, le sessioni, e modifica i parametri).
+- [20] (server) Il server stdio (grafo_server_mcp) resta per le prove su un solo computer: non riconosce l'utente e non registra sessioni.
 
 ## mappa
 
@@ -121,3 +135,14 @@ l'app Django `grafo` dell'applicativo, su PostgreSQL.
 - [18] (mappa) Il report mostra i primi 3 indicatori dei 10 ora conservati in ogni spiegazione.
 - [19] (mappa) Il file della mappa porta nel nome soggetto e coppia calcolo/dati e viene scritto in dati_grafo: mappe diverse non si sovrascrivono.
 - [19] (mappa) Si può scegliere il soggetto: python manage.py grafo_mappa --soggetto "nome o numero".
+- [20] (mappa) Nuova produci(): restituisce percorso, nome del file e soggetto; chiesta dalla chat, la mappa porta nel nome anche il numero di sessione, così analisti diversi non si sovrascrivono.
+
+## sessioni
+
+- [20] (sessioni) Nuovo modulo sessioni.py: parametri dell'amministratore, token personali, sessioni, registro delle richieste e delle mappe.
+- [20] (sessioni) Il numero di sessione è assegnato dal database quando la chat si collega; la sessione si chiude dopo i minuti di inattività scelti dall'amministratore (parametro minuti_inattivita_sessione, predefinito 30).
+- [20] (sessioni) Conta come attività solo la chiamata a uno strumento; una richiesta che arriva a sessione scaduta ne apre una nuova sulla stessa connessione.
+- [20] (sessioni) Del token si conserva solo l'impronta SHA-256: il testo in chiaro è mostrato una volta a chi lo crea; revocarlo chiude le sessioni aperte.
+- [20] (sessioni) Un parametro viene controllato prima del salvataggio: una restrizione che escluderebbe lo schema attuale o tutti i calcoli presenti è rifiutata.
+- [20] (sessioni) Nuovo diritto grafo.usa_chat (ruolo Analista); cruscotto e registro sono del ruolo Amministratore.
+- [20] (sessioni) Nuovo comando python manage.py grafo_token UTENTE.

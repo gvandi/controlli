@@ -1,6 +1,6 @@
 """Schema dell'app grafo: analisi di rete con GNN (prototipo su dati simulati).
 
-Tre gruppi di tabelle:
+Quattro gruppi di tabelle:
 
   SOGGETTI            Soggetto: chiave interna stabile (DECISIONI.md, n. 14)
   DATI IN INGRESSO    una fotografia per ogni VersioneDati: DatiSoggetto,
@@ -8,6 +8,8 @@ Tre gruppi di tabelle:
   RISULTATI           uno per ogni Esecuzione (versione del calcolo + versione dei
                       dati): NodoSoggetto, PunteggioRischio, Spiegazione,
                       RichiestaSpiegazione
+  SESSIONI (4.1)      Parametro (impostazioni dell'amministratore), TokenAccesso,
+                      Sessione, Richiesta, MappaProdotta
 
 Nulla viene cancellato quando arrivano dati nuovi o cambia il calcolo: si
 aggiunge una fotografia o un'esecuzione. Le regole per modificare questo schema
@@ -17,6 +19,7 @@ la versione dello schema (InfoArchivio).
 I nomi delle tabelle sono fissati con db_table perché interrogazione.py li usa
 in SQL: rinominarne una è una modifica che TOGLIE (primo numero dello schema).
 """
+from django.conf import settings
 from django.db import models
 
 
@@ -229,4 +232,116 @@ class RichiestaSpiegazione(models.Model):
             models.UniqueConstraint(
                 fields=["esecuzione", "soggetto", "tipo"], name="grafo_richiesta_unica"
             ),
+        ]
+
+
+# =====================================================================
+# SESSIONI DELLA CHAT (schema 4.1)
+# =====================================================================
+class Parametro(models.Model):
+    """Impostazione che l'amministratore modifica dal cruscotto.
+
+    I nomi ammessi, i valori predefiniti e le descrizioni sono in
+    contratto.PARAMETRI; le righe le crea la migrazione 0002.
+    """
+
+    nome = models.CharField(max_length=60, primary_key=True)
+    valore = models.CharField(max_length=255, blank=True, default="")
+    descrizione = models.TextField(blank=True, default="")
+    modificato_il = models.DateTimeField(auto_now=True)
+    modificato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+
+    class Meta:
+        db_table = "grafo_parametro"
+
+    def __str__(self):
+        return f"{self.nome} = {self.valore}"
+
+
+class TokenAccesso(models.Model):
+    """Token personale con cui la chat si presenta al servizio MCP.
+
+    Nel database c'è solo l'impronta (SHA-256): il token in chiaro viene mostrato
+    una volta sola a chi lo crea. Provvisorio: dalla versione 21 i token li
+    rilascerà l'accesso OAuth.
+    """
+
+    utente = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="+")
+    impronta = models.CharField(max_length=64, unique=True)
+    etichetta = models.CharField(max_length=80, blank=True, default="")
+    creato_il = models.DateTimeField(auto_now_add=True)
+    ultimo_uso = models.DateTimeField(null=True, blank=True)
+    revocato_il = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "grafo_token"
+
+    def __str__(self):
+        return f"token n. {self.pk} di {self.utente}"
+
+
+class Sessione(models.Model):
+    """Una sessione di lavoro in chat: il numero di sessione è la chiave (id).
+
+    Nasce quando la chat si collega al servizio MCP e viene chiusa dopo il
+    periodo di inattività scelto dall'amministratore.
+    """
+
+    utente = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
+    token = models.ForeignKey(TokenAccesso, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    # Identificativo della connessione assegnato alla chat (intestazione Mcp-Session-Id)
+    id_connessione = models.CharField(max_length=120, blank=True, default="", db_index=True)
+    iniziata_il = models.DateTimeField(auto_now_add=True)
+    ultima_attivita = models.DateTimeField()
+    chiusa_il = models.DateTimeField(null=True, blank=True)
+    motivo_chiusura = models.CharField(max_length=20, blank=True, default="")
+    client = models.CharField(max_length=200, blank=True, default="")
+    indirizzo = models.GenericIPAddressField(null=True, blank=True)
+    versione_codice = models.CharField(max_length=20, blank=True, default="")
+
+    class Meta:
+        db_table = "grafo_sessione"
+        permissions = [("usa_chat", "Può interrogare l'analisi di rete dalla chat")]
+
+    def __str__(self):
+        return f"sessione n. {self.pk}"
+
+
+class Richiesta(models.Model):
+    """Una chiamata a uno strumento fatta dalla chat per conto dell'ispettore."""
+
+    sessione = models.ForeignKey(Sessione, on_delete=models.PROTECT, related_name="+")
+    ricevuta_il = models.DateTimeField(auto_now_add=True)
+    strumento = models.CharField(max_length=40)
+    parametri = models.JSONField(default=dict)
+    # Domanda dell'ispettore, se il modello della chat l'ha ricopiata (non garantito)
+    domanda = models.TextField(blank=True, default="")
+    esito = models.CharField(max_length=20, blank=True, default="")
+    durata_ms = models.PositiveIntegerField(null=True, blank=True)
+    # Coppia calcolo/dati con cui è stata data la risposta
+    versione_calcolo = models.CharField(max_length=20, blank=True, default="")
+    numero_dati = models.PositiveIntegerField(null=True, blank=True)
+
+    class Meta:
+        db_table = "grafo_richiesta"
+        indexes = [models.Index(fields=["sessione", "ricevuta_il"], name="grafo_richiesta_sessione")]
+
+
+class MappaProdotta(models.Model):
+    """Una mappa investigativa scritta su file su richiesta di una sessione."""
+
+    sessione = models.ForeignKey(Sessione, on_delete=models.PROTECT, related_name="+")
+    richiesta = models.ForeignKey(Richiesta, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    soggetto = models.ForeignKey(Soggetto, on_delete=models.PROTECT, related_name="+")
+    nome_file = models.CharField(max_length=255)
+    prodotta_il = models.DateTimeField(auto_now=True)
+    versione_calcolo = models.CharField(max_length=20, blank=True, default="")
+    numero_dati = models.PositiveIntegerField(null=True, blank=True)
+
+    class Meta:
+        db_table = "grafo_mappa"
+        constraints = [
+            models.UniqueConstraint(fields=["sessione", "nome_file"], name="grafo_mappa_unica"),
         ]

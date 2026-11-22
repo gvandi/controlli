@@ -24,6 +24,10 @@ PARTE_DEL_FILE = {
     "scrittura.py": "calcolo",
     "interrogazione.py": "interrogazione",
     "server_mcp.py": "server",
+    "protocollo_mcp.py": "server",
+    "servizio_mcp.py": "server",
+    "views.py": "server",
+    "sessioni.py": "sessioni",
     "mappa.py": "mappa",
 }
 

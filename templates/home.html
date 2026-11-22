@@ -18,6 +18,17 @@
 </div>
 
 <div class="scheda">
+  <h2>{% translate "Analisi di rete" %}</h2>
+  <p class="tenue">{% translate "Punteggi di rischio calcolati sulla rete dei rapporti commerciali, interrogabili dalla chat. Prototipo su dati simulati." %}</p>
+  {% if puo_usare_la_chat %}
+    <p><a class="bottone" href="{% url 'grafo:collegamento' %}">{% translate "Collegamento alla chat e mappe" %}</a></p>
+  {% endif %}
+  {% if puo_amministrare_il_grafo %}
+    <p><a class="bottone" href="{% url 'grafo:cruscotto' %}">{% translate "Cruscotto: versioni, parametri e sessioni" %}</a></p>
+  {% endif %}
+</div>
+
+<div class="scheda">
   <h2>{% translate "Configurazione" %}</h2>
   {% if puo_entrare_in_admin and puo_configurare %}
     <p>{% translate "Tabelle di decodifica: attività economiche, classi dimensionali, forma giuridica, modello di business, identificativi e documenti." %}</p>

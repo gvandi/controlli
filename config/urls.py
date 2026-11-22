@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth import views as auth_views
-from django.urls import path
+from django.urls import include, path
 
 from utenti import views as utenti_views
 from django.utils.translation import gettext_lazy as _
@@ -14,4 +14,5 @@ urlpatterns = [
     path("accesso/", auth_views.LoginView.as_view(), name="login"),
     path("uscita/", auth_views.LogoutView.as_view(), name="logout"),
     path("admin/", admin.site.urls),
+    path("grafo/", include("grafo.urls")),
 ]
