@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   contratto.py  -  app grafo, VERSIONE 21
+#   contratto.py  -  app grafo, VERSIONE 22
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: contratto
@@ -55,6 +55,8 @@
 #        client_oauth; nuovo parametro token_personali_ammessi; SCHEMA_RICHIESTO passa a ~=4.2.
 #   [21] Nuove costanti ACCESSO_TOKEN, ACCESSO_OAUTH e AMBITO_OAUTH (l'ambito "grafo" richiesto
 #        dal servizio MCP).
+#   [22] Settimo strumento calcola in NOMI_STRUMENTI; STRUMENTI_SENZA_ARCHIVIO elenca gli
+#        strumenti che non leggono punteggi e dati.
 #
 # <<< NOVITA
 """
@@ -82,7 +84,7 @@ from packaging.version import InvalidVersion, Version
 # 1) PROGETTO: quale rilascio è installato. Solo provenienza: non blocca nulla.
 #    Dalla versione 20 è un numero intero (20, 21...): non essendo mai confrontato
 #    con un intervallo, un secondo numero non serviva.
-VERSIONE_CODICE = "21"
+VERSIONE_CODICE = "22"
 
 # 2) SCHEMA del database: decide se un lettore può aprire l'archivio.
 #    Secondo numero: modifiche che AGGIUNGONO (tabella, colonna facoltativa, indice).
@@ -216,9 +218,11 @@ DESCRIZIONE_POPOLAZIONE = {
 }
 
 # Strumenti che il server MCP espone alla chat: uno per intento
-NOMI_STRUMENTI = ("classifica", "relazione", "spiegazione", "vicinato", "indicatore", "mappa")
+NOMI_STRUMENTI = ("classifica", "relazione", "spiegazione", "vicinato", "indicatore", "mappa", "calcola")
 # I primi cinque stanno in interrogazione.py; "mappa" in servizio_mcp.py, perché
-# scrive un file e lo registra nella sessione.
+# scrive un file e lo registra nella sessione; "calcola" in calcolatrice.py.
+# Strumenti che non leggono l'archivio: per loro non si registra la coppia calcolo/dati
+STRUMENTI_SENZA_ARCHIVIO = ("calcola",)
 
 # Come una sessione ha dimostrato chi è l'utente
 ACCESSO_TOKEN = "token"  # token personale copiato a mano (versione 20)

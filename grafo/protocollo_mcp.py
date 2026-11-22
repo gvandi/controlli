@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   protocollo_mcp.py  -  app grafo, VERSIONE 21
+#   protocollo_mcp.py  -  app grafo, VERSIONE 22
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: server
@@ -51,6 +51,11 @@
 #   [21] La pagina di consenso si salta quando l'utente ha già autorizzato lo stesso programma e
 #        il suo token non è scaduto (REQUEST_APPROVAL_PROMPT auto; con
 #        CONTROLLI_OAUTH_CONSENSO=force torna a ogni accesso).
+#   [22] Nuovo strumento calcola(espressione), nel modulo calcolatrice.py: aritmetica esatta per
+#        la chat, valutata come albero sintattico senza eseguire codice; limiti su lunghezza,
+#        esponente e dimensione del risultato.
+#   [22] Le chiamate a calcola sono registrate nella sessione come le altre, senza coppia
+#        calcolo/dati; lo strumento funziona anche se l'archivio non è utilizzabile.
 #
 # <<< NOVITA
 """

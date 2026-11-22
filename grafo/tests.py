@@ -26,7 +26,7 @@ from django.core.management import call_command
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
-from grafo import contratto, interrogazione, mappa, protocollo_mcp, scrittura, servizio_mcp, sessioni
+from grafo import calcolatrice, contratto, interrogazione, mappa, protocollo_mcp, scrittura, servizio_mcp, sessioni
 from grafo.models import (
     Esecuzione, InfoArchivio, MappaProdotta, Parametro, Richiesta, Sessione, Spiegazione, VersioneDati,
 )
@@ -555,6 +555,12 @@ class SessioniTest(ConArchivio):
         self.assertEqual((richiesta.domanda, richiesta.esito), ("quali sono le 3 peggiori?", "ok"))
         self.assertEqual((richiesta.versione_calcolo, richiesta.numero_dati), (contratto.VERSIONE_CALCOLO, 1))
 
+        # la calcolatrice è registrata come le altre richieste, ma senza coppia calcolo/dati
+        self.assertEqual(self.chiama(connessione, "calcola", espressione="123456*3434")["content"][0]["text"], "423947904")
+        conto = Richiesta.objects.get(strumento="calcola")
+        self.assertEqual((conto.sessione, conto.esito, conto.versione_calcolo, conto.numero_dati), (sessione, "ok", "", None))
+        Richiesta.objects.filter(pk=conto.pk).delete()
+
         # un parametro non ammesso è un testo per la chat, e resta nel registro
         self.assertIn("non riconosciuto", self.chiama(connessione, "classifica", tipo="boh")["content"][0]["text"])
         self.assertTrue(self.chiama(connessione, "relazione", societa_a=1)["isError"])  # manca societa_b
@@ -713,6 +719,26 @@ class SessioniTest(ConArchivio):
         self.assertIsNone(sessioni.token_valido(nuovo))
 
 
+class CalcolatriceTest(SimpleTestCase):
+    """Lo strumento calcola: conti esatti, e nient'altro che conti."""
+
+    def test_i_conti_sono_esatti(self):
+        for espressione, atteso in {
+            "123456*3434": "423947904", "2^10": "1024", "(1500.50+249.5)*0.22": "385.0",
+            "sqrt(16)+abs(-3)": "7.0", "round(100/3, 2)": "33.33", "10 // 3": "3",
+            "2**100": "1267650600228229401496703205376",
+        }.items():
+            self.assertEqual(calcolatrice.calcola(espressione), atteso, espressione)
+
+    def test_tutto_cio_che_non_e_aritmetica_viene_rifiutato(self):
+        for espressione in (
+            "__import__('os').system('ls')", "open('x')", "a+1", "'x'*3", "True+1", "[1,2]",
+            "lambda: 1", "(1).real", "sqrt(x=4)", "import os", "",
+            "1/0", "9**9**9", "(10**4000)**9000", "1+" * 400,
+        ):
+            self.assertTrue(calcolatrice.calcola(espressione).startswith("Errore"), espressione)
+
+
 class ProtocolloTest(SimpleTestCase):
     """Il protocollo MCP, senza database: descrizione degli strumenti e messaggi."""
 
@@ -768,6 +794,7 @@ class StrutturaTest(SimpleTestCase):
     def test_le_dipendenze_vanno_in_una_sola_direzione(self):
         ammesse = {
             "contratto.py": set(),
+            "calcolatrice.py": set(),
             "models.py": set(),
             "calcolo_cartella.py": set(),
             "scrittura.py": {"contratto", "models"},
@@ -776,7 +803,7 @@ class StrutturaTest(SimpleTestCase):
             "mappa.py": {"contratto", "interrogazione"},
             "sessioni.py": {"contratto", "models"},
             "protocollo_mcp.py": {"contratto"},
-            "servizio_mcp.py": {"contratto", "interrogazione", "mappa", "sessioni", "calcolo_cartella"},
+            "servizio_mcp.py": {"contratto", "interrogazione", "mappa", "sessioni", "calcolo_cartella", "calcolatrice"},
             "server_mcp.py": {"contratto", "interrogazione", "servizio_mcp"},
             "views.py": {
                 "contratto", "interrogazione", "protocollo_mcp", "servizio_mcp", "sessioni",
@@ -797,6 +824,7 @@ class StrutturaTest(SimpleTestCase):
         self.assertNotIn("django", self._importazioni("contratto.py")[1])
         # il protocollo si prova da solo: niente Django; solo il server stdio usa la libreria mcp
         self.assertNotIn("django", self._importazioni("protocollo_mcp.py")[1])
+        self.assertNotIn("django", self._importazioni("calcolatrice.py")[1])
         for nome_file in ("protocollo_mcp.py", "servizio_mcp.py", "views.py", "sessioni.py"):
             self.assertNotIn("mcp", self._importazioni(nome_file)[1], nome_file)
         # la libreria OAuth si usa in un solo punto: dove si verifica il token (views.py)
