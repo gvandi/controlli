@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block titolo %}{% translate "Archivio" %}{% endblock %}
+{% block contenuto %}
+<h1>{% translate "Archivio" %}</h1>
+{% for faldone, numero in faldoni %}
+<div class="scheda">
+  <h2><a href="{% url 'archivio:faldone' faldone.codice %}">{{ faldone.nome }}</a></h2>
+  <p>
+    {% blocktranslate count numero=numero %}{{ numero }} fascicolo{% plural %}{{ numero }} fascicoli{% endblocktranslate %}
+    {% if faldone.riservato %}<span class="tenue">{% translate "(solo quelli a cui sei assegnato)" %}</span>{% endif %}
+  </p>
+</div>
+{% endfor %}
+{% endblock %}

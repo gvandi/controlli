@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block titolo %}{{ faldone.nome }}{% endblock %}
+{% block contenuto %}
+<style>
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: 0.35rem 0.6rem 0.35rem 0; border-bottom: 1px solid var(--bordo); }
+  .in-riga label, .in-riga input, .in-riga select { display: inline-block; width: auto; margin-right: 0.5rem; }
+</style>
+<p><a href="{% url 'archivio:faldoni' %}">{% translate "Archivio" %}</a> &rsaquo; {{ faldone.nome }}</p>
+<h1>{{ faldone.nome }}</h1>
+{% if faldone.riservato %}
+  <p class="tenue">{% translate "Faldone riservato: vedi solo i fascicoli a cui sei assegnato." %}</p>
+{% endif %}
+{% if errore %}<p class="errore">{{ errore }}</p>{% endif %}
+
+<div class="scheda">
+  <form method="get" class="in-riga">
+    <label for="q">{% translate "Cerca per titolo o identificativo" %}</label>
+    <input type="text" id="q" name="q" value="{{ cerca }}">
+    <button type="submit" class="secondario">{% translate "Cerca" %}</button>
+  </form>
+  <table>
+    <tr><th>{% translate "N." %}</th><th>{% translate "Fascicolo" %}</th><th>{% translate "Stato" %}</th><th>{% translate "Creato il" %}</th></tr>
+    {% for f in fascicoli %}
+      <tr>
+        <td>{{ f.pk }}</td>
+        <td><a href="{% url 'archivio:fascicolo' f.pk %}">{{ f.titolo }}</a></td>
+        <td>{{ f.stato }}</td>
+        <td>{{ f.creato_il|date:"Y-m-d H:i" }}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="4" class="tenue">{% translate "Nessun fascicolo." %}</td></tr>
+    {% endfor %}
+  </table>
+</div>
+
+{% if puo_aprire_indagini %}
+<div class="scheda">
+  <h2>{% translate "Apri un'indagine" %}</h2>
+  <p class="tenue">{% translate "Il fascicolo sarà visibile solo a te e alle persone che vi assegnerai." %}</p>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="azione" value="apri_indagine">
+    <label for="titolo">{% translate "Titolo" %}</label>
+    <input type="text" id="titolo" name="titolo" maxlength="200" required>
+    <label for="descrizione">{% translate "Descrizione" %}</label>
+    <input type="text" id="descrizione" name="descrizione">
+    <p><button type="submit">{% translate "Apri l'indagine" %}</button></p>
+  </form>
+</div>
+{% endif %}
+
+{% if puo_aggiungere_aziende %}
+<div class="scheda">
+  <h2>{% translate "Aggiungi un'azienda" %}</h2>
+  <p class="tenue">{% translate "Di norma il fascicolo di un'azienda nasce da solo con l'elaborazione dei file. Qui si può crearlo a mano." %}</p>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="azione" value="aggiungi_azienda">
+    <label for="tipo">{% translate "Tipo di identificativo" %}</label>
+    <select id="tipo" name="tipo">
+      {% for tipo in tipi %}<option value="{{ tipo.pk }}"{% if tipo.codice == "COE" %} selected{% endif %}>{{ tipo }}</option>{% endfor %}
+    </select>
+    <label for="valore">{% translate "Valore" %}</label>
+    <input type="text" id="valore" name="valore" maxlength="60" required>
+    <label for="denominazione">{% translate "Denominazione" %}</label>
+    <input type="text" id="denominazione" name="denominazione" maxlength="255">
+    <p><button type="submit">{% translate "Aggiungi" %}</button></p>
+  </form>
+</div>
+{% endif %}
+{% endblock %}
