@@ -39,7 +39,7 @@ Elenco unico delle cose da fare. Ogni passo si chiude con questo file aggiornato
 - [ ] 11. Configurazione: regole e soglie versionate, modificabili dall'interfaccia
 - [ ] Più avanti: risoluzione delle identità, controlli sui documenti, analisi di rete e GNN
 
-## App grafo (`grafo/`, versione 20)
+## App grafo (`grafo/`, versione 21)
 
 - [x] Prototipo su dati simulati: GNN con punteggi per tipo di irregolarità, libreria di
       interrogazione, server MCP per la chat, report e mappa
@@ -75,16 +75,28 @@ Elenco unico delle cose da fare. Ogni passo si chiude con questo file aggiornato
       sono mai stati eseguiti
 - [ ] Verificare che Unsloth Studio parli con il servizio (versione del protocollo,
       intestazione Mcp-Session-Id, risposta JSON senza flusso SSE)
-- [ ] **Versione 21**: accesso OAuth 2.0 dal browser al posto del token copiato a mano
-      (applicativo come fornitore delle autorizzazioni, django-oauth-toolkit); sessioni,
-      registro e mappe non cambiano
+- [x] Versione 21: accesso OAuth 2.0 dal browser (django-oauth-toolkit 3.4), con
+      registrazione automatica della chat; token personali come ripiego disattivabile
+- [ ] **Prima esecuzione della versione 21**: `pip install -r requirements.txt`, `migrate`,
+      `test grafo`, collegamento di Studio con "Use OAuth sign-in". In fase di scrittura
+      né Django né la libreria OAuth erano disponibili: la configurazione è stata scritta
+      leggendo il sorgente della libreria 3.4.0 e non è mai stata eseguita
+- [ ] Verificare che Studio completi il percorso (scoperta, registrazione, ritorno dal
+      browser, rinnovo del token) e con quale indirizzo di ritorno si registra
+- [ ] Registrazione dei client oggi aperta a chiunque raggiunga il server: restringerla
+      (rete, token iniziale o elenco degli indirizzi di ritorno ammessi) prima dell'uso reale,
+      e ripulire periodicamente i client mai usati
+- [ ] Pagina in cui l'analista vede e revoca le proprie autorizzazioni OAuth (oggi solo
+      dall'amministrazione)
+- [ ] Spegnere i token personali (`token_personali_ammessi = no`) quando OAuth è collaudato,
+      poi togliere codice e tabella in un rilascio successivo (Contract)
+- [ ] `python manage.py cleartokens` periodico per eliminare i token OAuth scaduti
 - [ ] Installazione in rete: HTTPS davanti all'applicativo (il token viaggia a ogni
       richiesta), `CONTROLLI_ALLOWED_HOSTS`, `CONTROLLI_URL_PUBBLICO`
 - [ ] Misurare quante volte il modello ricopia la domanda dell'ispettore nel parametro
       `domanda`; se poche, il registro resta fatto di strumento e parametri
 - [ ] Conservazione di sessioni, richieste e file delle mappe: per quanto tenerli, e chi
       può leggere il registro (vedi "Punti aperti sulla riservatezza")
-- [ ] Scadenza dei token personali (oggi valgono fino alla revoca)
 - [ ] Funzioni in prova per pochi utenti (Feature Flags) e ambiente di prova
 - [ ] Conservazione delle fotografie dei dati: per quanto tenerle
 - [ ] Sostituire i dati simulati con quelli estratti dai documenti (dopo i passi 6-8),

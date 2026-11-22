@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     "utenti",
     "decodifiche",
     "grafo",
+    "oauth2_provider",
 ]
 
 MIDDLEWARE = [
@@ -131,6 +132,30 @@ MEDIA_URL = "dati_caricati/"
 # https://controlli.ufficio.example). Serve a comporre i collegamenti alle mappe
 # restituiti alla chat; se vuoto si usa l'indirizzo della richiesta ricevuta.
 GRAFO_URL_PUBBLICO = os.environ.get("CONTROLLI_URL_PUBBLICO", "")
+
+# Accesso OAuth 2.0 per la chat (app grafo, versione 21). L'applicativo è il server di
+# autorizzazione: la chat si registra da sola, l'analista accede con il proprio utente
+# e approva, la chat riceve un token legato a quell'utente e al solo servizio MCP.
+OAUTH2_PROVIDER = {
+    # Un solo ambito: interrogare l'analisi di rete (lo stesso nome è in grafo/contratto.py)
+    "SCOPES": {"grafo": "Interrogare l'analisi di rete dalla chat a tuo nome"},
+    "DEFAULT_SCOPES": ["grafo"],
+    # Solo il flusso con codice di autorizzazione e PKCE; niente flussi sconsigliati
+    "PKCE_REQUIRED": True,
+    "OAUTH2_RESPONSE_TYPES_SUPPORTED": ["code"],
+    "OAUTH2_GRANT_TYPES_SUPPORTED": ["authorization_code", "refresh_token"],
+    "OAUTH2_TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED": ["none", "client_secret_post", "client_secret_basic"],
+    # La chat si registra da sola come client (RFC 7591), senza credenziali: chiunque
+    # raggiunga il server può registrarne uno, ma senza l'accesso e il consenso di un
+    # utente un client non ottiene nulla. Da restringere prima dell'uso reale (TODO.md).
+    "DCR_ENABLED": True,
+    "DCR_REGISTRATION_PERMISSION_CLASSES": ("oauth2_provider.dcr.AllowAllDCRPermission",),
+    # Una chat sullo stesso computer può ricevere la risposta su http://localhost:porta
+    "ALLOW_LOCALHOST_LOOPBACK": True,
+    # Durata del token della chat (ore) e del token di rinnovo (giorni)
+    "ACCESS_TOKEN_EXPIRE_SECONDS": int(os.environ.get("CONTROLLI_OAUTH_ORE_TOKEN", "8")) * 3600,
+    "REFRESH_TOKEN_EXPIRE_SECONDS": int(os.environ.get("CONTROLLI_OAUTH_GIORNI_RINNOVO", "7")) * 86400,
+}
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

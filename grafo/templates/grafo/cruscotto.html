@@ -97,18 +97,19 @@
     {% blocktranslate %}Aperte ora: <strong>{{ sessioni_aperte }}</strong>. Una sessione si chiude dopo {{ minuti_inattivita }} minuti senza richieste.{% endblocktranslate %}
   </p>
   <table>
-    <tr><th>{% translate "N." %}</th><th>{% translate "Utente" %}</th><th>{% translate "Iniziata" %}</th><th>{% translate "Ultima attività" %}</th><th>{% translate "Richieste" %}</th><th>{% translate "Stato" %}</th></tr>
+    <tr><th>{% translate "N." %}</th><th>{% translate "Utente" %}</th><th>{% translate "Accesso" %}</th><th>{% translate "Iniziata" %}</th><th>{% translate "Ultima attività" %}</th><th>{% translate "Richieste" %}</th><th>{% translate "Stato" %}</th></tr>
     {% for s in ultime_sessioni %}
       <tr>
         <td>{{ s.pk }}</td>
         <td>{{ s.utente.username }}</td>
+        <td>{{ s.accesso }}{% if s.client_oauth %} <span class="tenue">({{ s.client_oauth }})</span>{% endif %}</td>
         <td>{{ s.iniziata_il|date:"Y-m-d H:i" }}</td>
         <td>{{ s.ultima_attivita|date:"Y-m-d H:i" }}</td>
         <td>{{ s.numero_richieste }}</td>
         <td>{% if s.chiusa_il %}<span class="tenue">{% translate "chiusa" %} ({{ s.motivo_chiusura }})</span>{% else %}<span class="ok">{% translate "aperta" %}</span>{% endif %}</td>
       </tr>
     {% empty %}
-      <tr><td colspan="6" class="tenue">{% translate "Nessuna sessione." %}</td></tr>
+      <tr><td colspan="7" class="tenue">{% translate "Nessuna sessione." %}</td></tr>
     {% endfor %}
   </table>
   {% if perms.grafo.view_richiesta %}

@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   contratto.py  -  app grafo, VERSIONE 20
+#   contratto.py  -  app grafo, VERSIONE 21
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: contratto
@@ -51,6 +51,10 @@
 #        restringere e mai allargare; una restrizione scritta male viene ignorata.
 #   [20] Sesto strumento mappa in NOMI_STRUMENTI; versioni del protocollo MCP parlate dal
 #        servizio HTTP (PROTOCOLLI_MCP).
+#   [21] Schema 4.2 (migrazione 0003, sola espansione): su grafo_sessione le colonne accesso e
+#        client_oauth; nuovo parametro token_personali_ammessi; SCHEMA_RICHIESTO passa a ~=4.2.
+#   [21] Nuove costanti ACCESSO_TOKEN, ACCESSO_OAUTH e AMBITO_OAUTH (l'ambito "grafo" richiesto
+#        dal servizio MCP).
 #
 # <<< NOVITA
 """
@@ -78,18 +82,19 @@ from packaging.version import InvalidVersion, Version
 # 1) PROGETTO: quale rilascio è installato. Solo provenienza: non blocca nulla.
 #    Dalla versione 20 è un numero intero (20, 21...): non essendo mai confrontato
 #    con un intervallo, un secondo numero non serviva.
-VERSIONE_CODICE = "20"
+VERSIONE_CODICE = "21"
 
 # 2) SCHEMA del database: decide se un lettore può aprire l'archivio.
 #    Secondo numero: modifiche che AGGIUNGONO (tabella, colonna facoltativa, indice).
 #    Primo numero: modifiche che TOLGONO o cambiano significato.
 #    La versione reale è quella scritta nel database dall'ultima migrazione
 #    applicata; questa costante dichiara quella prodotta dalle migrazioni del codice.
-VERSIONE_SCHEMA = "4.1"
-#    Ciò che serve ai lettori (interrogazione, mappa, server): "~=4.1" significa
-#    almeno 4.1 e comunque 4.x. Un lettore così accetta le espansioni future.
-#    (4.1: parametri dell'amministratore, token, sessioni, richieste, mappe.)
-SCHEMA_RICHIESTO = "~=4.1"
+VERSIONE_SCHEMA = "4.2"
+#    Ciò che serve ai lettori (interrogazione, mappa, server): "~=4.2" significa
+#    almeno 4.2 e comunque 4.x. Un lettore così accetta le espansioni future.
+#    (4.1: parametri dell'amministratore, token, sessioni, richieste, mappe.
+#     4.2: per ogni sessione, come è stato fatto l'accesso e da quale programma.)
+SCHEMA_RICHIESTO = "~=4.2"
 
 # 3) CALCOLO: sale solo quando cambia qualcosa che altera i punteggi (modello,
 #    features, addestramento). È il primo livello della coppia calcolo/dati.
@@ -116,12 +121,18 @@ PARAMETRO_SCHEMA = "restrizione_schema"
 PARAMETRO_CALCOLO = "restrizione_calcolo"
 PARAMETRO_SPIEGAZIONE = "restrizione_spiegazione"
 PARAMETRO_INATTIVITA = "minuti_inattivita_sessione"
+PARAMETRO_TOKEN_PERSONALI = "token_personali_ammessi"
 MINUTI_INATTIVITA_PREDEFINITI = 30
 # nome -> (valore predefinito, descrizione mostrata all'amministratore)
 PARAMETRI = {
     PARAMETRO_INATTIVITA: (
         str(MINUTI_INATTIVITA_PREDEFINITI),
         "Minuti senza richieste dopo i quali una sessione della chat viene chiusa (da 1 a 1440).",
+    ),
+    PARAMETRO_TOKEN_PERSONALI: (
+        "si",
+        "Accettare anche i token personali copiati a mano (si / no). Con 'no' la chat entra "
+        "solo con l'accesso OAuth dal browser.",
     ),
     PARAMETRO_SCHEMA: (
         "",
@@ -208,6 +219,12 @@ DESCRIZIONE_POPOLAZIONE = {
 NOMI_STRUMENTI = ("classifica", "relazione", "spiegazione", "vicinato", "indicatore", "mappa")
 # I primi cinque stanno in interrogazione.py; "mappa" in servizio_mcp.py, perché
 # scrive un file e lo registra nella sessione.
+
+# Come una sessione ha dimostrato chi è l'utente
+ACCESSO_TOKEN = "token"  # token personale copiato a mano (versione 20)
+ACCESSO_OAUTH = "oauth"  # accesso dal browser con OAuth 2.0 (versione 21)
+# Ambito OAuth richiesto dal servizio MCP: lo stesso nome è in config/settings.py
+AMBITO_OAUTH = "grafo"
 
 # Versioni del protocollo MCP che il servizio HTTP sa parlare (la prima è la preferita)
 PROTOCOLLI_MCP = ("2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05")

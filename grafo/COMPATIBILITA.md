@@ -10,8 +10,8 @@ Ognuna risponde a una domanda diversa. Sono dichiarate in `contratto.py`.
 
 | Versione | Domanda | Formato | Dove si legge |
 |---|---|---|---|
-| Progetto (`VERSIONE_CODICE`) | Quale rilascio è installato? | numero intero: `20`, `21` | `contratto.py`, `NOVITA.md` |
-| Schema (`VERSIONE_SCHEMA`) | Questo lettore può aprire l'archivio? | due numeri: `4.1` | tabella `grafo_info`, scritta dalle migrazioni |
+| Progetto (`VERSIONE_CODICE`) | Quale rilascio è installato? | numero intero: `21`, `22` | `contratto.py`, `NOVITA.md` |
+| Schema (`VERSIONE_SCHEMA`) | Questo lettore può aprire l'archivio? | due numeri: `4.2` | tabella `grafo_info`, scritta dalle migrazioni |
 | Calcolo (`VERSIONE_CALCOLO`) | Questi punteggi sono confrontabili? | due numeri: `1.0` | tabella `grafo_esecuzione` |
 | Dati | Su quale fotografia dei dati? | contatore: 1, 2, 3 | tabella `grafo_versione_dati` |
 
@@ -139,7 +139,10 @@ utenti di norma non occorre.
 
 La versione 20 è il primo caso reale: la migrazione `0002_sessioni` aggiunge cinque tabelle
 (4.0 → 4.1) senza toccare le esistenti, e il codice della versione 19 continua a funzionare
-sul database aggiornato.
+sul database aggiornato. La versione 21 fa lo stesso con `0003_accesso_oauth` (4.1 → 4.2): due
+colonne con valore predefinito. Il parametro `token_personali_ammessi` è il primo
+interruttore del sistema: permette di spegnere la via vecchia (token copiati a mano) solo
+quando la nuova (OAuth) è collaudata, senza rilasciare codice.
 
 ### Lista di controllo per una modifica di schema
 
