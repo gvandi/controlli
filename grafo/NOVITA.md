@@ -1,6 +1,6 @@
 # Registro delle novità
 
-Versione corrente: 21
+Versione corrente: 22
 
 Elenco completo delle novità rispetto alla versione 12 (ultimo file unico di partenza).
 È l'UNICO posto in cui le novità si scrivono a mano: `aggiorna_intestazioni.py` ricopia
@@ -40,6 +40,7 @@ Dalla 20 il numero di versione del codice è un intero.
 - [20] (contratto) Sesto strumento mappa in NOMI_STRUMENTI; versioni del protocollo MCP parlate dal servizio HTTP (PROTOCOLLI_MCP).
 - [21] (contratto) Schema 4.2 (migrazione 0003, sola espansione): su grafo_sessione le colonne accesso e client_oauth; nuovo parametro token_personali_ammessi; SCHEMA_RICHIESTO passa a ~=4.2.
 - [21] (contratto) Nuove costanti ACCESSO_TOKEN, ACCESSO_OAUTH e AMBITO_OAUTH (l'ambito "grafo" richiesto dal servizio MCP).
+- [22] (contratto) Settimo strumento calcola in NOMI_STRUMENTI; STRUMENTI_SENZA_ARCHIVIO elenca gli strumenti che non leggono punteggi e dati.
 
 ## calcolo
 
@@ -128,6 +129,8 @@ Dalla 20 il numero di versione del codice è un intero.
 - [21] (server) Nuova pagina di consenso in italiano (templates/oauth2_provider/authorize.html): mostra il programma che chiede l'accesso e l'indirizzo a cui si viene rimandati.
 - [21] (server) La pagina "Collegamento alla chat" indica l'accesso OAuth come via normale e i token personali come ripiego; il cruscotto mostra per ogni sessione il tipo di accesso.
 - [21] (server) La pagina di consenso si salta quando l'utente ha già autorizzato lo stesso programma e il suo token non è scaduto (REQUEST_APPROVAL_PROMPT auto; con CONTROLLI_OAUTH_CONSENSO=force torna a ogni accesso).
+- [22] (server) Nuovo strumento calcola(espressione), nel modulo calcolatrice.py: aritmetica esatta per la chat, valutata come albero sintattico senza eseguire codice; limiti su lunghezza, esponente e dimensione del risultato.
+- [22] (server) Le chiamate a calcola sono registrate nella sessione come le altre, senza coppia calcolo/dati; lo strumento funziona anche se l'archivio non è utilizzabile.
 
 ## mappa
 

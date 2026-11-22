@@ -1,4 +1,4 @@
-# App grafo - versione 21
+# App grafo - versione 22
 
 Analisi di rete del progetto controlli UAE: una GNN assegna a ogni azienda un punteggio di
 rischio per tipo di irregolarità; i risultati si interrogano da una chat.
@@ -34,6 +34,7 @@ calcolo.py + scrittura.py  -->  PostgreSQL  <--  interrogazione.py  <--  mappa.p
 | `sessioni.py` | sessioni | Parametri dell'amministratore, token, sessioni, registro | - |
 | `protocollo_mcp.py` | server | Regole del protocollo MCP (JSON-RPC), senza Django | - |
 | `servizio_mcp.py` | server | Esegue uno strumento e lo registra; strumento `mappa` | - |
+| `calcolatrice.py` | server | Strumento `calcola`: aritmetica esatta, senza Django né database | - |
 | `views.py`, `urls.py`, `templates/` | server | Servizio HTTP, pagina della mappa, collegamento, cruscotto | - |
 | `server_mcp.py` | server | Trasporto stdio per le prove su un solo computer | mcp |
 | `mappa.py` | mappa | Report e mappa investigativa in HTML | networkx, pyvis |

@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   servizio_mcp.py  -  app grafo, VERSIONE 21
+#   servizio_mcp.py  -  app grafo, VERSIONE 22
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: server
@@ -51,6 +51,11 @@
 #   [21] La pagina di consenso si salta quando l'utente ha già autorizzato lo stesso programma e
 #        il suo token non è scaduto (REQUEST_APPROVAL_PROMPT auto; con
 #        CONTROLLI_OAUTH_CONSENSO=force torna a ogni accesso).
+#   [22] Nuovo strumento calcola(espressione), nel modulo calcolatrice.py: aritmetica esatta per
+#        la chat, valutata come albero sintattico senza eseguire codice; limiti su lunghezza,
+#        esponente e dimensione del risultato.
+#   [22] Le chiamate a calcola sono registrate nella sessione come le altre, senza coppia
+#        calcolo/dati; lo strumento funziona anche se l'archivio non è utilizzabile.
 #
 # <<< NOVITA
 """
@@ -63,16 +68,18 @@ richiesta registrata nella sessione di un utente.
                                                  +-->  sessioni.py (registro)
 
 Contiene anche il sesto strumento, "mappa": sta qui e non in interrogazione.py
-perché scrive un file e lo registra nella sessione.
+perché scrive un file e lo registra nella sessione. Il settimo, "calcola", è in
+calcolatrice.py e qui viene solo aggiunto all'elenco.
 
-Importa contratto.py, interrogazione.py, mappa.py, sessioni.py, calcolo_cartella.py.
+Importa contratto.py, interrogazione.py, mappa.py, sessioni.py, calcolo_cartella.py,
+calcolatrice.py.
 """
 import logging
 import threading
 import time
 from typing import Union
 
-from . import calcolo_cartella, contratto, interrogazione, sessioni
+from . import calcolatrice, calcolo_cartella, contratto, interrogazione, sessioni
 from . import mappa as modulo_mappa
 
 registro = logging.getLogger("grafo.servizio_mcp")
@@ -130,7 +137,7 @@ def mappa(societa: Union[int, str] = "") -> str:
 
 
 # Tutti gli strumenti esposti alla chat, nell'ordine del contratto
-STRUMENTI = {**interrogazione.STRUMENTI, "mappa": mappa}
+STRUMENTI = {**interrogazione.STRUMENTI, "mappa": mappa, "calcola": calcolatrice.calcola}
 
 
 def esegui_strumento(nome, parametri, domanda="", sessione=None, indirizzo_mappa=None):
@@ -156,10 +163,16 @@ def esegui_strumento(nome, parametri, domanda="", sessione=None, indirizzo_mappa
         _chiamata.sessione = _chiamata.richiesta = _chiamata.indirizzo_mappa = None
 
     if richiesta is not None:
-        try:
-            esecuzione = interrogazione.leggi_esecuzione()
-            coppia = (esecuzione["versione_calcolo"], esecuzione["numero_dati"])
-        except Exception:
-            coppia = ("", None)
+        # La calcolatrice non usa punteggi né dati: per lei nessuna coppia da registrare
+        coppia = ("", None) if nome in contratto.STRUMENTI_SENZA_ARCHIVIO else _coppia_in_uso()
         sessioni.chiudi_richiesta(richiesta, esito, int((time.monotonic() - inizio) * 1000), *coppia)
     return testo, esito != "ok"
+
+
+def _coppia_in_uso():
+    """Coppia calcolo/dati con cui è stata data la risposta, oppure ("", None) se non si può leggere."""
+    try:
+        esecuzione = interrogazione.leggi_esecuzione()
+        return esecuzione["versione_calcolo"], esecuzione["numero_dati"]
+    except Exception:
+        return "", None

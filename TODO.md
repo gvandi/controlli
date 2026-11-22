@@ -39,7 +39,7 @@ Elenco unico delle cose da fare. Ogni passo si chiude con questo file aggiornato
 - [ ] 11. Configurazione: regole e soglie versionate, modificabili dall'interfaccia
 - [ ] Più avanti: risoluzione delle identità, controlli sui documenti, analisi di rete e GNN
 
-## App grafo (`grafo/`, versione 21)
+## App grafo (`grafo/`, versione 22)
 
 - [x] Prototipo su dati simulati: GNN con punteggi per tipo di irregolarità, libreria di
       interrogazione, server MCP per la chat, report e mappa
