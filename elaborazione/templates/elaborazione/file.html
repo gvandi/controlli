@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block titolo %}{% translate "Testo ed entità" %}: {{ file.percorso_originale }}{% endblock %}
+{% block contenuto %}
+<style>
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: 0.35rem 0.6rem 0.35rem 0; border-bottom: 1px solid var(--bordo); vertical-align: top; }
+  .percorso { font-family: monospace; word-break: break-all; }
+  .ok { color: #1e6b3a; } .avviso { color: #a12622; }
+  pre { white-space: pre-wrap; background: var(--sfondo); padding: 0.6rem; border-radius: 4px; max-height: 24rem; overflow: auto; }
+  tr.ritirata td { text-decoration: line-through; color: #888; }
+</style>
+<p>
+  <a href="{% url 'archivio:fascicolo' fascicolo.pk %}">{{ fascicolo.titolo }}</a> &rsaquo;
+  <a href="{% url 'archivio:file' file.pk %}" class="percorso">{{ file.percorso_originale }}</a> &rsaquo;
+  {% translate "Testo ed entità" %}
+</p>
+<h1>{% translate "Testo ed entità estratte" %}</h1>
+<p>
+  {% translate "Stato del file:" %} <strong>{{ file.stato }}</strong> &middot;
+  {% blocktranslate count n=entita|length %}{{ n }} entità raccolta{% plural %}{{ n }} entità raccolte{% endblocktranslate %},
+  {% blocktranslate with n=utilizzabili %}{{ n }} utilizzabili per descrivere un soggetto{% endblocktranslate %}
+  {% if in_attesa %}&middot; <span class="avviso">{% blocktranslate with n=in_attesa %}{{ n }} da rivedere{% endblocktranslate %}</span>{% endif %}
+</p>
+{% if file.ultimo_errore %}<p class="errore">{{ file.ultimo_errore }}</p>{% endif %}
+
+<div class="scheda">
+  <h2>{% translate "Entità" %}</h2>
+  <p class="tenue">{% translate "Un'entità entra nella descrizione di un soggetto solo se è significativa (ha una voce del catalogo), si ritrova nel testo, è attribuita a un soggetto e non è in attesa di revisione." %}</p>
+  <form method="post">
+    {% csrf_token %}
+    <table>
+      <tr>
+        {% if puo_rivedere %}<th></th>{% endif %}
+        <th>{% translate "Pag." %}</th><th>{% translate "Voce / etichetta" %}</th><th>{% translate "Valore" %}</th>
+        <th>{% translate "Evento" %}</th><th>{% translate "Soggetto" %}</th><th>{% translate "Controlli" %}</th>
+      </tr>
+      {% for e in entita %}
+        <tr{% if e.ritirata %} class="ritirata"{% endif %}>
+          {% if puo_rivedere %}<td>{% if not e.ritirata %}<input type="checkbox" name="entita" value="{{ e.pk }}" style="width:auto">{% endif %}</td>{% endif %}
+          <td>{{ e.pagina|default:"-" }}</td>
+          <td>
+            {% if e.voce %}<strong>{{ e.voce.codice }}</strong>{% else %}{{ e.etichetta }} <span class="tenue">({% translate "fuori catalogo" %})</span>{% endif %}
+            {% if e.periodo %}<span class="tenue">{{ e.periodo }}</span>{% endif %}
+          </td>
+          <td title="{{ e.citazione }}">{{ e.valore }}</td>
+          <td class="tenue">{{ e.evento }}</td>
+          <td>{{ e.soggetto|default:"-" }}</td>
+          <td>
+            {% if e.ritirata %}{% translate "ritirata" %}
+            {% else %}
+              {% if e.verificata %}<span class="ok">{% translate "nel testo" %}</span>{% else %}<span class="avviso">{% translate "non trovata nel testo" %}</span>{% endif %}
+              <span class="tenue">({{ e.fonte }})</span>
+              {% if e.da_rivedere %}<br><span class="avviso">{% translate "da rivedere:" %} {{ e.motivo_revisione }}</span>{% endif %}
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7" class="tenue">{% translate "Nessuna entità: il file non è ancora stato elaborato, oppure non conteneva nulla di riconoscibile." %}</td></tr>
+      {% endfor %}
+    </table>
+    {% if puo_rivedere and entita %}
+      <p>
+        <button type="submit" name="azione" value="conferma">{% translate "Conferma le selezionate" %}</button>
+        <button type="submit" name="azione" value="scarta" class="secondario">{% translate "Scarta le selezionate" %}</button>
+        {% if in_attesa %}<button type="submit" name="azione" value="conferma_tutte" class="secondario">{% translate "Conferma tutte quelle da rivedere" %}</button>{% endif %}
+      </p>
+    {% endif %}
+  </form>
+</div>
+
+<div class="scheda">
+  <h2>{% translate "Testo" %}</h2>
+  {% for t in testi %}
+    <h3>{% translate "Pagina" %} {{ t.pagina }} <span class="tenue">({{ t.origine }})</span></h3>
+    <pre>{{ t.testo }}</pre>
+  {% empty %}
+    <p class="tenue">{% translate "Nessun testo disponibile." %}</p>
+  {% endfor %}
+</div>
+
+<div class="scheda">
+  <h2>{% translate "Elaborazioni" %}</h2>
+  <table>
+    <tr><th>{% translate "Iniziata" %}</th><th>{% translate "Esito" %}</th><th>{% translate "Natura" %}</th><th>{% translate "Motore e modello" %}</th><th>{% translate "Pagine" %}</th><th></th></tr>
+    {% for el in elaborazioni %}
+      <tr>
+        <td>{{ el.iniziata_il|date:"Y-m-d H:i" }}</td><td>{{ el.esito|default:"in corso" }}</td><td>{{ el.natura }}</td>
+        <td>{{ el.motore }}{% if el.modello %} / {{ el.modello }} / prompt {{ el.versione_prompt }}{% endif %}</td>
+        <td>{{ el.pagine }}</td><td class="tenue">{{ el.errore }}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="6" class="tenue">{% translate "Il file non è ancora stato preso dalla coda." %}</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

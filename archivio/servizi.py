@@ -7,7 +7,7 @@ from django.db import transaction
 from soggetti import servizi as anagrafica
 
 from . import models
-from .models import Assegnazione, Faldone, Fascicolo, SoggettoInIndagine
+from .models import Assegnazione, CollegamentoFile, Faldone, Fascicolo, SoggettoInIndagine
 
 
 class OperazioneNonAmmessa(Exception):
@@ -102,3 +102,24 @@ def aggiungi_soggetto(fascicolo, tipo, valore, da, nota=""):
 def togli_soggetto(fascicolo, numero, da):
     _solo_assegnati(fascicolo, da)
     SoggettoInIndagine.objects.filter(fascicolo=fascicolo, pk=numero).delete()
+
+
+def collega_file_all_azienda(file, soggetto, origine):
+    """
+    Collega un file al fascicolo dell'azienda (creandolo se manca). Il file non si
+    sposta: resta nel suo caricamento. Restituisce il fascicolo dell'azienda.
+    """
+    fascicolo, _ = fascicolo_azienda(soggetto)
+    CollegamentoFile.objects.get_or_create(file=file, fascicolo=fascicolo, defaults={"origine": origine})
+    return fascicolo
+
+
+def file_collegati_visibili(fascicolo, utente):
+    """I file collegati a un fascicolo d'azienda che l'utente può vedere: quelli dei caricamenti a lui visibili."""
+    return (
+        CollegamentoFile.objects.filter(
+            fascicolo=fascicolo, file__fascicolo__in=Fascicolo.objects.visibili_a(utente)
+        )
+        .exclude(file__stato=models.FILE_ANNULLATO)
+        .select_related("file", "file__fascicolo").order_by("-collegato_il")
+    )

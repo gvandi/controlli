@@ -99,7 +99,23 @@
       <tr><td>{{ i.tipo.descrizione }}</td><td>{{ i.valore_normalizzato }}</td></tr>
     {% endfor %}
   </table>
-  <p class="tenue">{% translate "I documenti dell'azienda compariranno qui con il caricamento dei file." %}</p>
+  <p><a class="bottone" href="{% url 'elaborazione:soggetto' fascicolo.pk %}">{% translate "Scheda: ciò che si sa di questo soggetto" %}</a></p>
+</div>
+<div class="scheda">
+  <h2>{% translate "File che riguardano questa azienda" %}</h2>
+  <p class="tenue">{% translate "I file restano nel caricamento in cui sono arrivati. Vedi solo quelli dei caricamenti a te visibili." %}</p>
+  <table>
+    {% for c in file_collegati %}
+      <tr>
+        <td><a href="{% url 'archivio:file' c.file.pk %}">{{ c.file.percorso_originale }}</a></td>
+        <td>{{ c.file.stato }}</td>
+        <td class="tenue">{{ c.origine }}</td>
+        <td class="tenue">{{ c.file.fascicolo.titolo }}</td>
+      </tr>
+    {% empty %}
+      <tr><td class="tenue">{% translate "Nessun file elaborato per questa azienda." %}</td></tr>
+    {% endfor %}
+  </table>
 </div>
 {% endif %}
 {% endblock %}

@@ -157,6 +157,7 @@ def fascicolo(request, numero):
         })
     elif fascicolo.soggetto_id:
         contesto["identificativi"] = fascicolo.soggetto.identificativi.select_related("tipo").order_by("pk")
+        contesto["file_collegati"] = servizi.file_collegati_visibili(fascicolo, request.user)
     return render(request, "archivio/fascicolo.html", contesto)
 
 

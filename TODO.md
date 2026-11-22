@@ -41,24 +41,44 @@ Elenco unico delle cose da fare. Ogni passo si chiude con questo file aggiornato
   - [ ] limiti del server web davanti all'applicativo (dimensione massima di una richiesta)
         quando ci sarà; caricamenti molto grandi a pezzi, con ripresa
   - [ ] controllo antivirus dei file ricevuti
-  - [ ] parte 3: stati di elaborazione (bozza, ricevuto, in elaborazione, elaborato, da
-        rivedere, errore, annullato) con priorità e tentativi; elaboratore finto che collega
-        il file ai fascicoli delle aziende dichiarate
+  - [x] parte 3 (app `elaborazione`; DECISIONI.md, n. 70-75): coda di elaborazione con
+        priorità, tentativi e ripresa; riconoscimento del file; catalogo delle entità;
+        testo per pagina; entità con file, pagina e citazione; entità fuori catalogo e
+        loro promozione; revisione; collegamento dei file ai fascicoli delle aziende;
+        scheda del soggetto
+  - [ ] **Prima esecuzione della parte 3**: `migrate`, `crea_ruoli`, `carica_catalogo`,
+        `test elaborazione archivio`, poi `elabora_coda` su un caricamento di prova. In
+        fase di scrittura sono stati provati `riconoscimento.py`, `regole.py` e
+        `lettura_modello.py` (con un modello finto); modelli, migrazioni, coda, pagine e
+        prove Django non sono mai stati eseguiti
+  - [ ] **Prima lettura vera di una scansione** con il modello locale
+        (`pip install -r elaborazione/requirements-lettura.txt`, `poppler-utils`): non è
+        mai stata provata. Da misurare: quanto sbaglia la trascrizione, quanto dura una
+        pagina, se le risposte restano entro il limite di lunghezza
+  - [ ] avvio notturno di `elabora_coda --minuti N` (cron o servizio), un solo processo alla volta
 - [ ] 5. Generatore di dati sintetici (soggetti, transazioni ed elenchi di documenti finti,
       con anomalie inserite apposta)
 - [ ] 6. Importazione degli estratti: soggetti, attività, dati economici, transazioni, con validazione
 - [ ] 7. Importazione degli elenchi di documenti: documento, righe, soggetti con ruolo,
       collegamenti tra documenti, confronto tra copie dello stesso documento
-- [ ] 8. Elaborazione fuori linea dei documenti (DECISIONI.md, n. 21-28):
-  - [ ] coda di elaborazione continua a bassa priorità, con finestra notturna per i carichi grossi
-  - [ ] riconoscimento della natura del file: XML, PDF con testo, immagine
+- [ ] 8. Elaborazione fuori linea dei documenti (DECISIONI.md, n. 21-28 e 70-75):
+  - [x] coda di elaborazione con limite di tempo, per la finestra notturna
+  - [x] riconoscimento della natura del file dai primi byte: PDF, immagine, XML, testo
+  - [x] testo completo per pagina, da scansione, con il modello visivo locale
+  - [x] identificativi, date, importi, email e siti con regole fisse
+  - [x] entità proposte dal modello, verificate contro il testo; revisione manuale
+  - [x] risultati con motore, modello e versione del prompt
+  - [ ] PDF che contengono già il testo: estrazione diretta, senza OCR (oggi passano dal modello)
+  - [ ] fatture elettroniche in XML: lettura dei campi come dati (oggi solo le regole sul testo)
+  - [ ] ricerca per parola nel testo delle pagine
   - [ ] divisione degli elenchi in documenti singoli
-  - [ ] testo completo: estrazione diretta o OCR, e ricerca per parola
-  - [ ] campi strutturati con regole (identificativi, date, importi) e modello locale
-  - [ ] verifica: ogni valore estratto deve comparire nel testo; sotto soglia, revisione manuale
-  - [ ] tag da vocabolario controllato, più tag proposti da promuovere
-  - [ ] risultati versionati per motore OCR, modello e versione
+  - [ ] tag da vocabolario controllato
   - [ ] documenti in più lingue: almeno italiano e inglese (DECISIONI.md, n. 31)
+  - [ ] unione di due soggetti che risultano lo stesso (oggi il COE e la partita IVA della
+        stessa azienda creano due soggetti distinti)
+  - [ ] verbali ispettivi: dall'evento "accertamento" all'irregolarità accertata (faldone Sanzioni)
+  - [ ] collegare il calcolo dell'analisi di rete alle entità utilizzabili, al posto dei dati simulati
+  - [ ] rielaborazione esplicita di un gruppo di file quando il modello migliora (mai automatica)
 - [ ] 9. Primo calcolo: due o tre indici, gruppi con la regola versione 1, Z-score robusto
 - [ ] 10. Schermata di analisi: elenco ordinato e scheda dell'azienda con la spiegazione
 - [ ] 11. Configurazione: regole e soglie versionate, modificabili dall'interfaccia

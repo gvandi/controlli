@@ -48,6 +48,12 @@
   {% if puo_entrare_in_admin and puo_configurare %}
     <p>{% translate "Tabelle di decodifica: attività economiche, classi dimensionali, forma giuridica, modello di business, identificativi e documenti." %}</p>
     <p><a class="bottone" href="{% url 'admin:app_list' 'decodifiche' %}">{% translate "Apri le tabelle di decodifica" %}</a></p>
+    {% if puo_gestire_il_catalogo %}
+      <p>
+        <a class="bottone" href="{% url 'admin:elaborazione_vocecatalogo_changelist' %}">{% translate "Catalogo delle entità da estrarre" %}</a>
+        <a class="bottone" href="{% url 'elaborazione:fuori_catalogo' %}">{% translate "Entità fuori catalogo" %}</a>
+      </p>
+    {% endif %}
   {% else %}
     <p class="tenue">{% translate "Non hai i diritti per modificare la configurazione." %}</p>
   {% endif %}

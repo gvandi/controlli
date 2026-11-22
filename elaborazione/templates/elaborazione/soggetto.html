@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block titolo %}{{ etichetta }}{% endblock %}
+{% block contenuto %}
+<style>
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: 0.35rem 0.6rem 0.35rem 0; border-bottom: 1px solid var(--bordo); vertical-align: top; }
+  .percorso { font-family: monospace; }
+</style>
+<p>
+  <a href="{% url 'archivio:faldone' fascicolo.faldone.codice %}">{{ fascicolo.faldone.nome }}</a> &rsaquo;
+  <a href="{% url 'archivio:fascicolo' fascicolo.pk %}">{{ fascicolo.titolo }}</a> &rsaquo; {% translate "Scheda" %}
+</p>
+<h1>{{ etichetta }}</h1>
+<p>
+  {% blocktranslate %}Voci note: <strong>{{ note }}</strong>. Voci non ancora arrivate: <strong>{{ mancanti }}</strong>.{% endblocktranslate %}
+  <span class="tenue">{% translate "La descrizione cresce con i file elaborati: una voce mancante non è un valore zero." %}</span>
+</p>
+<div class="scheda">
+  <table>
+    <tr><th>{% translate "Voce" %}</th><th>{% translate "Valore" %}</th><th>{% translate "Periodo" %}</th><th>{% translate "Acquisito il" %}</th><th>{% translate "Dal file" %}</th></tr>
+    {% for riga in scheda %}
+      {% for e in riga.valori %}
+        <tr>
+          <td>{% if forloop.first %}<strong>{{ riga.voce.descrizione }}</strong>{% elif riga.voce.cambia_nel_tempo and not riga.voce.multipla %}<span class="tenue">{% translate "(valore precedente)" %}</span>{% endif %}</td>
+          <td title="{{ e.citazione }}">{{ e.valore }}</td>
+          <td>{{ e.periodo|default:"-" }}</td>
+          <td>{{ e.estratta_il|date:"Y-m-d" }}</td>
+          <td class="percorso"><a href="{% url 'elaborazione:file' e.file_id %}">{{ e.file.percorso_originale }}</a>{% if e.pagina %}, {% translate "pag." %} {{ e.pagina }}{% endif %}</td>
+        </tr>
+      {% empty %}
+        <tr><td>{{ riga.voce.descrizione }}</td><td colspan="4" class="tenue">{% translate "non ancora arrivata" %}</td></tr>
+      {% endfor %}
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}
