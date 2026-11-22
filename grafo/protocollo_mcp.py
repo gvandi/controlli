@@ -48,6 +48,9 @@
 #        il programma che chiede l'accesso e l'indirizzo a cui si viene rimandati.
 #   [21] La pagina "Collegamento alla chat" indica l'accesso OAuth come via normale e i token
 #        personali come ripiego; il cruscotto mostra per ogni sessione il tipo di accesso.
+#   [21] La pagina di consenso si salta quando l'utente ha già autorizzato lo stesso programma e
+#        il suo token non è scaduto (REQUEST_APPROVAL_PROMPT auto; con
+#        CONTROLLI_OAUTH_CONSENSO=force torna a ogni accesso).
 #
 # <<< NOVITA
 """
