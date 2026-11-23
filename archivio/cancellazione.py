@@ -48,6 +48,8 @@ NOMI = {
     "elaborazione.Elaborazione": "elaborazioni",
     "elaborazione.TestoPagina": "pagine di testo",
     "elaborazione.EntitaEstratta": "entità estratte",
+    "elaborazione.Documento": "documenti riconosciuti",
+    "elaborazione.ParteDelDocumento": "parti dei documenti (mittente, destinatario, vettore)",
     "archivio.Fascicolo": "fascicoli di azienda rimasti vuoti",
     "soggetti.Soggetto": "soggetti che esistevano solo per questo file",
     "soggetti.IdentificativoSoggetto": "identificativi di quei soggetti",

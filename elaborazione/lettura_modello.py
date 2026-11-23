@@ -27,7 +27,19 @@ import io
 import json
 import re
 
-VERSIONE_PROMPT = "1"
+# 2: oltre alle entità si chiede il documento commerciale con le sue parti e i loro ruoli
+VERSIONE_PROMPT = "2"
+
+# Come il modello può chiamare un ruolo -> il ruolo previsto
+RUOLI = {
+    "mittente": "mittente", "cedente": "mittente", "emittente": "mittente", "fornitore": "mittente",
+    "venditore": "mittente", "speditore": "mittente",
+    "destinatario": "destinatario", "cessionario": "destinatario", "cliente": "destinatario",
+    "acquirente": "destinatario", "committente": "destinatario",
+    "vettore": "vettore", "corriere": "vettore", "trasportatore": "vettore",
+    "luogo di destinazione": "luogo di destinazione", "destinazione": "luogo di destinazione",
+    "luogo di consegna": "luogo di destinazione",
+}
 
 PROMPT_TRASCRIZIONE = (
     "Trascrivi tutto il testo presente in questa pagina, esattamente come è scritto.\n"
@@ -59,8 +71,20 @@ VOCI:
 
 Evento della pagina precedente: {evento_precedente}
 
-Non inventare entità che non sono nel testo. Rispondi SOLO con un oggetto JSON di questa forma:
-{{"entita": [{{"etichetta": "...", "valore": "...", "citazione": "...", "evento": "...", "periodo": ""}}]}}
+Se la pagina appartiene a un documento commerciale (documento di trasporto, fattura, nota di credito,
+ordine) compila anche "documento"; altrimenti scrivi "documento": null.
+- "tipo": DDT, FATTURA, NOTA_DI_CREDITO, ORDINE oppure ALTRO.
+- "numero": il numero del documento. "data": la data del documento. "totale": l'importo totale.
+  Copiali dal testo; se uno manca scrivi "".
+- "parti": un elemento per ogni azienda o luogo che ha un ruolo nel documento. "ruolo" è uno fra
+  mittente (chi emette o spedisce), destinatario (chi riceve), vettore (chi trasporta),
+  luogo di destinazione (solo se diverso dalla sede del destinatario). "denominazione" è il nome come è
+  scritto. "identificativo" è il COE o la partita IVA scritti accanto a quel nome, oppure "".
+
+Non inventare nulla che non sia nel testo. Rispondi SOLO con un oggetto JSON di questa forma:
+{{"entita": [{{"etichetta": "...", "valore": "...", "citazione": "...", "evento": "...", "periodo": ""}}],
+ "documento": {{"tipo": "...", "numero": "...", "data": "...", "totale": "...",
+               "parti": [{{"ruolo": "...", "denominazione": "...", "identificativo": "..."}}]}}}}
 
 <documento>
 {testo}
@@ -156,16 +180,49 @@ def trascrivi(cliente, modello, jpeg, massimo_token=6000, opzioni=None):
     return testo_della_risposta(_chiedi(cliente, modello, contenuto, massimo_token, opzioni))
 
 
-def estrai_entita(cliente, modello, testo, voci, evento_precedente="", massimo_token=6000, opzioni=None):
+def documento_dalla_risposta(oggetto):
     """
-    Seconda chiamata: le entità di una pagina, dal suo testo.
+    Il documento commerciale proposto dal modello, ripulito, oppure None.
+    {"tipo", "numero", "data", "totale", "parti": [{"ruolo", "ruolo_proposto", "denominazione", "identificativo"}]}
+    Un ruolo che non è fra quelli previsti resta vuoto: lo assegnerà chi rivede.
+    Un documento senza numero e senza parti non è un documento.
+    """
+    grezzo = oggetto.get("documento")
+    if not isinstance(grezzo, dict):
+        return None
+    documento = {nome: str(grezzo.get(nome) or "").strip() for nome in ("tipo", "numero", "data", "totale")}
+    documento["tipo"] = documento["tipo"].upper().replace(" ", "_")
+    documento["parti"] = []
+    grezze = grezzo.get("parti")
+    for grezza in grezze if isinstance(grezze, list) else []:
+        if not isinstance(grezza, dict):
+            continue
+        parte = {nome: str(grezza.get(nome) or "").strip() for nome in ("ruolo", "denominazione", "identificativo")}
+        if not parte["denominazione"] and not parte["identificativo"]:
+            continue
+        parte["ruolo_proposto"] = parte["ruolo"]
+        parte["ruolo"] = RUOLI.get(" ".join(parte["ruolo"].lower().split()), "")
+        documento["parti"].append(parte)
+    if not documento["numero"] and not documento["parti"]:
+        return None
+    return documento
+
+
+def estrai_entita(cliente, modello, testo, voci, evento_precedente="", massimo_token=6000, opzioni=None):
+    """Come leggi_pagina, senza il documento: (entità, ultimo evento della pagina)."""
+    return leggi_pagina(cliente, modello, testo, voci, evento_precedente, massimo_token, opzioni)[:2]
+
+
+def leggi_pagina(cliente, modello, testo, voci, evento_precedente="", massimo_token=6000, opzioni=None):
+    """
+    Seconda chiamata: le entità di una pagina e l'eventuale documento commerciale, dal testo.
     voci: [(codice, descrizione)] del catalogo, proposte al modello come etichette.
-    Restituisce (entità, ultimo evento della pagina). Ogni entità è un dizionario con
-    etichetta, valore, citazione, evento, periodo; quelle senza etichetta o senza
-    valore si scartano.
+    Restituisce (entità, ultimo evento della pagina, documento o None). Ogni entità è un
+    dizionario con etichetta, valore, citazione, evento, periodo; quelle senza etichetta
+    o senza valore si scartano.
     """
     if not testo.strip():
-        return [], evento_precedente
+        return [], evento_precedente, None
     prompt = PROMPT_ENTITA.format(
         voci="\n".join(f"- {codice}: {descrizione}" for codice, descrizione in voci) or "(nessuna)",
         evento_precedente=evento_precedente or "(nessuno)",
@@ -185,4 +242,4 @@ def estrai_entita(cliente, modello, testo, voci, evento_precedente="", massimo_t
         campi["evento"] = campi["evento"] or ultimo_evento
         ultimo_evento = campi["evento"] or ultimo_evento
         entita.append(campi)
-    return entita, ultimo_evento
+    return entita, ultimo_evento, documento_dalla_risposta(oggetto)
