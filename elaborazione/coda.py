@@ -26,6 +26,11 @@ commerciale, se ne salvano tipo, numero, data, totale e le parti con il loro ruo
 Una parte è legata a un soggetto solo se il suo identificativo è fra quelli che le
 regole hanno letto nel file. Un file con un documento è sempre "da rivedere".
 
+DAL DOCUMENTO ALLA SCHEDA (n. 83): quando una persona conferma un documento, il nome
+di ogni parte legata a un soggetto diventa la sua DENOMINAZIONE (un'entità con fonte
+"documento") e, se il soggetto non ne aveva una, anche il suo nome in anagrafica.
+La scheda del soggetto elenca i documenti confermati in cui compare, con il ruolo.
+
 REVISIONE (DECISIONI.md, n. 78): dalla pagina "Testo ed entità estratte" il revisore
 sceglie le entità da conservare e chiude la revisione in un solo passo
 (chiudi_revisione); un'entità scartata si può ripristinare (ripristina).
@@ -664,6 +669,7 @@ def _rivedi_documento(file, dati):
         return
     if not dati.get("valido"):
         Documento.objects.filter(pk=documento.pk).update(ritirato=True, confermato=False)
+        EntitaEstratta.objects.filter(file=file, fonte=models.DA_DOCUMENTO).delete()
         return
     Documento.objects.filter(pk=documento.pk).update(
         tipo=dati.get("tipo", "")[:40], numero=dati.get("numero", "")[:60],
@@ -678,6 +684,60 @@ def _rivedi_documento(file, dati):
             parte.ruolo, parte.ritirata = ruolo, False
             parte.soggetto_id = soggetto if soggetto in ammessi else None
         parte.save()
+    _denominazioni_dal_documento(file, documento)
+
+
+def _denominazioni_dal_documento(file, documento):
+    """
+    Il nome con cui un documento confermato chiama una sua parte è la denominazione di
+    quel soggetto: lo ha attribuito il ruolo e lo ha confermato una persona. Si riscrive
+    a ogni revisione, così segue le correzioni.
+    """
+    EntitaEstratta.objects.filter(file=file, fonte=models.DA_DOCUMENTO).delete()
+    voce = voci_valide().filter(codice="DENOMINAZIONE").first()
+    testo = " ".join(TestoPagina.objects.filter(elaborazione__file=file).values_list("testo", flat=True))
+    viste = set()
+    for parte in documento.parti.filter(ritirata=False, soggetto__isnull=False).select_related("soggetto"):
+        nome = " ".join(parte.denominazione.split())
+        if not nome or parte.ruolo == models.LUOGO_DI_DESTINAZIONE or parte.soggetto_id in viste:
+            continue
+        viste.add(parte.soggetto_id)
+        EntitaEstratta.objects.create(
+            elaborazione=documento.elaborazione, file=file, voce=voce, etichetta="DENOMINAZIONE",
+            valore=nome[:500], valore_normalizzato=nome[:500], pagina=documento.pagina,
+            citazione=regole.citazione_dal_testo(nome, testo), evento=f"{documento.tipo} {documento.numero}".strip()[:200],
+            fonte=models.DA_DOCUMENTO, verificata=regole.compare_nel_testo(nome, testo), confermata=True,
+            soggetto=parte.soggetto,
+        )
+        if not parte.soggetto.denominazione:
+            parte.soggetto.denominazione = nome[:255]
+            parte.soggetto.save(update_fields=["denominazione"])
+            fascicolo, _ = servizi_archivio.fascicolo_azienda(parte.soggetto)
+            Fascicolo.objects.filter(pk=fascicolo.pk).update(titolo=anagrafica.etichetta(parte.soggetto)[:200])
+
+
+def documenti_del_soggetto(soggetto, utente):
+    """
+    I documenti confermati in cui il soggetto ha un ruolo, fra i file che l'utente può
+    vedere, il più recente per primo: [{"documento", "ruolo", "altre": [parti]}].
+    """
+    visibili = Fascicolo.objects.visibili_a(utente)
+    sue = (
+        ParteDelDocumento.objects.filter(
+            soggetto=soggetto, ritirata=False, documento__in=Documento.objects.utilizzabili(),
+            documento__file__fascicolo__in=visibili,
+        ).select_related("documento__file").order_by("-documento__data", "-documento__pk")
+    )
+    return [
+        {
+            "documento": parte.documento, "ruolo": parte.ruolo,
+            "altre": [
+                altra for altra in parte.documento.parti.filter(ritirata=False).select_related("soggetto").order_by("pk")
+                if altra.pk != parte.pk
+            ],
+        }
+        for parte in sue
+    ]
 
 
 def chiudi_revisione(file, conservate, documento=None):
