@@ -33,12 +33,9 @@ def risposta_del_modello(testo, fine="stop"):
     return types.SimpleNamespace(choices=[types.SimpleNamespace(message=messaggio, finish_reason=fine)])
 
 
-def entita_json(*entita, documento=None):
+def entita_json(*entita):
     campi = ("etichetta", "valore", "citazione", "evento", "periodo")
-    risposta = {"entita": [dict(zip(campi, e)) for e in entita]}
-    if documento is not None:
-        risposta["documento"] = documento
-    return risposta_del_modello(json.dumps(risposta))
+    return risposta_del_modello(json.dumps({"entita": [dict(zip(campi, e)) for e in entita]}))
 
 
 DDT = """DOCUMENTO DI TRASPORTO n. 45/2026 del 12/11/2026
@@ -62,11 +59,23 @@ DDT_DAL_MODELLO = {
 class ModelloFinto:
     """Al posto del server del modello: restituisce le risposte preparate, nell'ordine, e ricorda le richieste."""
 
-    def __init__(self, risposte):
+    def __init__(self, risposte, documento=None):
         self.risposte, self.richieste = list(risposte), []
+        # Le richieste del documento commerciale si tengono a parte e hanno una risposta
+        # fissa (nessun documento, se non ne è stato preparato uno): così le prove sulle
+        # entità non devono contarle.
+        self.documento, self.richieste_documento = documento, []
         self.chat = types.SimpleNamespace(completions=self)
 
     def create(self, **richiesta):
+        contenuto = richiesta["messages"][0]["content"]
+        if isinstance(contenuto, str) and "documento commerciale" in contenuto:
+            self.richieste_documento.append(richiesta)
+            if isinstance(self.documento, Exception):
+                raise self.documento
+            if hasattr(self.documento, "choices"):
+                return self.documento
+            return risposta_del_modello(json.dumps({"documento": self.documento}))
         self.richieste.append(richiesta)
         risposta = self.risposte.pop(0)
         if isinstance(risposta, Exception):
@@ -574,7 +583,7 @@ class DocumentoTest(ConFile):
 
     def elabora_il_ddt(self):
         file = self.carica(DDT, nome="ddt.txt")
-        modello = ModelloFinto([entita_json(documento=DDT_DAL_MODELLO)])
+        modello = ModelloFinto([entita_json()], documento=DDT_DAL_MODELLO)
         coda.esegui(lettori=[coda.LettoreTesto(coda.LettoreModello(cliente=modello))])
         return file
 
@@ -628,6 +637,20 @@ class DocumentoTest(ConFile):
         }
         self.assertEqual(ruoli, {models.MITTENTE: mittente, models.DESTINATARIO: destinatario, models.VETTORE: vettore})
         self.assertTrue(self.parte("Banca").ritirata)
+
+    @override_settings(ELABORAZIONE_MODELLO_NOME="modello-di-prova")
+    def test_documento_e_citazione_non_allungano_la_risposta_sulle_entita(self):
+        file = self.carica(DDT + "\nAmministratore: Mario Rossi.", nome="ddt.txt")
+        modello = ModelloFinto([entita_json(("AMMINISTRATORE", "Mario Rossi"))], documento=DDT_DAL_MODELLO)
+        coda.esegui(lettori=[coda.LettoreTesto(coda.LettoreModello(cliente=modello))])
+        # due richieste distinte, e in quella delle entità non si chiedono né documento né citazione
+        self.assertEqual((len(modello.richieste), len(modello.richieste_documento)), (1, 1))
+        richiesta = modello.richieste[0]["messages"][0]["content"]
+        self.assertNotIn('"citazione"', richiesta)
+        self.assertNotIn('"parti"', richiesta)
+        # la citazione la ricava il programma dal testo
+        self.assertIn("Amministratore: Mario Rossi.", self.entita(file, "AMMINISTRATORE").citazione)
+        self.assertTrue(Documento.objects.filter(file=file).exists())
 
     @override_settings(ELABORAZIONE_MODELLO_NOME="modello-di-prova")
     def test_un_documento_si_puo_scartare_e_sparisce_con_il_file(self):
@@ -758,7 +781,8 @@ class ScansioneTest(ConFile):
         self.assertEqual(coda.esegui(lettori=[self.lettore_di_scansioni(modello)])[coda.ERRORE], 1)
         riga = FileCaricato.objects.get(pk=file.pk)
         self.assertEqual((riga.stato, riga.tentativi), (archivio.FILE_ERRORE, 1))
-        self.assertIn("tagliata", riga.ultimo_errore)
+        # il messaggio dice in quale pagina e in quale passaggio
+        self.assertTrue(riga.ultimo_errore.startswith("Pagina 1, entità: Risposta tagliata"), riga.ultimo_errore)
         # di una lettura fallita non resta nulla a metà
         self.assertEqual((TestoPagina.objects.count(), EntitaEstratta.objects.count()), (0, 0))
 

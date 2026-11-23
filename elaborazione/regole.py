@@ -95,6 +95,12 @@ def estrai(testo):
     return trovate
 
 
+def citazione_dal_testo(valore, testo):
+    """Il punto del testo in cui compare il valore, con un po' di contesto; "" se non compare alla lettera."""
+    inizio = testo.lower().find(valore.strip().lower()) if valore.strip() else -1
+    return _citazione(testo, inizio, inizio + len(valore.strip())) if inizio >= 0 else ""
+
+
 def _compatto(testo):
     """Minuscolo e senza spazi né punteggiatura: 'S.r.l.' e 'SRL', '1.234,56' e '1234,56' coincidono."""
     return re.sub(r"[\W_]+", "", str(testo).lower())

@@ -140,6 +140,29 @@ def _pezzi(testo, massimo=CARATTERI_PER_PEZZO):
     return pezzi + [testo] if testo or not pezzi else pezzi
 
 
+class _passo:
+    """
+    Aggiunge a una lettura fallita il punto in cui è fallita: "Pagina 2, entità: Risposta tagliata...".
+    Si usa due volte, una dentro l'altra: quella interna dice il passaggio, quella esterna la pagina.
+    """
+
+    def __init__(self, nome, pagina=None):
+        self.nome, self.pagina = nome, pagina
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, tipo, errore, traccia):
+        if tipo is None or not issubclass(tipo, lettura_modello.LetturaFallita):
+            return False
+        testo = str(errore)
+        if self.nome:
+            testo = f"{self.nome}: {testo}"
+        if self.pagina:
+            testo = f"pagina {self.pagina}, {testo[:1].lower()}{testo[1:]}"
+        raise lettura_modello.LetturaFallita(testo[:1].upper() + testo[1:]) from errore
+
+
 class LettoreTesto:
     """
     File che sono già testo (testo semplice, XML): niente OCR. Le regole fisse
@@ -170,7 +193,8 @@ class LettoreTesto:
             pagine.append((numero, pezzo, models.TESTO_DIRETTO))
             entita += [dict(e, pagina=numero, fonte=models.DA_REGOLA) for e in regole.estrai(pezzo)]
             if con_modello:
-                proposte, evento, proposto = self._modello.leggi_testo(pezzo, voci, evento)
+                with _passo("", numero):
+                    proposte, evento, proposto = self._modello.leggi_testo(pezzo, voci, evento)
                 entita += [dict(proposta, pagina=numero, fonte=models.DA_MODELLO) for proposta in proposte]
                 documento = unisci_documento(documento, proposto, numero)
         if con_modello:
@@ -226,9 +250,12 @@ class LettoreModello:
         Gli identificativi li leggono le regole: quelli proposti dal modello non si usano (n. 23).
         """
         massimo, opzioni = self._parametri()
-        proposte, evento, documento = lettura_modello.leggi_pagina(
-            self._cliente, self.modello, testo, voci, evento_precedente, massimo, opzioni
-        )
+        with _passo("entità"):
+            proposte, evento = lettura_modello.estrai_entita(
+                self._cliente, self.modello, testo, voci, evento_precedente, massimo, opzioni
+            )
+        with _passo("documento e parti"):
+            documento = lettura_modello.estrai_documento(self._cliente, self.modello, testo, massimo, opzioni)
         riservate_alle_regole = {_compatto(etichetta) for etichetta in TIPO_PER_REGOLA}
         return [p for p in proposte if _compatto(p["etichetta"]) not in riservate_alle_regole], evento, documento
 
@@ -244,10 +271,12 @@ class LettoreModello:
             immagini = [self._immagine_come_jpeg(percorso)]
         pagine, entita, evento, documento = [], [], "", None
         for numero, jpeg in enumerate(immagini, start=1):
-            testo = lettura_modello.trascrivi(self._cliente, self.modello, jpeg, massimo, opzioni)
+            with _passo("trascrizione", numero):
+                testo = lettura_modello.trascrivi(self._cliente, self.modello, jpeg, massimo, opzioni)
             pagine.append((numero, testo, models.TESTO_OCR))
             entita += [dict(e, pagina=numero, fonte=models.DA_REGOLA) for e in regole.estrai(testo)]
-            proposte, evento, proposto = self.leggi_testo(testo, voci, evento)
+            with _passo("", numero):
+                proposte, evento, proposto = self.leggi_testo(testo, voci, evento)
             entita += [dict(proposta, pagina=numero, fonte=models.DA_MODELLO) for proposta in proposte]
             documento = unisci_documento(documento, proposto, numero)
         return Lettura(pagine, entita, self.modello, lettura_modello.VERSIONE_PROMPT, documento=documento)
@@ -414,7 +443,9 @@ def _salva(file, elaborazione, lettura):
             elaborazione=elaborazione, file=file, voce=voce,
             etichetta=entita["etichetta"][:120], valore=entita["valore"][:500],
             valore_normalizzato=normalizzato,
-            pagina=entita.get("pagina"), citazione=entita.get("citazione", ""),
+            pagina=entita.get("pagina"),
+            citazione=entita.get("citazione")
+            or regole.citazione_dal_testo(entita["valore"], testi.get(entita.get("pagina"), "")),
             evento=entita.get("evento", "")[:200], periodo=entita.get("periodo", "")[:20],
             fonte=entita["fonte"], verificata=verificata, soggetto=nominato or principale,
             da_rivedere=bool(motivo), motivo_revisione=motivo,
