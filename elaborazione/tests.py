@@ -7,13 +7,14 @@ from django.core.management import call_command
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
-from archivio import caricamento
+from archivio import cancellazione, caricamento
 from archivio import models as archivio
-from archivio.models import CollegamentoFile, Fascicolo, FileCaricato
+from archivio.models import CollegamentoFile, Evento, Fascicolo, FileCaricato
 from archivio.tests import ConUtenti, diritti, un_file
 from elaborazione import coda, lettura_modello, models, regole, riconoscimento
 from elaborazione.models import Elaborazione, EntitaEstratta, TestoPagina, VoceCatalogo
 from soggetti import servizi as anagrafica
+from soggetti.models import IdentificativoSoggetto, Soggetto
 
 VERBALE = """VERBALE DI SOPRALLUOGO n. 12 del 3 marzo 2025
 Presso la sede della Alfa S.r.l., C.O.E. SM 12345, P.IVA IT 01234567890,
@@ -408,6 +409,140 @@ class CodaTest(ConFile):
         entita = self.entita(generale, "SOCIO")
         self.pagina(self.bruno, "file", generale.pk, azione="scarta", entita=entita.pk)
         self.assertFalse(EntitaEstratta.objects.get(pk=entita.pk).ritirata)
+
+
+class CancellazioneTest(ConFile):
+    """Cancellazione definitiva di un file e di ciò che ne deriva, con diritto apposito."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        from django.contrib.auth import get_user_model
+
+        cls.dora = get_user_model().objects.create_user("dora", password="x")
+        diritti(cls.dora, "archivio.view_fascicolo", "archivio.cancella_definitivamente", "elaborazione.view_entitaestratta")
+
+    def pagina(self, chi, /, numero, **dati):
+        self.client.force_login(chi)
+        indirizzo = reverse("archivio:cancella_file", args=[numero])
+        return self.client.post(indirizzo, dati) if dati else self.client.get(indirizzo)
+
+    def nel_deposito(self):
+        return [p for p in caricamento.cartella_deposito().rglob("*") if p.is_file()]
+
+    def due_file(self):
+        """Il primo nomina due aziende; la 12345 compare anche nel secondo, la 54321 solo nel primo."""
+        primo = self.carica("Fattura della Alfa, COE 12345, alla Beta, COE 54321, del 10/01/2025.", titolo="Primo")
+        secondo = self.carica("Sollecito alla Alfa, COE 12345, del 20/02/2025.", titolo="Secondo")
+        coda.esegui(lettori=[coda.LettoreTesto()])
+        return primo, secondo
+
+    def test_la_cancellazione_toglie_il_file_i_suoi_dati_e_i_soggetti_rimasti_soli(self):
+        primo, secondo = self.due_file()
+        solo_del_primo = anagrafica.trova(self.coe, "54321")
+        comune = anagrafica.trova(self.coe, "12345")
+        prima = (EntitaEstratta.objects.count(), Soggetto.objects.count(), Fascicolo.objects.count())
+
+        # l'anteprima dice esattamente che cosa sparirà, e non cancella nulla
+        anteprima = dict(cancellazione.anteprima(primo, anche_soggetti=True)["righe"])
+        self.assertEqual(anteprima["file"], 1)
+        self.assertEqual(anteprima["elaborazioni"], 1)
+        self.assertEqual(anteprima["pagine di testo"], 1)
+        self.assertEqual(anteprima["entità estratte"], 3)  # due COE e una data
+        self.assertEqual(anteprima["collegamenti ai fascicoli delle aziende"], 2)
+        self.assertEqual(anteprima["soggetti che esistevano solo per questo file"], 1)
+        self.assertEqual(anteprima["fascicoli di azienda rimasti vuoti"], 1)
+        self.assertEqual((EntitaEstratta.objects.count(), Soggetto.objects.count(), Fascicolo.objects.count()), prima)
+        self.assertEqual(len(self.nel_deposito()), 2)
+        pagina = self.pagina(self.dora, primo.pk)
+        self.assertContains(pagina, "entità estratte")
+        self.assertEqual(FileCaricato.objects.count(), 2)
+
+        # senza motivo non si cancella
+        senza_motivo = self.pagina(self.dora, primo.pk, azione="cancella", anche_soggetti="si", motivazione="boh")
+        self.assertContains(senza_motivo, "Scrivere il motivo")
+        self.assertEqual(FileCaricato.objects.count(), 2)
+
+        fatto = self.pagina(
+            self.dora, primo.pk, azione="cancella", anche_soggetti="si",
+            motivazione="File caricato per errore: appartiene a un'altra pratica.",
+        )
+        self.assertContains(fatto, "sono stati cancellati")
+        # il file e tutto ciò che ne derivava non ci sono più
+        self.assertFalse(FileCaricato.objects.filter(pk=primo.pk).exists())
+        self.assertFalse(Elaborazione.objects.filter(file_id=primo.pk).exists())
+        self.assertFalse(EntitaEstratta.objects.filter(file_id=primo.pk).exists())
+        self.assertFalse(CollegamentoFile.objects.filter(file_id=primo.pk).exists())
+        self.assertEqual(TestoPagina.objects.count(), 1)
+        self.assertEqual(len(self.nel_deposito()), 1)
+        # la Beta esisteva solo per quel file: sparisce con il suo fascicolo e il suo identificativo
+        self.assertFalse(Soggetto.objects.filter(pk=solo_del_primo.pk).exists())
+        self.assertFalse(Fascicolo.objects.filter(soggetto_id=solo_del_primo.pk).exists())
+        self.assertFalse(IdentificativoSoggetto.objects.filter(valore_normalizzato="54321").exists())
+        # la Alfa è nominata anche dal secondo file: resta, con il suo fascicolo e i dati dell'altro file
+        self.assertTrue(Soggetto.objects.filter(pk=comune.pk).exists())
+        self.assertEqual(self.stato(secondo), archivio.FILE_ELABORATO)
+        self.assertEqual(EntitaEstratta.objects.filter(file=secondo).count(), 2)
+        self.assertEqual(CollegamentoFile.objects.filter(file=secondo).count(), 1)
+
+        # resta la traccia: chi, il motivo, numero e impronta; non il nome del file
+        traccia = Evento.objects.get(azione="file cancellato")
+        self.assertEqual((traccia.utente, traccia.fascicolo_id), (self.dora, primo.fascicolo_id))
+        self.assertIn("altra pratica", traccia.dettaglio)
+        self.assertIn(primo.impronta[:16], traccia.dettaglio)
+        self.assertNotIn(primo.percorso_originale, traccia.dettaglio)
+        self.assertIn("3 entità estratte", Evento.objects.get(azione="dati cancellati").dettaglio)
+
+    def test_serve_il_diritto_apposito_e_poter_vedere_il_file(self):
+        primo, _ = self.due_file()
+        # l'analista carica, rivede e annulla, ma non cancella definitivamente
+        self.assertEqual(self.pagina(self.anna, primo.pk).status_code, 403)
+        self.assertEqual(self.pagina(self.capo, primo.pk).status_code, 200)  # il superutente ha ogni diritto...
+        with self.assertRaises(cancellazione.NonAmmessa):
+            cancellazione.cancella(primo, self.anna, "Motivo scritto per esteso.")
+        self.client.force_login(self.anna)
+        self.assertNotContains(self.client.get(reverse("archivio:file", args=[primo.pk])), "Cancella definitivamente")
+        self.client.force_login(self.dora)
+        self.assertContains(self.client.get(reverse("archivio:file", args=[primo.pk])), "Cancella definitivamente")
+
+        # ...ma nemmeno chi può cancellare vede i file di un'indagine a cui non è assegnato
+        riservato = self.carica("Documento riservato, COE 77777.", indagine=self.apri_indagine(), titolo="Riservato")
+        for utente in (self.dora, self.capo):
+            self.assertEqual(self.pagina(utente, riservato.pk).status_code, 404, utente.username)
+            with self.assertRaises(cancellazione.NonAmmessa):
+                cancellazione.cancella(riservato, utente, "Motivo scritto per esteso.")
+        self.assertTrue(FileCaricato.objects.filter(pk=riservato.pk).exists())
+        # un file in lavorazione non si cancella
+        FileCaricato.objects.filter(pk=primo.pk).update(stato=archivio.FILE_IN_ELABORAZIONE)
+        with self.assertRaises(cancellazione.NonAmmessa):
+            cancellazione.cancella(FileCaricato.objects.get(pk=primo.pk), self.dora, "Motivo scritto per esteso.")
+
+    def test_soggetti_e_contenuti_ancora_usati_restano(self):
+        testo = "Fattura della Alfa, COE 12345, alla Beta, COE 54321."
+        primo = self.carica(testo, titolo="Primo")
+        copia = self.carica(testo, nome="copia.txt", titolo="Copia")  # stesso contenuto in un altro caricamento
+        coda.esegui(lettori=[coda.LettoreTesto()])
+        self.assertEqual(len(self.nel_deposito()), 1)
+        self.assertTrue(cancellazione.anteprima(primo)["contenuto_condiviso"])
+
+        # senza la spunta i soggetti restano comunque
+        cancellazione.cancella(primo, self.dora, "Doppione del file già presente.", anche_soggetti=False)
+        self.assertEqual(Soggetto.objects.count(), 2)
+        # il contenuto è ancora usato dalla copia: resta nel deposito e si scarica
+        self.assertEqual(len(self.nel_deposito()), 1)
+        self.client.force_login(self.anna)
+        self.assertEqual(self.client.get(reverse("archivio:scarica", args=[copia.pk])).status_code, 200)
+        # un soggetto dichiarato sul caricamento, o citato in un'indagine, non si tocca nemmeno con la spunta
+        indagine = self.apri_indagine()
+        from archivio import servizi as servizi_archivio
+
+        servizi_archivio.aggiungi_soggetto(indagine, self.coe, "54321", self.anna)
+        caricamento_copia = Fascicolo.objects.get(pk=copia.fascicolo_id)
+        cancellazione.cancella(FileCaricato.objects.get(pk=copia.pk), self.dora, "Rimozione completa del doppione.", anche_soggetti=True)
+        self.assertTrue(Soggetto.objects.filter(pk=anagrafica.trova(self.coe, "54321").pk).exists())  # è in un'indagine
+        self.assertIsNone(anagrafica.trova(self.coe, "12345"))  # nessuno lo citava più
+        self.assertEqual(len(self.nel_deposito()), 0)
+        self.assertTrue(Fascicolo.objects.filter(pk=caricamento_copia.pk).exists())  # il caricamento resta, vuoto
 
 
 @override_settings(ELABORAZIONE_MODELLO_NOME="modello-di-prova")

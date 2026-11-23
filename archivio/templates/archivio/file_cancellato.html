@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block titolo %}{% translate "File cancellato" %}{% endblock %}
+{% block contenuto %}
+<style>
+  table { border-collapse: collapse; }
+  td { padding: 0.35rem 1.2rem 0.35rem 0; border-bottom: 1px solid var(--bordo); }
+</style>
+<h1>{% translate "File cancellato" %}</h1>
+<div class="scheda">
+  <p>{% translate "Il file e i dati che ne derivavano sono stati cancellati:" %}</p>
+  <table>
+    {% for nome, quante in riepilogo %}<tr><td>{{ nome }}</td><td><strong>{{ quante }}</strong></td></tr>{% endfor %}
+  </table>
+  <p><a class="bottone" href="{% url 'archivio:fascicolo' fascicolo.pk %}">{% translate "Torna al caricamento" %}</a></p>
+</div>
+{% endblock %}

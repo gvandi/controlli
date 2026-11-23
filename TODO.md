@@ -80,6 +80,16 @@ Elenco unico delle cose da fare. Ogni passo si chiude con questo file aggiornato
   - [ ] verbali ispettivi: dall'evento "accertamento" all'irregolarità accertata (faldone Sanzioni)
   - [ ] collegare il calcolo dell'analisi di rete alle entità utilizzabili, al posto dei dati simulati
   - [ ] rielaborazione esplicita di un gruppo di file quando il modello migliora (mai automatica)
+  - [x] cancellazione definitiva di un file e dei dati che ne derivano, con diritto apposito
+        (ruolo "Responsabile dei dati"; DECISIONI.md, n. 77)
+  - [ ] **Prima esecuzione della cancellazione**: `migrate`, `crea_ruoli`, `test elaborazione archivio`;
+        scritta senza poterla eseguire
+  - [ ] cancellazione e analisi di rete: oggi il grafo usa dati simulati e non contiene nulla
+        dei file; quando userà le entità, iscrivere in `archivio.cancellazione.ALLA_CANCELLAZIONE`
+        il ritiro dei dati e segnare da ricalcolare le esecuzioni che li contenevano
+  - [ ] dopo una cancellazione, le entità di altri file segnate "da rivedere" per un conflitto con
+        il file cancellato restano in attesa: farle tornare a posto da sole
+  - [ ] cancellazione definitiva di un intero caricamento in un solo passo
 - [ ] 9. Primo calcolo: due o tre indici, gruppi con la regola versione 1, Z-score robusto
 - [ ] 10. Schermata di analisi: elenco ordinato e scheda dell'azienda con la spiegazione
 - [ ] 11. Configurazione: regole e soglie versionate, modificabili dall'interfaccia

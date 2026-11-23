@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block titolo %}{% translate "Cancellazione definitiva" %}{% endblock %}
+{% block contenuto %}
+<style>
+  table { border-collapse: collapse; }
+  th, td { text-align: left; padding: 0.35rem 1.2rem 0.35rem 0; border-bottom: 1px solid var(--bordo); }
+  .percorso { font-family: monospace; word-break: break-all; }
+  .avviso { color: #a12622; }
+  textarea { width: 100%; min-height: 5rem; font: inherit; padding: 0.5rem; border: 1px solid var(--bordo); border-radius: 4px; }
+  input[type=checkbox] { width: auto; }
+</style>
+<p>
+  <a href="{% url 'archivio:fascicolo' fascicolo.pk %}">{{ fascicolo.titolo }}</a> &rsaquo;
+  <a href="{% url 'archivio:file' file.pk %}" class="percorso">{{ file.percorso_originale }}</a> &rsaquo;
+  {% translate "Cancellazione definitiva" %}
+</p>
+<h1>{% translate "Cancellazione definitiva" %}</h1>
+<p class="avviso"><strong>{% translate "Questa operazione non si può annullare." %}</strong>
+  {% translate "Per ritirare un caricamento lasciando la traccia di ciò che conteneva si usa l'annullamento, non la cancellazione." %}</p>
+{% if errore %}<p class="errore">{{ errore }}</p>{% endif %}
+
+<div class="scheda">
+  <h2>{% translate "Che cosa verrà cancellato" %}</h2>
+  <p class="percorso">{{ file.percorso_originale }}</p>
+  <table>
+    {% for nome, quante in anteprima.righe %}
+      <tr><td>{{ nome }}</td><td><strong>{{ quante }}</strong></td></tr>
+    {% endfor %}
+    <tr>
+      <td>{% translate "contenuto del file nel deposito" %}</td>
+      <td>{% if anteprima.contenuto_condiviso %}{% translate "resta: un altro file ha lo stesso contenuto" %}{% else %}<strong>{% translate "cancellato" %}</strong>{% endif %}</td>
+    </tr>
+  </table>
+  <p class="tenue">{% translate "Nel registro resteranno chi ha cancellato, quando, il motivo, il numero e l'impronta del file. Non il suo nome." %}</p>
+</div>
+
+<div class="scheda">
+  <form method="post">
+    {% csrf_token %}
+    <p>
+      <label><input type="checkbox" name="anche_soggetti" value="si"{% if anche_soggetti %} checked{% endif %}>
+      {% translate "Cancella anche i soggetti provvisori che esistevano solo per questo file" %}</label>
+      <span class="tenue">{% translate "(un soggetto citato da altri file, da un'indagine o da una dichiarazione resta comunque)" %}</span>
+    </p>
+    <label for="motivazione">{% translate "Motivo della cancellazione (obbligatorio, resta nel registro)" %}</label>
+    <textarea id="motivazione" name="motivazione" required minlength="10">{{ motivazione }}</textarea>
+    <p>
+      <button type="submit" name="azione" value="anteprima" class="secondario">{% translate "Aggiorna l'elenco" %}</button>
+      <button type="submit" name="azione" value="cancella">{% translate "Cancella definitivamente" %}</button>
+      <a href="{% url 'archivio:file' file.pk %}">{% translate "Rinuncia" %}</a>
+    </p>
+  </form>
+</div>
+{% endblock %}

@@ -21,7 +21,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from decodifiche.models import TipoDocumento, TipoIdentificativo
 from soggetti import servizi as anagrafica
 
-from . import caricamento, models, servizi
+from . import cancellazione, caricamento, models, servizi
 from .models import Caricamento, Faldone, Fascicolo, FileCaricato
 
 MASSIMO_IN_ELENCO = 200
@@ -287,9 +287,36 @@ def file(request, numero):
         "soggetti": [{"riga": s, "etichetta": anagrafica.etichetta(s.soggetto)} for s in soggetti],
         "soggetti_ereditati": ereditati,
         "in_bozza": fascicolo.stato == models.BOZZA and caricamento.puo_caricare(request.user),
+        "puo_cancellare": cancellazione.puo_cancellare(request.user, riga),
         "tipi": _tipi_identificativo(),
         "tipi_documento": _tipi_documento(),
         "nature": models.NATURE,
+    })
+
+
+@login_required
+@permission_required("archivio.cancella_definitivamente", raise_exception=True)
+def cancella_file(request, numero):
+    """
+    Cancellazione definitiva di un file: prima mostra che cosa verrà tolto, poi,
+    con la motivazione, cancella. Chi non può vedere il file riceve 404.
+    """
+    riga = _file_visibile(request, numero)
+    fascicolo, errore = riga.fascicolo, None
+    anche_soggetti = request.POST.get("anche_soggetti") == "si" if request.method == "POST" else True
+    if request.method == "POST" and request.POST.get("azione") == "cancella":
+        try:
+            riepilogo = cancellazione.cancella(riga, request.user, request.POST.get("motivazione", ""), anche_soggetti)
+            return render(request, "archivio/file_cancellato.html", {"fascicolo": fascicolo, "riepilogo": riepilogo})
+        except cancellazione.NonAmmessa as problema:
+            errore = str(problema)
+    return render(request, "archivio/cancella_file.html", {
+        "file": riga,
+        "fascicolo": fascicolo,
+        "errore": errore,
+        "anche_soggetti": anche_soggetti,
+        "anteprima": cancellazione.anteprima(riga, anche_soggetti),
+        "motivazione": request.POST.get("motivazione", ""),
     })
 
 
