@@ -782,7 +782,7 @@ class ScansioneTest(ConFile):
         riga = FileCaricato.objects.get(pk=file.pk)
         self.assertEqual((riga.stato, riga.tentativi), (archivio.FILE_ERRORE, 1))
         # il messaggio dice in quale pagina e in quale passaggio
-        self.assertTrue(riga.ultimo_errore.startswith("Pagina 1, entità: risposta tagliata"), riga.ultimo_errore)
+        self.assertTrue(riga.ultimo_errore.startswith("Pagina 1, entità: Risposta tagliata"), riga.ultimo_errore)
         # di una lettura fallita non resta nulla a metà
         self.assertEqual((TestoPagina.objects.count(), EntitaEstratta.objects.count()), (0, 0))
 
