@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   server_mcp.py  -  app grafo, VERSIONE 22
+#   server_mcp.py  -  app grafo, VERSIONE 23
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: server
@@ -56,6 +56,12 @@
 #        esponente e dimensione del risultato.
 #   [22] Le chiamate a calcola sono registrate nella sessione come le altre, senza coppia
 #        calcolo/dati; lo strumento funziona anche se l'archivio non è utilizzabile.
+#   [23] Nuovo strumento scheda(azienda): dice ciò che l'archivio sa di un'azienda (voci note
+#        con il file di provenienza, voci non ancora arrivate, documenti confermati in cui
+#        compare con il ruolo e le altre parti); l'azienda si indica con COE, partita IVA o
+#        nome.
+#   [23] scheda usa solo ciò che viene da file che l'utente della sessione può vedere (stessa
+#        regola delle pagine); senza sessione (trasporto stdio) non risponde.
 #
 # <<< NOVITA
 """

@@ -9,6 +9,7 @@ Strumenti:
 - indicatore: quali indicatori di rischio contengono una parola, e per quali società pesano
 - mappa: produce la mappa investigativa di una società e ne restituisce il collegamento
 - calcola: esegue in modo esatto un calcolo aritmetico
+- scheda: quali informazioni si conoscono di un'azienda (dati anagrafici e di bilancio, documenti in cui compare e con quale ruolo); vengono dai file caricati, non sono punteggi di rischio
 
 Regole:
 - Per ogni domanda su aziende, rischi o relazioni chiama prima lo strumento adatto: non rispondere a memoria.

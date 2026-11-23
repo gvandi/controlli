@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   servizio_mcp.py  -  app grafo, VERSIONE 22
+#   servizio_mcp.py  -  app grafo, VERSIONE 23
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: server
@@ -56,6 +56,12 @@
 #        esponente e dimensione del risultato.
 #   [22] Le chiamate a calcola sono registrate nella sessione come le altre, senza coppia
 #        calcolo/dati; lo strumento funziona anche se l'archivio non è utilizzabile.
+#   [23] Nuovo strumento scheda(azienda): dice ciò che l'archivio sa di un'azienda (voci note
+#        con il file di provenienza, voci non ancora arrivate, documenti confermati in cui
+#        compare con il ruolo e le altre parti); l'azienda si indica con COE, partita IVA o
+#        nome.
+#   [23] scheda usa solo ciò che viene da file che l'utente della sessione può vedere (stessa
+#        regola delle pagine); senza sessione (trasporto stdio) non risponde.
 #
 # <<< NOVITA
 """
@@ -69,7 +75,9 @@ richiesta registrata nella sessione di un utente.
 
 Contiene anche il sesto strumento, "mappa": sta qui e non in interrogazione.py
 perché scrive un file e lo registra nella sessione. Il settimo, "calcola", è in
-calcolatrice.py e qui viene solo aggiunto all'elenco.
+calcolatrice.py e qui viene solo aggiunto all'elenco. L'ottavo, "scheda", legge
+dall'archivio dei file caricati (app elaborazione) ciò che si sa di un'azienda,
+con la visibilità dell'utente della sessione.
 
 Importa contratto.py, interrogazione.py, mappa.py, sessioni.py, calcolo_cartella.py,
 calcolatrice.py.
@@ -136,8 +144,27 @@ def mappa(societa: Union[int, str] = "") -> str:
     )
 
 
+def scheda(azienda: Union[int, str]) -> str:
+    """Dice quali informazioni l'archivio conosce di un'azienda: le voci della sua scheda
+    (denominazione, sede, amministratore, soci, dati di bilancio...) con il file da cui vengono,
+    le voci non ancora arrivate, e i documenti (DDT, fatture) in cui compare con il suo ruolo
+    (mittente, destinatario, vettore) e le altre parti. Da usare per domande come "che cosa
+    sappiamo dell'azienda 10000?", "chi è l'amministratore della Alfa?", "in quali documenti
+    compare il COE 54321?".
+    azienda: COE, partita IVA oppure nome (anche parziale), così come l'ha scritto l'ispettore.
+    Questi dati vengono dai file caricati, non dall'analisi di rete: non sono punteggi di rischio."""
+    sessione = getattr(_chiamata, "sessione", None)
+    if sessione is None:
+        # Senza sapere chi chiede non si può decidere che cosa può vedere
+        return "La scheda di un'azienda si può chiedere solo da una sessione con accesso (servizio HTTP)."
+    # Importato qui: l'app grafo resta utilizzabile anche senza l'app elaborazione
+    from elaborazione import coda
+
+    return coda.descrivi_azienda(azienda, sessione.utente)
+
+
 # Tutti gli strumenti esposti alla chat, nell'ordine del contratto
-STRUMENTI = {**interrogazione.STRUMENTI, "mappa": mappa, "calcola": calcolatrice.calcola}
+STRUMENTI = {**interrogazione.STRUMENTI, "mappa": mappa, "calcola": calcolatrice.calcola, "scheda": scheda}
 
 
 def esegui_strumento(nome, parametri, domanda="", sessione=None, indirizzo_mappa=None):

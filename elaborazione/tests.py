@@ -437,6 +437,10 @@ class CodaTest(ConFile):
         self.client.force_login(self.anna)
         fascicolo = self.client.get(reverse("archivio:fascicolo", args=[azienda.pk]))
         self.assertEqual({c.file for c in fascicolo.context["file_collegati"]}, {generale, riservato})
+        # e così ciò che la chat può raccontare dell'azienda
+        self.assertIn("Mario Rossi", coda.descrivi_azienda("12345", self.anna))
+        self.assertNotIn("Mario Rossi", coda.descrivi_azienda("12345", self.bruno))
+        self.assertIn("Luigi Verdi", coda.descrivi_azienda("12345", self.bruno))
         # chi non può rivedere non modifica nulla
         entita = self.entita(generale, "SOCIO")
         self.pagina(self.bruno, "file", generale.pk, azione="conserva")
@@ -652,6 +656,21 @@ class DocumentoTest(ConFile):
         scheda = self.client.get(reverse("elaborazione:soggetto", args=[azienda.pk]))
         self.assertContains(scheda, "Trasporti Beta S.r.l.")
         self.assertEqual(coda.documenti_del_soggetto(mittente, self.bruno)[0]["ruolo"], models.MITTENTE)
+        # la chat riceve le stesse cose in parole, cercando per identificativo o per nome
+        racconto = coda.descrivi_azienda("COE 10000", self.anna)
+        for atteso in ("Alfa S.r.l.", "Denominazione", "DDT n. 45/2026 del 2026-11-12", "totale 1234.56",
+                       "ruolo dell'azienda: mittente", "vettore: Trasporti Beta S.r.l.", "non ancora arrivate"):
+            self.assertIn(atteso, racconto)
+        self.assertEqual(coda.descrivi_azienda("alfa", self.anna), racconto)
+        self.assertIn("Nessuna azienda nota", coda.descrivi_azienda("99999", self.anna))
+        self.assertIn("Più aziende", coda.descrivi_azienda("s.r.l.", self.anna))
+        # lo strumento della chat risponde solo a chi ha una sessione, con la sua visibilità
+        from grafo import servizio_mcp
+        self.assertIn("solo da una sessione", servizio_mcp.scheda("10000"))
+        servizio_mcp._chiamata.sessione = types.SimpleNamespace(utente=self.anna)
+        self.addCleanup(setattr, servizio_mcp._chiamata, "sessione", None)
+        self.assertEqual(servizio_mcp.scheda(10000), racconto)
+        self.assertIn("non ha il diritto", coda.descrivi_azienda("10000", self.carla))
         # rivedere di nuovo non raddoppia le denominazioni
         self.client.post(indirizzo, dict(modulo, entita=list(EntitaEstratta.objects.filter(file=file).values_list("pk", flat=True))))
         self.assertEqual(EntitaEstratta.objects.filter(etichetta="DENOMINAZIONE").count(), 3)
