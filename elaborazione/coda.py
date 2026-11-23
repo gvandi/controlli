@@ -21,12 +21,18 @@ restituisce una Lettura. Qui ce ne sono due: i file che sono già testo (regole,
 il modello per le entità) e le scansioni e i PDF (modello visivo). Le prove ne usano
 uno finto.
 
+DOCUMENTI (DECISIONI.md, n. 80): se il modello riconosce nel file un documento
+commerciale, se ne salvano tipo, numero, data, totale e le parti con il loro ruolo.
+Una parte è legata a un soggetto solo se il suo identificativo è fra quelli che le
+regole hanno letto nel file. Un file con un documento è sempre "da rivedere".
+
 REVISIONE (DECISIONI.md, n. 78): dalla pagina "Testo ed entità estratte" il revisore
 sceglie le entità da conservare e chiude la revisione in un solo passo
 (chiudi_revisione); un'entità scartata si può ripristinare (ripristina).
 """
 import collections
 import datetime
+import decimal
 import logging
 import os
 import re
@@ -45,7 +51,7 @@ from decodifiche.models import TipoIdentificativo
 from soggetti import servizi as anagrafica
 
 from . import lettura_modello, models, regole, riconoscimento
-from .models import Elaborazione, EntitaEstratta, TestoPagina, VoceCatalogo
+from .models import Documento, Elaborazione, EntitaEstratta, ParteDelDocumento, TestoPagina, VoceCatalogo
 
 registro = logging.getLogger("elaborazione.coda")
 
@@ -61,7 +67,10 @@ DELICATE_SE_DA_SCANSIONE = (regole.COE, regole.PARTITA_IVA, regole.IMPORTO)
 
 # pagine: [(numero, testo, origine)]   entita: [dizionari con etichetta, valore, pagina, fonte, ...]
 # completa: falso se sono state applicate le sole regole perché il modello non era disponibile
-Lettura = collections.namedtuple("Lettura", "pagine entita modello versione_prompt completa", defaults=(True,))
+# documento: il documento commerciale riconosciuto nel file (vedi lettura_modello), o None
+Lettura = collections.namedtuple(
+    "Lettura", "pagine entita modello versione_prompt completa documento", defaults=(True, None)
+)
 
 
 def _impostazione(nome, predefinito):
@@ -79,6 +88,47 @@ def _compatto(testo):
 # =====================================================================
 # 1. LETTORI
 # =====================================================================
+def importo_da_testo(testo):
+    """'€ 1.234,56' -> Decimal('1234.56'); None se non è un importo leggibile."""
+    cifre = re.sub(r"[^\d.,]", "", str(testo or ""))
+    if "," in cifre:
+        cifre = cifre.replace(".", "").replace(",", ".")
+    elif re.fullmatch(r"\d{1,3}(\.\d{3})+", cifre):
+        cifre = cifre.replace(".", "")
+    try:
+        importo = decimal.Decimal(cifre).quantize(decimal.Decimal("0.01"))
+    except decimal.InvalidOperation:
+        return None
+    return importo if abs(importo) < 10 ** 12 else None
+
+
+def data_da_testo(testo):
+    """La prima data riconoscibile nel testo, come datetime.date; None se non ce n'è."""
+    for trovata in regole.estrai(str(testo or "")):
+        if trovata["etichetta"] == regole.DATA:
+            try:
+                return datetime.date.fromisoformat(trovata["normalizzato"])
+            except ValueError:
+                return None
+    return None
+
+
+def unisci_documento(primo, secondo, pagina):
+    """
+    Un documento può stare su più pagine: ciò che una pagina non dice lo completa la
+    successiva (il totale è spesso sull'ultima). Le parti già note non si ripetono.
+    """
+    if secondo is None:
+        return primo
+    if primo is None:
+        return dict(secondo, pagina=pagina)
+    for campo in ("tipo", "numero", "data", "totale"):
+        primo[campo] = primo[campo] or secondo[campo]
+    note = {(p["ruolo"], _compatto(p["denominazione"])) for p in primo["parti"]}
+    primo["parti"] += [p for p in secondo["parti"] if (p["ruolo"], _compatto(p["denominazione"])) not in note]
+    return primo
+
+
 def _pezzi(testo, massimo=CARATTERI_PER_PEZZO):
     """Divide un testo lungo in pezzi, tagliando dove finisce un paragrafo o almeno una riga."""
     pezzi = []
@@ -115,15 +165,18 @@ class LettoreTesto:
         with open(percorso, "rb") as contenuto:
             testo = contenuto.read().decode("utf-8", errors="replace")
         con_modello = self._modello is not None and self._modello.disponibile()[0]
-        pagine, entita, evento = [], [], ""
+        pagine, entita, evento, documento = [], [], "", None
         for numero, pezzo in enumerate(_pezzi(testo), start=1):
             pagine.append((numero, pezzo, models.TESTO_DIRETTO))
             entita += [dict(e, pagina=numero, fonte=models.DA_REGOLA) for e in regole.estrai(pezzo)]
             if con_modello:
-                proposte, evento = self._modello.entita_dal_testo(pezzo, voci, evento)
+                proposte, evento, proposto = self._modello.leggi_testo(pezzo, voci, evento)
                 entita += [dict(proposta, pagina=numero, fonte=models.DA_MODELLO) for proposta in proposte]
+                documento = unisci_documento(documento, proposto, numero)
         if con_modello:
-            return Lettura(pagine, entita, self._modello.modello, lettura_modello.VERSIONE_PROMPT)
+            return Lettura(
+                pagine, entita, self._modello.modello, lettura_modello.VERSIONE_PROMPT, documento=documento
+            )
         return Lettura(pagine, entita, "", "", completa=self._modello is None)
 
 
@@ -166,17 +219,22 @@ class LettoreModello:
             dict(_impostazione("ELABORAZIONE_MODELLO_OPZIONI", {})),
         )
 
-    def entita_dal_testo(self, testo, voci, evento_precedente=""):
+    def leggi_testo(self, testo, voci, evento_precedente=""):
         """
-        Le entità che il modello propone per un testo, e l'ultimo evento incontrato.
+        Ciò che il modello propone per un testo: le entità, l'ultimo evento incontrato e
+        l'eventuale documento commerciale con le sue parti.
         Gli identificativi li leggono le regole: quelli proposti dal modello non si usano (n. 23).
         """
         massimo, opzioni = self._parametri()
-        proposte, evento = lettura_modello.estrai_entita(
+        proposte, evento, documento = lettura_modello.leggi_pagina(
             self._cliente, self.modello, testo, voci, evento_precedente, massimo, opzioni
         )
         riservate_alle_regole = {_compatto(etichetta) for etichetta in TIPO_PER_REGOLA}
-        return [p for p in proposte if _compatto(p["etichetta"]) not in riservate_alle_regole], evento
+        return [p for p in proposte if _compatto(p["etichetta"]) not in riservate_alle_regole], evento, documento
+
+    def entita_dal_testo(self, testo, voci, evento_precedente=""):
+        """Come leggi_testo, senza il documento."""
+        return self.leggi_testo(testo, voci, evento_precedente)[:2]
 
     def leggi(self, percorso, natura, voci):
         massimo, opzioni = self._parametri()
@@ -184,14 +242,15 @@ class LettoreModello:
             immagini = self._pagine_del_pdf(percorso, int(_impostazione("ELABORAZIONE_PUNTI_PER_POLLICE", 200)))
         else:
             immagini = [self._immagine_come_jpeg(percorso)]
-        pagine, entita, evento = [], [], ""
+        pagine, entita, evento, documento = [], [], "", None
         for numero, jpeg in enumerate(immagini, start=1):
             testo = lettura_modello.trascrivi(self._cliente, self.modello, jpeg, massimo, opzioni)
             pagine.append((numero, testo, models.TESTO_OCR))
             entita += [dict(e, pagina=numero, fonte=models.DA_REGOLA) for e in regole.estrai(testo)]
-            proposte, evento = self.entita_dal_testo(testo, voci, evento)
+            proposte, evento, proposto = self.leggi_testo(testo, voci, evento)
             entita += [dict(proposta, pagina=numero, fonte=models.DA_MODELLO) for proposta in proposte]
-        return Lettura(pagine, entita, self.modello, lettura_modello.VERSIONE_PROMPT)
+            documento = unisci_documento(documento, proposto, numero)
+        return Lettura(pagine, entita, self.modello, lettura_modello.VERSIONE_PROMPT, documento=documento)
 
 
 def lettori_predefiniti():
@@ -307,13 +366,14 @@ def _salva(file, elaborazione, lettura):
     rivedi_le_scansioni = bool(_impostazione("ELABORAZIONE_RIVEDI_LE_SCANSIONI", True))
 
     # Primo giro: riconoscere i soggetti nominati nel file attraverso i loro identificativi
-    trovati, preparate = {}, []
+    trovati, preparate, per_identificativo = {}, [], {}
     for entita in lettura.entita:
         nominato = None
         tipo = tipi.get(TIPO_PER_REGOLA.get(entita["etichetta"], ""))
         if entita["fonte"] == models.DA_REGOLA and tipo is not None and tipo.accetta(entita.get("normalizzato", "")):
             nominato, _ = anagrafica.trova_o_crea(tipo, entita["normalizzato"])
             trovati[nominato.pk] = nominato
+            per_identificativo[re.sub(r"\D", "", entita["normalizzato"])] = nominato
         preparate.append((entita, nominato))
 
     if principale is None and len(trovati) == 1:
@@ -368,6 +428,8 @@ def _salva(file, elaborazione, lettura):
     for soggetto in trovati.values():
         servizi_archivio.collega_file_all_azienda(file, soggetto, "estratto")
 
+    _salva_documento(file, elaborazione, lettura.documento, per_identificativo)
+
     if not lettura.completa:
         # Fatte le sole regole: il file resta da elaborare, e lo completerà il modello
         FileCaricato.objects.filter(pk=file.pk).update(stato=archivio.FILE_RICEVUTO, ultimo_errore="")
@@ -376,7 +438,7 @@ def _salva(file, elaborazione, lettura):
         )
         return PARZIALE
 
-    da_rivedere = EntitaEstratta.objects.filter(file=file, da_rivedere=True, ritirata=False).exists()
+    da_rivedere = _qualcosa_da_rivedere(file)
     stato = archivio.FILE_DA_RIVEDERE if da_rivedere else archivio.FILE_ELABORATO
     FileCaricato.objects.filter(pk=file.pk).update(stato=stato, ultimo_errore="")
     Elaborazione.objects.filter(pk=elaborazione.pk).update(
@@ -384,6 +446,39 @@ def _salva(file, elaborazione, lettura):
         modello=lettura.modello[:120], versione_prompt=lettura.versione_prompt[:20], pagine=len(lettura.pagine),
     )
     return DA_RIVEDERE if da_rivedere else ELABORATO
+
+
+def _salva_documento(file, elaborazione, proposto, per_identificativo):
+    """
+    Scrive il documento commerciale riconosciuto nel file, con le sue parti. Una parte
+    è legata a un soggetto solo se il suo identificativo è fra quelli che le regole
+    hanno letto nel file: il modello non può far nascere un soggetto. Uno per file.
+    """
+    if not proposto or Documento.objects.filter(file=file).exists():
+        return None
+    documento = Documento.objects.create(
+        elaborazione=elaborazione, file=file, pagina=proposto.get("pagina"),
+        tipo=proposto["tipo"][:40], numero=proposto["numero"][:60],
+        data=data_da_testo(proposto["data"]), data_scritta=proposto["data"][:60],
+        totale=importo_da_testo(proposto["totale"]), totale_scritto=proposto["totale"][:60],
+    )
+    ParteDelDocumento.objects.bulk_create([
+        ParteDelDocumento(
+            documento=documento, ruolo=parte["ruolo"], ruolo_proposto=parte["ruolo_proposto"][:60],
+            denominazione=parte["denominazione"][:300], identificativo=parte["identificativo"][:60],
+            soggetto=per_identificativo.get(re.sub(r"\D", "", parte["identificativo"]) or None),
+        )
+        for parte in proposto["parti"]
+    ])
+    return documento
+
+
+def _qualcosa_da_rivedere(file):
+    """Un'entità in attesa, oppure un documento i cui ruoli nessuno ha ancora confermato."""
+    return (
+        EntitaEstratta.objects.filter(file=file, da_rivedere=True, ritirata=False).exists()
+        or Documento.objects.filter(file=file, confermato=False, ritirato=False).exists()
+    )
 
 
 def _segnala_valori_in_conflitto(file):
@@ -490,12 +585,13 @@ def esegui(minuti=None, massimo=None, lettori=None):
 # =====================================================================
 def ritira_caricamento(fascicolo):
     """Il caricamento è stato annullato: le entità estratte dai suoi file non valgono più."""
+    Documento.objects.filter(file__fascicolo=fascicolo).update(ritirato=True)
     return EntitaEstratta.objects.filter(file__fascicolo=fascicolo, ritirata=False).update(ritirata=True)
 
 
 def _aggiorna_stato(file):
     """Finita la revisione di tutte le sue entità, il file passa da "da rivedere" a "elaborato"."""
-    if not EntitaEstratta.objects.filter(file=file, da_rivedere=True, ritirata=False).exists():
+    if not _qualcosa_da_rivedere(file):
         FileCaricato.objects.filter(pk=file.pk, stato=archivio.FILE_DA_RIVEDERE).update(stato=archivio.FILE_ELABORATO)
 
 
@@ -518,20 +614,63 @@ def scarta(file, numeri):
     return scartate
 
 
-def chiudi_revisione(file, conservate):
+def soggetti_del_file(file):
+    """I soggetti che il file riguarda (dichiarati o nominati): quelli a cui si può dare un ruolo."""
+    collegamenti = archivio.CollegamentoFile.objects.filter(
+        file=file, fascicolo__soggetto__isnull=False
+    ).select_related("fascicolo__soggetto").order_by("pk")
+    return list({c.fascicolo.soggetto_id: c.fascicolo.soggetto for c in collegamenti}.values())
+
+
+def _rivedi_documento(file, dati):
+    """
+    Applica al documento del file ciò che il revisore ha deciso:
+        {"valido": bool, "tipo", "numero", "data", "totale", "parti": {numero: (ruolo, numero del soggetto o None)}}
+    Non valido = non è un documento: viene ritirato. Una parte senza ruolo è tolta.
+    """
+    documento = Documento.objects.filter(file=file).first()
+    if documento is None:
+        return
+    if not dati.get("valido"):
+        Documento.objects.filter(pk=documento.pk).update(ritirato=True, confermato=False)
+        return
+    Documento.objects.filter(pk=documento.pk).update(
+        tipo=dati.get("tipo", "")[:40], numero=dati.get("numero", "")[:60],
+        data=dati.get("data"), totale=dati.get("totale"), confermato=True, ritirato=False,
+    )
+    ammessi = {soggetto.pk for soggetto in soggetti_del_file(file)}
+    for parte in documento.parti.all():
+        ruolo, soggetto = dati.get("parti", {}).get(parte.pk, (parte.ruolo, parte.soggetto_id))
+        if ruolo not in models.RUOLI:
+            parte.ritirata = True
+        else:
+            parte.ruolo, parte.ritirata = ruolo, False
+            parte.soggetto_id = soggetto if soggetto in ammessi else None
+        parte.save()
+
+
+def chiudi_revisione(file, conservate, documento=None):
     """
     Il revisore ha scelto che cosa tenere: le entità indicate sono confermate (e la
     conferma prevale sul controllo "il valore compare nel testo"), tutte
     le altre del file sono scartate (restano nel registro come ritirate e si possono
     ripristinare). Il file, se era stato letto per intero, diventa "elaborato"; se la
     lettura non è ancora completa o è fallita, il suo stato non cambia.
+    Se il file contiene un documento commerciale, "documento" porta ciò che il revisore
+    ha deciso su dati e ruoli (vedi _rivedi_documento); senza, il documento resta da
+    confermare e il file resta "da rivedere".
     Restituisce (quante conservate, quante scartate).
     """
     with transaction.atomic():
         vive = EntitaEstratta.objects.filter(file=file, ritirata=False)
         scartate = vive.exclude(pk__in=conservate).update(ritirata=True, da_rivedere=False)
         tenute = vive.filter(pk__in=conservate).update(da_rivedere=False, motivo_revisione="", confermata=True)
-        FileCaricato.objects.filter(pk=file.pk, stato=archivio.FILE_DA_RIVEDERE).update(stato=archivio.FILE_ELABORATO)
+        if documento is not None:
+            _rivedi_documento(file, documento)
+        if not _qualcosa_da_rivedere(file):
+            FileCaricato.objects.filter(pk=file.pk, stato=archivio.FILE_DA_RIVEDERE).update(
+                stato=archivio.FILE_ELABORATO
+            )
     return tenute, scartate
 
 

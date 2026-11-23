@@ -1,3 +1,5 @@
+import datetime
+import decimal
 import json
 import tempfile
 import types
@@ -12,7 +14,7 @@ from archivio import models as archivio
 from archivio.models import CollegamentoFile, Evento, Fascicolo, FileCaricato
 from archivio.tests import ConUtenti, diritti, un_file
 from elaborazione import coda, lettura_modello, models, regole, riconoscimento
-from elaborazione.models import Elaborazione, EntitaEstratta, TestoPagina, VoceCatalogo
+from elaborazione.models import Documento, Elaborazione, EntitaEstratta, ParteDelDocumento, TestoPagina, VoceCatalogo
 from soggetti import servizi as anagrafica
 from soggetti.models import IdentificativoSoggetto, Soggetto
 
@@ -31,9 +33,30 @@ def risposta_del_modello(testo, fine="stop"):
     return types.SimpleNamespace(choices=[types.SimpleNamespace(message=messaggio, finish_reason=fine)])
 
 
-def entita_json(*entita):
+def entita_json(*entita, documento=None):
     campi = ("etichetta", "valore", "citazione", "evento", "periodo")
-    return risposta_del_modello(json.dumps({"entita": [dict(zip(campi, e)) for e in entita]}))
+    risposta = {"entita": [dict(zip(campi, e)) for e in entita]}
+    if documento is not None:
+        risposta["documento"] = documento
+    return risposta_del_modello(json.dumps(risposta))
+
+
+DDT = """DOCUMENTO DI TRASPORTO n. 45/2026 del 12/11/2026
+Mittente: Alfa S.r.l., C.O.E. SM 10000
+Destinatario: Notizie & Media Italia S.r.l., P.IVA IT 01234567890
+Vettore: Trasporti Beta S.r.l., COE 54321
+Totale: € 1.234,56"""
+
+DDT_DAL_MODELLO = {
+    "tipo": "ddt", "numero": "45/2026", "data": "12/11/2026", "totale": "€ 1.234,56",
+    "parti": [
+        # il modello scambia mittente e destinatario: è l'errore che la revisione deve poter correggere
+        {"ruolo": "destinatario", "denominazione": "Alfa S.r.l.", "identificativo": "C.O.E. SM 10000"},
+        {"ruolo": "mittente", "denominazione": "Notizie & Media Italia S.r.l.", "identificativo": "IT 01234567890"},
+        {"ruolo": "corriere", "denominazione": "Trasporti Beta S.r.l.", "identificativo": "54321"},
+        {"ruolo": "banca d'appoggio", "denominazione": "Banca Gamma", "identificativo": "COE 77777"},
+    ],
+}
 
 
 class ModelloFinto:
@@ -546,6 +569,93 @@ class CancellazioneTest(ConFile):
 
 
 @override_settings(ELABORAZIONE_MODELLO_NOME="modello-di-prova")
+class DocumentoTest(ConFile):
+    """Il documento commerciale e le sue parti: ciò che lega fra loro i soggetti di un file."""
+
+    def elabora_il_ddt(self):
+        file = self.carica(DDT, nome="ddt.txt")
+        modello = ModelloFinto([entita_json(documento=DDT_DAL_MODELLO)])
+        coda.esegui(lettori=[coda.LettoreTesto(coda.LettoreModello(cliente=modello))])
+        return file
+
+    def parte(self, nome):
+        return ParteDelDocumento.objects.get(denominazione__startswith=nome)
+
+    @override_settings(ELABORAZIONE_MODELLO_NOME="modello-di-prova")
+    def test_un_ddt_diventa_un_documento_con_le_parti_e_i_ruoli_li_conferma_una_persona(self):
+        file = self.elabora_il_ddt()
+        documento = Documento.objects.get(file=file)
+        self.assertEqual(
+            (documento.tipo, documento.numero, documento.data, documento.totale, documento.pagina),
+            ("DDT", "45/2026", datetime.date(2026, 11, 12), decimal.Decimal("1234.56"), 1),
+        )
+        mittente, vettore = anagrafica.trova(self.coe, "10000"), anagrafica.trova(self.coe, "54321")
+        self.assertEqual((self.parte("Alfa").soggetto, self.parte("Trasporti").soggetto), (mittente, vettore))
+        destinatario = self.parte("Notizie").soggetto
+        self.assertNotIn(destinatario, (None, mittente, vettore))
+        self.assertEqual(self.parte("Trasporti").ruolo, models.VETTORE)  # "corriere" è un altro nome del vettore
+        # un ruolo non previsto resta da assegnare; un identificativo che le regole non hanno letto non crea soggetti
+        banca = self.parte("Banca")
+        self.assertEqual((banca.ruolo, banca.ruolo_proposto, banca.soggetto), ("", "banca d'appoggio", None))
+        # finché nessuno conferma i ruoli il documento non è utilizzabile e il file va rivisto
+        self.assertEqual(self.stato(file), archivio.FILE_DA_RIVEDERE)
+        self.assertFalse(Documento.objects.utilizzabili().exists())
+
+        # il revisore corregge lo scambio fra mittente e destinatario, toglie la banca e chiude
+        self.client.force_login(self.anna)
+        indirizzo = reverse("elaborazione:file", args=[file.pk])
+        pagina = self.client.get(indirizzo)
+        self.assertContains(pagina, "Documento e parti")
+        modulo = {
+            "azione": "conserva", "entita": list(EntitaEstratta.objects.filter(file=file).values_list("pk", flat=True)),
+            "documento_valido": "si", "documento_tipo": "ddt", "documento_numero": "45/2026",
+            "documento_data": "2026-11-12", "documento_totale": "1.234,56",
+        }
+        scelte = {"Alfa": (models.MITTENTE, mittente), "Notizie": (models.DESTINATARIO, destinatario),
+                  "Trasporti": (models.VETTORE, vettore), "Banca": ("", None)}
+        for nome, (ruolo, soggetto) in scelte.items():
+            parte = self.parte(nome)
+            modulo[f"ruolo_{parte.pk}"], modulo[f"soggetto_{parte.pk}"] = ruolo, soggetto.pk if soggetto else ""
+        # una data illeggibile non salva nulla
+        self.client.post(indirizzo, dict(modulo, documento_data="ieri"))
+        self.assertFalse(Documento.objects.get().confermato)
+        risposta = self.client.post(indirizzo, modulo, follow=True)
+        self.assertContains(risposta, "Documento e ruoli confermati")
+        self.assertEqual(self.stato(file), archivio.FILE_ELABORATO)
+        ruoli = {
+            parte.ruolo: parte.soggetto
+            for parte in Documento.objects.utilizzabili().get().parti.filter(ritirata=False)
+        }
+        self.assertEqual(ruoli, {models.MITTENTE: mittente, models.DESTINATARIO: destinatario, models.VETTORE: vettore})
+        self.assertTrue(self.parte("Banca").ritirata)
+
+    @override_settings(ELABORAZIONE_MODELLO_NOME="modello-di-prova")
+    def test_un_documento_si_puo_scartare_e_sparisce_con_il_file(self):
+        file = self.elabora_il_ddt()
+        coda.chiudi_revisione(file, [], {"valido": False})
+        self.assertEqual(self.stato(file), archivio.FILE_ELABORATO)
+        self.assertFalse(Documento.objects.utilizzabili().exists())
+        diritti(self.anna, "archivio.cancella_definitivamente")
+        riepilogo = dict(cancellazione.anteprima(FileCaricato.objects.get(pk=file.pk), True)["righe"])
+        self.assertEqual(riepilogo["documenti riconosciuti"], 1)
+        cancellazione.cancella(FileCaricato.objects.get(pk=file.pk), self.anna, "Documento caricato per errore", True)
+        self.assertEqual((Documento.objects.count(), ParteDelDocumento.objects.count()), (0, 0))
+        self.assertFalse(Soggetto.objects.exists())
+
+    def test_importi_e_documenti_proposti_dal_modello(self):
+        self.assertEqual(coda.importo_da_testo("€ 1.234,56"), decimal.Decimal("1234.56"))
+        self.assertEqual(coda.importo_da_testo("1234.5"), decimal.Decimal("1234.50"))
+        self.assertIsNone(coda.importo_da_testo("da definire"))
+        # un documento su due pagine: la seconda completa la prima senza ripetere le parti
+        prima = lettura_modello.documento_dalla_risposta({"documento": dict(DDT_DAL_MODELLO, totale="")})
+        seconda = lettura_modello.documento_dalla_risposta({"documento": DDT_DAL_MODELLO})
+        unito = coda.unisci_documento(coda.unisci_documento(None, prima, 1), seconda, 2)
+        self.assertEqual((unito["totale"], unito["pagina"], len(unito["parti"])), ("€ 1.234,56", 1, 4))
+        # senza numero e senza parti non è un documento
+        self.assertIsNone(lettura_modello.documento_dalla_risposta({"documento": {"tipo": "ALTRO"}}))
+        self.assertIsNone(lettura_modello.documento_dalla_risposta({"documento": None}))
+
+
 class ScansioneTest(ConFile):
     """Il percorso delle scansioni: immagini, trascrizione, regole, entità del modello. Con un modello finto."""
 

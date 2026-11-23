@@ -11,6 +11,12 @@ ELABORAZIONE DEI FILE: dal file ricevuto alle entità che descrivono un soggetto
     EntitaEstratta    un valore trovato in un file, sempre con il file e la pagina
                       di provenienza e con la citazione dal testo.
 
+    Documento         un documento commerciale riconosciuto in un file (DDT, fattura...):
+                      tipo, numero, data, importo totale.
+    ParteDelDocumento chi ha un ruolo nel documento: mittente, destinatario, vettore,
+                      luogo di destinazione. È il legame FRA soggetti che un'entità,
+                      da sola, non può esprimere (DECISIONI.md, n. 80).
+
 SIGNIFICATIVA O NO. Un'entità collegata a una voce del catalogo è significativa.
 Quelle che il modello trova e che non corrispondono a nessuna voce si raccolgono
 lo stesso, con voce vuota: restano consultabili e si possono promuovere in seguito
@@ -20,6 +26,10 @@ COSA ENTRA NEL CALCOLO. Solo le entità di EntitaEstratta.objects.utilizzabili()
 significative, verificate nel testo OPPURE confermate da una persona, attribuite a
 un soggetto, non in attesa di revisione e non ritirate (DECISIONI.md, n. 79). Un file caricato che non c'entra nulla attraversa tutto
 il percorso e non produce nessuna entità utilizzabile.
+
+DOCUMENTI E RUOLI. I ruoli li propone il modello e li conferma SEMPRE una persona:
+uno scambio fra mittente e destinatario invertirebbe il rapporto. Entrano nel
+calcolo solo i documenti di Documento.objects.utilizzabili().
 
 LA DESCRIZIONE DI UN SOGGETTO CRESCE NEL TEMPO. Le entità arrivano da file diversi
 in giorni diversi: a una certa data la descrizione è parziale. Ogni entità porta la
@@ -143,3 +153,50 @@ class EntitaEstratta(models.Model):
     @property
     def significativa(self):
         return self.voce_id is not None
+
+
+# I ruoli che un soggetto (o un luogo) può avere in un documento
+MITTENTE, DESTINATARIO, VETTORE, LUOGO_DI_DESTINAZIONE = "mittente", "destinatario", "vettore", "luogo di destinazione"
+RUOLI = (MITTENTE, DESTINATARIO, VETTORE, LUOGO_DI_DESTINAZIONE)
+
+
+class DocumentoQuerySet(models.QuerySet):
+    def utilizzabili(self):
+        """I soli documenti che possono entrare nel calcolo: confermati da una persona e non ritirati."""
+        return self.filter(confermato=True, ritirato=False)
+
+
+class Documento(models.Model):
+    elaborazione = models.ForeignKey(Elaborazione, on_delete=models.CASCADE, related_name="documenti")
+    file = models.ForeignKey("archivio.FileCaricato", on_delete=models.CASCADE, related_name="documenti")
+    pagina = models.PositiveIntegerField(null=True, blank=True)
+    tipo = models.CharField(max_length=40, blank=True, default="")
+    numero = models.CharField(max_length=60, blank=True, default="")
+    data = models.DateField(null=True, blank=True)
+    totale = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    # Data e totale così come li ha scritti il modello, prima di essere letti come data e numero
+    data_scritta = models.CharField(max_length=60, blank=True, default="")
+    totale_scritto = models.CharField(max_length=60, blank=True, default="")
+    # Un revisore ha confermato dati e ruoli
+    confermato = models.BooleanField(default=False)
+    # Ritirato: il caricamento è stato annullato, oppure il revisore ha detto che non è un documento
+    ritirato = models.BooleanField(default=False)
+    estratto_il = models.DateTimeField(auto_now_add=True)
+
+    objects = DocumentoQuerySet.as_manager()
+
+
+class ParteDelDocumento(models.Model):
+    documento = models.ForeignKey(Documento, on_delete=models.CASCADE, related_name="parti")
+    # Uno dei RUOLI; vuoto = il modello ha proposto un ruolo non previsto, da assegnare
+    ruolo = models.CharField(max_length=30, blank=True, default="")
+    # Il ruolo così come lo ha scritto il modello
+    ruolo_proposto = models.CharField(max_length=60, blank=True, default="")
+    denominazione = models.CharField(max_length=300, blank=True, default="")
+    identificativo = models.CharField(max_length=60, blank=True, default="")
+    # Vuoto per un luogo, o finché l'identificativo non porta a un soggetto del file
+    soggetto = models.ForeignKey(
+        "soggetti.Soggetto", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    # Il revisore l'ha tolta dal documento
+    ritirata = models.BooleanField(default=False)

@@ -78,7 +78,14 @@ Elenco unico delle cose da fare. Ogni passo si chiude con questo file aggiornato
   - [ ] unione di due soggetti che risultano lo stesso (oggi il COE e la partita IVA della
         stessa azienda creano due soggetti distinti)
   - [ ] verbali ispettivi: dall'evento "accertamento" all'irregolarità accertata (faldone Sanzioni)
-  - [ ] collegare il calcolo dell'analisi di rete alle entità utilizzabili, al posto dei dati simulati
+  - [x] documento commerciale e parti con ruolo (mittente, destinatario, vettore, luogo di
+        destinazione), numero, data e totale; ruoli confermati da una persona (DECISIONI.md, n. 80)
+  - [ ] **prima esecuzione** di documento e parti: `migrate`, `test elaborazione archivio`,
+        poi un DDT vero dalla coda (il prompt è alla versione 2 e chiede più cose al modello)
+  - [ ] righe dei documenti (merci, servizi, quantità, prezzi)
+  - [ ] aggiungere a mano un documento o una parte che il modello non ha visto
+  - [ ] collegare il calcolo dell'analisi di rete alle entità utilizzabili e ai documenti
+        confermati (Documento.objects.utilizzabili()), al posto dei dati simulati
   - [ ] rielaborazione esplicita di un gruppo di file quando il modello migliora (mai automatica)
   - [x] cancellazione definitiva di un file e dei dati che ne derivano, con diritto apposito
         (ruolo "Responsabile dei dati"; DECISIONI.md, n. 77)
