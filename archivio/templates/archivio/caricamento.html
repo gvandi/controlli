@@ -18,7 +18,7 @@
 </p>
 <h1>{{ fascicolo.titolo }}</h1>
 <p>
-  {% translate "Stato:" %} <strong>{{ fascicolo.stato }}</strong> &middot;
+  {% translate "Stato:" %} <strong>{{ stato_mostrato }}</strong>{% if stato_mostrato != fascicolo.stato %} <span class="tenue">({% translate "caricamento" %} {{ fascicolo.stato }})</span>{% endif %} &middot;
   {% if fascicolo.riservato_a_id %}{% translate "riservato a un'indagine" %}{% else %}{% translate "visibilità generale" %}{% endif %} &middot;
   {% blocktranslate count numero=file|length %}{{ numero }} file{% plural %}{{ numero }} file{% endblocktranslate %}, {{ dimensione_totale|filesizeformat }}
 </p>
