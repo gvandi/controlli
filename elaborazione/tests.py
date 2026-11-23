@@ -122,7 +122,7 @@ class CodaTest(ConFile):
 
         elaborazione = Elaborazione.objects.get()
         self.assertEqual((elaborazione.esito, elaborazione.natura, elaborazione.motore, elaborazione.pagine),
-                         (models.ESITO_OK, riconoscimento.TESTO, "testo-1", 1))
+                         (models.ESITO_OK, riconoscimento.TESTO, "testo-2", 1))
         self.assertEqual(TestoPagina.objects.get().testo, VERBALE)
 
         # ogni entità porta il file, la pagina e la citazione da cui viene
@@ -203,8 +203,8 @@ class CodaTest(ConFile):
         scansione = self.carica(b"%PDF-1.4 scansione finta", nome="scansione.pdf", titolo="Scansione")
         testo = self.carica("solo testo", titolo="Testo")
         with override_settings(ELABORAZIONE_MODELLO_URL=""):
-            resoconto = coda.esegui(lettori=coda.lettori_predefiniti())
-        # il binario è un errore definitivo; la scansione aspetta il modello; il testo va avanti
+            resoconto = coda.esegui(lettori=[coda.LettoreTesto(), coda.LettoreModello()])
+        # il binario è un errore definitivo; la scansione aspetta il modello; il testo (sole regole) va avanti
         riga = FileCaricato.objects.get(pk=binario.pk)
         self.assertEqual((riga.stato, riga.tentativi), (archivio.FILE_ERRORE, coda.massimo_tentativi()))
         self.assertIn("non gestito", riga.ultimo_errore)
@@ -213,6 +213,76 @@ class CodaTest(ConFile):
         self.assertEqual((resoconto[coda.SALTATO], resoconto["in attesa"]), (1, 1))
         self.assertIn("non configurato", next(iter(resoconto["motivi"])))
         self.assertFalse(Elaborazione.objects.filter(file=scansione).exists())
+
+    def test_un_file_saltato_non_consuma_il_massimo(self):
+        scansione = self.carica(b"%PDF-1.4 scansione finta", nome="scansione.pdf", titolo="Scansione")
+        testo = self.carica("solo testo", titolo="Testo")
+        with override_settings(ELABORAZIONE_MODELLO_URL=""):
+            resoconto = coda.esegui(massimo=1, lettori=[coda.LettoreTesto(), coda.LettoreModello()])
+        # la scansione, più vecchia, viene saltata; il posto resta per il file di testo
+        self.assertEqual((resoconto[coda.SALTATO], resoconto[coda.ELABORATO]), (1, 1))
+        self.assertEqual((self.stato(scansione), self.stato(testo)), (archivio.FILE_RICEVUTO, archivio.FILE_ELABORATO))
+
+    @override_settings(ELABORAZIONE_MODELLO_NOME="modello-di-prova")
+    def test_un_file_di_testo_passa_anche_dal_modello(self):
+        testo = "Verbale di sopralluogo presso la Alfa S.r.l., COE 12345.\nAmministratore: Mario Rossi."
+        modello = ModelloFinto([entita_json(
+            ("AMMINISTRATORE", "Mario Rossi", "Amministratore: Mario Rossi.", "sopralluogo", ""),
+            ("COE", "99999", "", "", ""),  # gli identificativi li leggono le regole, non il modello
+        )])
+        file = self.carica(testo)
+        resoconto = coda.esegui(lettori=[coda.LettoreTesto(coda.LettoreModello(cliente=modello))])
+        self.assertEqual(resoconto[coda.ELABORATO], 1)
+        self.assertEqual(self.stato(file), archivio.FILE_ELABORATO)
+        elaborazione = Elaborazione.objects.get()
+        self.assertEqual(
+            (elaborazione.motore, elaborazione.modello, elaborazione.versione_prompt, elaborazione.esito),
+            ("testo-2", "modello-di-prova", lettura_modello.VERSIONE_PROMPT, models.ESITO_OK),
+        )
+        # al modello arriva il testo del file, senza passare da immagini
+        self.assertEqual(len(modello.richieste), 1)
+        self.assertIn(f"<documento>\n{testo}\n</documento>", modello.richieste[0]["messages"][0]["content"])
+        amministratore = self.entita(file, "AMMINISTRATORE")
+        self.assertEqual(
+            (amministratore.fonte, amministratore.verificata, amministratore.evento, amministratore.soggetto),
+            (models.DA_MODELLO, True, "sopralluogo", anagrafica.trova(self.coe, "12345")),
+        )
+        self.assertEqual(self.entita(file, regole.COE).fonte, models.DA_REGOLA)
+        self.assertFalse(EntitaEstratta.objects.filter(valore="99999").exists())
+        # il testo non viene da una scansione: nessuna revisione obbligata
+        self.assertFalse(EntitaEstratta.objects.filter(da_rivedere=True).exists())
+
+    @override_settings(ELABORAZIONE_MODELLO_NOME="modello-di-prova")
+    def test_senza_modello_si_applicano_le_regole_e_il_file_resta_da_elaborare(self):
+        file = self.carica(VERBALE + "\nAmministratore: Mario Rossi.", coe="12345")
+        with override_settings(ELABORAZIONE_MODELLO_URL=""):
+            resoconto = coda.esegui(lettori=coda.lettori_predefiniti())
+            # le regole hanno lavorato, ma il file non è dichiarato elaborato
+            self.assertEqual((resoconto[coda.PARZIALE], resoconto[coda.ELABORATO], resoconto["in attesa"]), (1, 0, 1))
+            self.assertEqual(self.stato(file), archivio.FILE_RICEVUTO)
+            self.assertEqual(Elaborazione.objects.get().esito, models.ESITO_PARZIALE)
+            dalle_regole = EntitaEstratta.objects.filter(file=file).count()
+            self.assertEqual(dalle_regole, 6)
+            self.assertTrue(CollegamentoFile.objects.filter(file=file).exists())
+            # finché il modello manca non si rifà lo stesso lavoro ogni notte
+            resoconto = coda.esegui(lettori=coda.lettori_predefiniti())
+            self.assertEqual((resoconto[coda.SALTATO], resoconto[coda.PARZIALE]), (1, 0))
+            self.assertIn("in attesa del modello", next(iter(resoconto["motivi"])))
+            self.assertEqual((Elaborazione.objects.count(), EntitaEstratta.objects.count()), (1, dalle_regole))
+
+        # il modello torna: il file viene completato, senza ripetere ciò che le regole avevano già raccolto
+        modello = ModelloFinto([entita_json(("AMMINISTRATORE", "Mario Rossi", "Amministratore: Mario Rossi.", "sopralluogo", ""))])
+        resoconto = coda.esegui(lettori=[coda.LettoreTesto(coda.LettoreModello(cliente=modello))])
+        self.assertEqual(resoconto[coda.ELABORATO], 1)
+        self.assertEqual(self.stato(file), archivio.FILE_ELABORATO)
+        self.assertEqual(EntitaEstratta.objects.filter(file=file).count(), dalle_regole + 1)
+        self.assertEqual(self.entita(file, "AMMINISTRATORE").fonte, models.DA_MODELLO)
+        self.assertEqual(
+            list(Elaborazione.objects.order_by("pk").values_list("esito", flat=True)),
+            [models.ESITO_PARZIALE, models.ESITO_OK],
+        )
+        # ora è definitivo: non si riprende più
+        self.assertEqual(coda.esegui(lettori=[coda.LettoreTesto(coda.LettoreModello(cliente=ModelloFinto([])))])[coda.ELABORATO], 0)
 
     def test_un_file_interrotto_a_meta_viene_ripreso(self):
         file = self.carica("testo")
@@ -422,6 +492,13 @@ class ScansioneTest(ConFile):
 
 class RegoleTest(SimpleTestCase):
     """Riconoscimento, regole e risposta del modello: senza database."""
+
+    def test_un_testo_lungo_si_divide_senza_perdere_nulla(self):
+        testo = "riga di testo numero uno\n" * 400
+        pezzi = coda._pezzi(testo, 1000)
+        self.assertEqual("".join(pezzi), testo)
+        self.assertTrue(all(len(pezzo) <= 1000 for pezzo in pezzi) and len(pezzi) > 5)
+        self.assertEqual(coda._pezzi("breve"), ["breve"])
 
     def test_la_natura_si_legge_dai_primi_byte(self):
         casi = {

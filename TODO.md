@@ -68,6 +68,7 @@ Elenco unico delle cose da fare. Ogni passo si chiude con questo file aggiornato
   - [x] identificativi, date, importi, email e siti con regole fisse
   - [x] entità proposte dal modello, verificate contro il testo; revisione manuale
   - [x] risultati con motore, modello e versione del prompt
+  - [x] file di testo: regole più entità proposte dal modello; lettura parziale se il modello manca
   - [ ] PDF che contengono già il testo: estrazione diretta, senza OCR (oggi passano dal modello)
   - [ ] fatture elettroniche in XML: lettura dei campi come dati (oggi solo le regole sul testo)
   - [ ] ricerca per parola nel testo delle pagine

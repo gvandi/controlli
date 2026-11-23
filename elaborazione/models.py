@@ -42,6 +42,8 @@ TESTO_OCR = "ocr"          # trascritto da un'immagine
 ESITO_OK = "ok"
 ESITO_DA_RIVEDERE = "da rivedere"
 ESITO_ERRORE = "errore"
+# Sole regole, in attesa del modello: il file resta da elaborare e verrà completato
+ESITO_PARZIALE = "parziale"
 
 
 class VoceCatalogo(models.Model):

@@ -11,7 +11,7 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--minuti", type=int, default=None, help="Tempo massimo di lavoro. Vuoto: finché ci sono file.")
-        parser.add_argument("--massimo", type=int, default=None, help="Numero massimo di file da prendere.")
+        parser.add_argument("--massimo", type=int, default=None, help="Numero massimo di file da lavorare (quelli saltati non contano).")
 
     def handle(self, *args, **opzioni):
         resoconto = coda.esegui(minuti=opzioni["minuti"], massimo=opzioni["massimo"])
@@ -19,6 +19,7 @@ class Command(BaseCommand):
             self.stdout.write(f"Ripresi dopo un'interruzione: {resoconto['sbloccati']}")
         self.stdout.write(
             f"Elaborati: {resoconto[coda.ELABORATO]} | da rivedere: {resoconto[coda.DA_RIVEDERE]} | "
+            f"solo regole, in attesa del modello: {resoconto[coda.PARZIALE]} | "
             f"errori: {resoconto[coda.ERRORE]} | saltati: {resoconto[coda.SALTATO]} | "
             f"ancora in attesa: {resoconto['in attesa']}"
         )
