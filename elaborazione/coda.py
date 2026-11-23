@@ -4,6 +4,9 @@ CODA DI ELABORAZIONE: prende i file ricevuti, li fa leggere e ne salva testo ed 
     ricevuto --> in elaborazione --> elaborato        tutto a posto
                                  --> da rivedere      qualcosa va confermato da una persona
                                  --> errore           lettura fallita: si ritenta, fino a un massimo
+                                 --> ricevuto         lettura PARZIALE: fatte le sole regole perché il
+                                                      modello non era disponibile; il file resta da
+                                                      elaborare e viene completato quando il modello torna
 
 Regole (DECISIONI.md, n. 66 e 70-75):
   - un file si elabora UNA volta: "elaborato" è definitivo;
@@ -14,8 +17,9 @@ Regole (DECISIONI.md, n. 66 e 70-75):
   - le entità fuori catalogo si raccolgono comunque, con la voce vuota.
 
 I LETTORI sono intercambiabili: ognuno dichiara quali nature di file sa leggere e
-restituisce una Lettura. Qui ce ne sono due: il testo semplice (con le sole regole)
-e il modello visivo locale (scansioni e PDF). Le prove ne usano uno finto.
+restituisce una Lettura. Qui ce ne sono due: i file che sono già testo (regole, più
+il modello per le entità) e le scansioni e i PDF (modello visivo). Le prove ne usano
+uno finto.
 """
 import collections
 import datetime
@@ -41,7 +45,10 @@ from .models import Elaborazione, EntitaEstratta, TestoPagina, VoceCatalogo
 
 registro = logging.getLogger("elaborazione.coda")
 
-ELABORATO, DA_RIVEDERE, ERRORE, SALTATO = "elaborato", "da rivedere", "errore", "saltato"
+ELABORATO, DA_RIVEDERE, ERRORE, SALTATO, PARZIALE = "elaborato", "da rivedere", "errore", "saltato", "parziale"
+
+# Un file di testo lungo si passa al modello a pezzi di questa lunghezza (caratteri)
+CARATTERI_PER_PEZZO = 6000
 
 # Etichetta prodotta dalle regole -> codice del tipo di identificativo in anagrafica
 TIPO_PER_REGOLA = {regole.COE: "COE", regole.PARTITA_IVA: "PIVA_IT"}
@@ -49,7 +56,8 @@ TIPO_PER_REGOLA = {regole.COE: "COE", regole.PARTITA_IVA: "PIVA_IT"}
 DELICATE_SE_DA_SCANSIONE = (regole.COE, regole.PARTITA_IVA, regole.IMPORTO)
 
 # pagine: [(numero, testo, origine)]   entita: [dizionari con etichetta, valore, pagina, fonte, ...]
-Lettura = collections.namedtuple("Lettura", "pagine entita modello versione_prompt")
+# completa: falso se sono state applicate le sole regole perché il modello non era disponibile
+Lettura = collections.namedtuple("Lettura", "pagine entita modello versione_prompt completa", defaults=(True,))
 
 
 def _impostazione(nome, predefinito):
@@ -67,11 +75,34 @@ def _compatto(testo):
 # =====================================================================
 # 1. LETTORI
 # =====================================================================
-class LettoreTesto:
-    """File che sono già testo (testo semplice, XML): niente OCR, solo le regole."""
+def _pezzi(testo, massimo=CARATTERI_PER_PEZZO):
+    """Divide un testo lungo in pezzi, tagliando dove finisce un paragrafo o almeno una riga."""
+    pezzi = []
+    while len(testo) > massimo:
+        taglio = max(testo.rfind("\n\n", 0, massimo), testo.rfind("\n", 0, massimo))
+        taglio = taglio if taglio > massimo // 2 else massimo
+        pezzi.append(testo[:taglio])
+        testo = testo[taglio:]
+    return pezzi + [testo] if testo or not pezzi else pezzi
 
-    nome = "testo-1"
+
+class LettoreTesto:
+    """
+    File che sono già testo (testo semplice, XML): niente OCR. Le regole fisse
+    leggono identificativi, date e importi; il modello propone le altre entità.
+
+    Costruito con un LettoreModello, gli chiede le entità. Se il modello non è
+    disponibile applica le sole regole e dichiara la lettura NON completa: il file
+    resta da elaborare e verrà completato quando il modello torna.
+    Costruito senza modello usa le sole regole e la lettura è completa: serve
+    alle prove e a chi vuole espressamente fare a meno del modello.
+    """
+
+    nome = "testo-2"
     nature = (riconoscimento.TESTO, riconoscimento.XML)
+
+    def __init__(self, modello=None):
+        self._modello = modello
 
     def disponibile(self):
         return True, ""
@@ -79,8 +110,17 @@ class LettoreTesto:
     def leggi(self, percorso, natura, voci):
         with open(percorso, "rb") as contenuto:
             testo = contenuto.read().decode("utf-8", errors="replace")
-        entita = [dict(e, pagina=1, fonte=models.DA_REGOLA) for e in regole.estrai(testo)]
-        return Lettura([(1, testo, models.TESTO_DIRETTO)], entita, "", "")
+        con_modello = self._modello is not None and self._modello.disponibile()[0]
+        pagine, entita, evento = [], [], ""
+        for numero, pezzo in enumerate(_pezzi(testo), start=1):
+            pagine.append((numero, pezzo, models.TESTO_DIRETTO))
+            entita += [dict(e, pagina=numero, fonte=models.DA_REGOLA) for e in regole.estrai(pezzo)]
+            if con_modello:
+                proposte, evento = self._modello.entita_dal_testo(pezzo, voci, evento)
+                entita += [dict(proposta, pagina=numero, fonte=models.DA_MODELLO) for proposta in proposte]
+        if con_modello:
+            return Lettura(pagine, entita, self._modello.modello, lettura_modello.VERSIONE_PROMPT)
+        return Lettura(pagine, entita, "", "", completa=self._modello is None)
 
 
 class LettoreModello:
@@ -116,9 +156,26 @@ class LettoreModello:
         self._cliente = OpenAI(base_url=indirizzo, api_key=chiave)
         return True, ""
 
+    def _parametri(self):
+        return (
+            int(_impostazione("ELABORAZIONE_MODELLO_MASSIMO_TOKEN", 6000)),
+            dict(_impostazione("ELABORAZIONE_MODELLO_OPZIONI", {})),
+        )
+
+    def entita_dal_testo(self, testo, voci, evento_precedente=""):
+        """
+        Le entità che il modello propone per un testo, e l'ultimo evento incontrato.
+        Gli identificativi li leggono le regole: quelli proposti dal modello non si usano (n. 23).
+        """
+        massimo, opzioni = self._parametri()
+        proposte, evento = lettura_modello.estrai_entita(
+            self._cliente, self.modello, testo, voci, evento_precedente, massimo, opzioni
+        )
+        riservate_alle_regole = {_compatto(etichetta) for etichetta in TIPO_PER_REGOLA}
+        return [p for p in proposte if _compatto(p["etichetta"]) not in riservate_alle_regole], evento
+
     def leggi(self, percorso, natura, voci):
-        opzioni = dict(_impostazione("ELABORAZIONE_MODELLO_OPZIONI", {}))
-        massimo = int(_impostazione("ELABORAZIONE_MODELLO_MASSIMO_TOKEN", 6000))
+        massimo, opzioni = self._parametri()
         if natura == riconoscimento.PDF:
             immagini = self._pagine_del_pdf(percorso, int(_impostazione("ELABORAZIONE_PUNTI_PER_POLLICE", 200)))
         else:
@@ -128,19 +185,15 @@ class LettoreModello:
             testo = lettura_modello.trascrivi(self._cliente, self.modello, jpeg, massimo, opzioni)
             pagine.append((numero, testo, models.TESTO_OCR))
             entita += [dict(e, pagina=numero, fonte=models.DA_REGOLA) for e in regole.estrai(testo)]
-            proposte, evento = lettura_modello.estrai_entita(
-                self._cliente, self.modello, testo, voci, evento, massimo, opzioni
-            )
-            for proposta in proposte:
-                # Gli identificativi li leggono le regole: quelli del modello non si usano (n. 23)
-                if _compatto(proposta["etichetta"]) in {_compatto(e) for e in TIPO_PER_REGOLA}:
-                    continue
-                entita.append(dict(proposta, pagina=numero, fonte=models.DA_MODELLO))
+            proposte, evento = self.entita_dal_testo(testo, voci, evento)
+            entita += [dict(proposta, pagina=numero, fonte=models.DA_MODELLO) for proposta in proposte]
         return Lettura(pagine, entita, self.modello, lettura_modello.VERSIONE_PROMPT)
 
 
 def lettori_predefiniti():
-    return [LettoreTesto(), LettoreModello()]
+    """I lettori della coda vera: lo stesso modello serve i file di testo e le scansioni."""
+    modello = LettoreModello()
+    return [LettoreTesto(modello), modello]
 
 
 # =====================================================================
@@ -200,7 +253,7 @@ def _fallito(file, messaggio, elaborazione=None, definitivo=False):
 def elabora_file(file, lettori):
     """
     Elabora un file già preso dalla coda. Restituisce (esito, messaggio), con esito
-    fra ELABORATO, DA_RIVEDERE, ERRORE e SALTATO. Non solleva eccezioni: un file
+    fra ELABORATO, DA_RIVEDERE, PARZIALE, ERRORE e SALTATO. Non solleva eccezioni: un file
     andato male non deve fermare la coda.
     """
     percorso = deposito.percorso(caricamento.cartella_deposito(), file.impronta)
@@ -217,9 +270,14 @@ def elabora_file(file, lettori):
     if not disponibile:
         return SALTATO, motivo
 
+    gia_parziale = Elaborazione.objects.filter(file=file, esito=models.ESITO_PARZIALE).exists()
     elaborazione = Elaborazione.objects.create(file=file, natura=natura, motore=lettore.nome)
     try:
         lettura = lettore.leggi(percorso, natura, [(v.codice, v.descrizione) for v in voci_valide()])
+        if not lettura.completa and gia_parziale:
+            # Le regole sono già state applicate una volta: finché il modello non torna non c'è altro da fare
+            elaborazione.delete()
+            return SALTATO, "file di testo già letti con le sole regole, in attesa del modello"
         with transaction.atomic():
             return _salva(file, elaborazione, lettura), ""
     except lettura_modello.LetturaFallita as errore:
@@ -259,9 +317,22 @@ def _salva(file, elaborazione, lettura):
     # L'ispettore ha dichiarato dei soggetti, ma il file ne nomina solo altri
     estraneo = bool(dichiarati and trovati and not ({d.soggetto_id for d in dichiarati} & set(trovati)))
 
+    # Ciò che una lettura parziale precedente ha già raccolto da questo file non si ripete
+    def chiave(etichetta, normalizzato, pagina):
+        return _compatto(etichetta), _compatto(normalizzato), pagina
+
+    gia_raccolte = {
+        chiave(*riga) for riga in EntitaEstratta.objects.filter(file=file).values_list(
+            "etichetta", "valore_normalizzato", "pagina"
+        )
+    }
+
     # Secondo giro: scrivere le entità
     nuove = []
     for entita, nominato in preparate:
+        normalizzato = (entita.get("normalizzato") or " ".join(entita["valore"].split()))[:500]
+        if chiave(entita["etichetta"][:120], normalizzato, entita.get("pagina")) in gia_raccolte:
+            continue
         voce = indice.get(_compatto(entita["etichetta"]))
         da_scansione = origini.get(entita.get("pagina")) == models.TESTO_OCR
         verificata = entita["fonte"] == models.DA_REGOLA or regole.compare_nel_testo(
@@ -278,7 +349,7 @@ def _salva(file, elaborazione, lettura):
         nuove.append(EntitaEstratta(
             elaborazione=elaborazione, file=file, voce=voce,
             etichetta=entita["etichetta"][:120], valore=entita["valore"][:500],
-            valore_normalizzato=(entita.get("normalizzato") or " ".join(entita["valore"].split()))[:500],
+            valore_normalizzato=normalizzato,
             pagina=entita.get("pagina"), citazione=entita.get("citazione", ""),
             evento=entita.get("evento", "")[:200], periodo=entita.get("periodo", "")[:20],
             fonte=entita["fonte"], verificata=verificata, soggetto=nominato or principale,
@@ -292,6 +363,14 @@ def _salva(file, elaborazione, lettura):
         servizi_archivio.collega_file_all_azienda(file, dichiarato.soggetto, "dichiarato")
     for soggetto in trovati.values():
         servizi_archivio.collega_file_all_azienda(file, soggetto, "estratto")
+
+    if not lettura.completa:
+        # Fatte le sole regole: il file resta da elaborare, e lo completerà il modello
+        FileCaricato.objects.filter(pk=file.pk).update(stato=archivio.FILE_RICEVUTO, ultimo_errore="")
+        Elaborazione.objects.filter(pk=elaborazione.pk).update(
+            esito=models.ESITO_PARZIALE, finita_il=timezone.now(), pagine=len(lettura.pagine)
+        )
+        return PARZIALE
 
     da_rivedere = EntitaEstratta.objects.filter(file=file, da_rivedere=True, ritirata=False).exists()
     stato = archivio.FILE_DA_RIVEDERE if da_rivedere else archivio.FILE_ELABORATO
@@ -369,17 +448,21 @@ def _prendi(gia_presi):
 def esegui(minuti=None, massimo=None, lettori=None):
     """
     Elabora i file in attesa finché ce ne sono, per al più 'minuti' di tempo o
-    'massimo' file. Restituisce il resoconto: quanti per esito e perché alcuni
-    sono stati saltati. I file non presi restano in attesa per la prossima volta.
+    'massimo' file lavorati (i file saltati non contano nel massimo). Restituisce il
+    resoconto: quanti per esito e perché alcuni sono stati saltati. I file non presi
+    restano in attesa per la prossima volta.
     """
     lettori = lettori if lettori is not None else lettori_predefiniti()
     scadenza = time.monotonic() + minuti * 60 if minuti else None
-    resoconto = {ELABORATO: 0, DA_RIVEDERE: 0, ERRORE: 0, SALTATO: 0, "motivi": {}, "sbloccati": sblocca_interrotti()}
+    resoconto = {
+        ELABORATO: 0, DA_RIVEDERE: 0, PARZIALE: 0, ERRORE: 0, SALTATO: 0, "motivi": {},
+        "sbloccati": sblocca_interrotti(),
+    }
     # Ogni file si prende al più una volta per giro. Senza questo, un file andato in
     # errore verrebbe ripreso subito e consumerebbe tutti i tentativi in pochi secondi,
     # per esempio mentre il server del modello è spento.
-    gia_presi = []
-    while (massimo is None or len(gia_presi) < massimo) and (scadenza is None or time.monotonic() < scadenza):
+    gia_presi, lavorati = [], 0
+    while (massimo is None or lavorati < massimo) and (scadenza is None or time.monotonic() < scadenza):
         file = _prendi(gia_presi)
         if file is None:
             break
@@ -389,6 +472,8 @@ def esegui(minuti=None, massimo=None, lettori=None):
             # Nessun lettore disponibile per questo file: torna com'era
             FileCaricato.objects.filter(pk=file.pk).update(stato=file.stato_precedente)
             resoconto["motivi"][messaggio] = resoconto["motivi"].get(messaggio, 0) + 1
+        else:
+            lavorati += 1
         resoconto[esito] += 1
     resoconto["in attesa"] = FileCaricato.objects.filter(
         fascicolo__stato=archivio.CONFERMATO, stato=archivio.FILE_RICEVUTO
