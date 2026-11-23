@@ -34,4 +34,24 @@
     {% endfor %}
   </table>
 </div>
+
+<div class="scheda">
+  <h2>{% translate "Documenti in cui compare" %}</h2>
+  <p class="tenue">{% translate "Solo i documenti i cui ruoli sono stati confermati da una persona. Un DDT o una fattura descrivono un rapporto fra aziende: date, importi e righe restano nel documento e non diventano voci della scheda." %}</p>
+  <table>
+    <tr><th>{% translate "Documento" %}</th><th>{% translate "Data" %}</th><th>{% translate "Totale" %}</th><th>{% translate "Ruolo" %}</th><th>{% translate "Altre parti" %}</th><th>{% translate "Dal file" %}</th></tr>
+    {% for riga in documenti %}
+      <tr>
+        <td><strong>{{ riga.documento.tipo|default:"-" }}</strong> {{ riga.documento.numero }}</td>
+        <td>{{ riga.documento.data|date:"Y-m-d"|default:"-" }}</td>
+        <td>{{ riga.documento.totale|default:"-" }}</td>
+        <td>{{ riga.ruolo }}</td>
+        <td>{% for altra in riga.altre %}{{ altra.ruolo }}: {{ altra.denominazione }}{% if altra.identificativo %} <span class="tenue">({{ altra.identificativo }})</span>{% endif %}{% if not forloop.last %}<br>{% endif %}{% endfor %}</td>
+        <td class="percorso"><a href="{% url 'elaborazione:file' riga.documento.file_id %}">{{ riga.documento.file.percorso_originale }}</a></td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="6" class="tenue">{% translate "Nessun documento confermato." %}</td></tr>
+    {% endfor %}
+  </table>
+</div>
 {% endblock %}

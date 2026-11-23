@@ -638,6 +638,24 @@ class DocumentoTest(ConFile):
         self.assertEqual(ruoli, {models.MITTENTE: mittente, models.DESTINATARIO: destinatario, models.VETTORE: vettore})
         self.assertTrue(self.parte("Banca").ritirata)
 
+        # il nome confermato diventa la denominazione del soggetto, nella scheda e in anagrafica
+        nomi = {e.soggetto: (e.valore, e.fonte) for e in EntitaEstratta.objects.utilizzabili().filter(etichetta="DENOMINAZIONE")}
+        self.assertEqual(nomi[mittente], ("Alfa S.r.l.", models.DA_DOCUMENTO))
+        self.assertEqual(len(nomi), 3)
+        mittente.refresh_from_db()
+        self.assertEqual(mittente.denominazione, "Alfa S.r.l.")
+        # e la scheda dell'azienda elenca il documento, con il ruolo e le altre parti
+        (riga,) = coda.documenti_del_soggetto(mittente, self.anna)
+        self.assertEqual((riga["ruolo"], {p.ruolo for p in riga["altre"]}), (models.MITTENTE, {models.DESTINATARIO, models.VETTORE}))
+        azienda = Fascicolo.objects.get(faldone__codice=archivio.AZIENDE, soggetto=mittente)
+        self.assertIn("Alfa S.r.l.", azienda.titolo)
+        scheda = self.client.get(reverse("elaborazione:soggetto", args=[azienda.pk]))
+        self.assertContains(scheda, "Trasporti Beta S.r.l.")
+        self.assertEqual(coda.documenti_del_soggetto(mittente, self.bruno)[0]["ruolo"], models.MITTENTE)
+        # rivedere di nuovo non raddoppia le denominazioni
+        self.client.post(indirizzo, dict(modulo, entita=list(EntitaEstratta.objects.filter(file=file).values_list("pk", flat=True))))
+        self.assertEqual(EntitaEstratta.objects.filter(etichetta="DENOMINAZIONE").count(), 3)
+
     @override_settings(ELABORAZIONE_MODELLO_NOME="modello-di-prova")
     def test_documento_e_citazione_non_allungano_la_risposta_sulle_entita(self):
         file = self.carica(DDT + "\nAmministratore: Mario Rossi.", nome="ddt.txt")

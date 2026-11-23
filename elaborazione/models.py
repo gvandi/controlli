@@ -43,6 +43,7 @@ TIPI_VALORE = ("testo", "identificativo", "data", "importo", "numero", "luogo")
 # Da dove viene un'entità
 DA_REGOLA = "regola"    # letta nel testo da un'espressione fissa
 DA_MODELLO = "modello"  # proposta dal modello linguistico
+DA_DOCUMENTO = "documento"  # ricavata da una parte di un documento confermato da una persona
 
 # Da dove viene il testo di una pagina
 TESTO_DIRETTO = "diretto"  # il file era già testo
