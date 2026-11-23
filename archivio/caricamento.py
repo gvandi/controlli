@@ -10,6 +10,10 @@ conferma i file passano da "bozza" a "ricevuto" e diventano lavoro per
 l'elaborazione. Dopo la conferma non si cancella più: si annulla, lasciando
 traccia (DECISIONI.md, n. 65).
 
+LO STATO CHE SI MOSTRA (n. 81). "confermato" dice solo che il caricamento è stato
+consegnato; a che punto sono i suoi file lo dice avanzamento(): è quello che le
+pagine mostrano, così l'elenco dei caricamenti e l'elenco dei file dicono la stessa cosa.
+
 I file non si spostano mai (n. 64): il contenuto sta nel deposito, qui si scrivono
 solo le righe del database.
 """
@@ -19,6 +23,7 @@ import pathlib
 
 from django.conf import settings
 from django.db import transaction
+from django.db.models import Count
 
 from soggetti import servizi as anagrafica
 
@@ -65,6 +70,46 @@ def massimo_byte_nello_zip():
 # ---------------------------------------------------------------------
 def e_caricamento(fascicolo):
     return fascicolo.faldone.codice == models.CARICAMENTI
+
+
+# Come si nominano, nel riassunto di un caricamento, i file in ciascuno stato (uno, più di uno)
+_NEL_RIASSUNTO = (
+    (models.FILE_RICEVUTO, "in attesa di elaborazione", "in attesa di elaborazione"),
+    (models.FILE_IN_ELABORAZIONE, "in elaborazione", "in elaborazione"),
+    (models.FILE_ERRORE, "con errore", "con errore"),
+    (models.FILE_DA_RIVEDERE, "da rivedere", "da rivedere"),
+    (models.FILE_ELABORATO, "elaborato", "elaborati"),
+)
+
+
+def avanzamento(fascicoli):
+    """
+    Lo stato da mostrare per ogni fascicolo: {numero: testo}. Per un caricamento
+    confermato è il riassunto degli stati dei suoi file ("elaborato" se lo sono tutti,
+    altrimenti per esempio "2 in attesa di elaborazione, 1 da rivedere, 3 elaborati");
+    per tutti gli altri è lo stato del fascicolo.
+    """
+    fascicoli = list(fascicoli)
+    conteggi = {}
+    righe = (
+        FileCaricato.objects.filter(fascicolo__in=[f.pk for f in fascicoli if f.stato == models.CONFERMATO])
+        .values_list("fascicolo", "stato").annotate(quanti=Count("pk"))
+    )
+    for numero, stato, quanti in righe:
+        conteggi.setdefault(numero, {})[stato] = quanti
+    testi = {}
+    for fascicolo in fascicoli:
+        per_stato = conteggi.get(fascicolo.pk)
+        if fascicolo.stato != models.CONFERMATO or not per_stato:
+            testi[fascicolo.pk] = fascicolo.stato
+        elif set(per_stato) == {models.FILE_ELABORATO}:
+            testi[fascicolo.pk] = "elaborato"
+        else:
+            testi[fascicolo.pk] = ", ".join(
+                f"{per_stato[stato]} {uno if per_stato[stato] == 1 else piu}"
+                for stato, uno, piu in _NEL_RIASSUNTO if per_stato.get(stato)
+            ) or fascicolo.stato
+    return testi
 
 
 def puo_caricare(utente):

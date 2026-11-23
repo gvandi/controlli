@@ -403,6 +403,13 @@ class CaricamentoTest(ConUtenti):
         fascicolo.refresh_from_db()
         riga.refresh_from_db()
         self.assertEqual((fascicolo.stato, riga.stato), (models.CONFERMATO, models.FILE_RICEVUTO))
+        # nelle pagine si mostra a che punto sono i file, non "confermato"
+        self.assertEqual(caricamento.avanzamento([fascicolo]), {fascicolo.pk: "1 in attesa di elaborazione"})
+        self.assertContains(self.pagina(self.anna, "faldone", models.CARICAMENTI), "1 in attesa di elaborazione")
+        FileCaricato.objects.filter(pk=riga.pk).update(stato=models.FILE_ELABORATO)
+        self.assertEqual(caricamento.avanzamento([fascicolo]), {fascicolo.pk: "elaborato"})
+        self.assertContains(self.pagina(self.anna, "fascicolo", fascicolo.pk), "<strong>elaborato</strong>")
+        FileCaricato.objects.filter(pk=riga.pk).update(stato=models.FILE_RICEVUTO)
         # dopo la conferma: niente file nuovi, niente metadati, niente eliminazione
         for operazione in (
             lambda: caricamento.aggiungi_file(fascicolo, self.anna, [un_file("b.pdf")]),

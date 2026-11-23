@@ -26,7 +26,7 @@
       <tr>
         <td>{{ f.pk }}</td>
         <td><a href="{% url 'archivio:fascicolo' f.pk %}">{{ f.titolo }}</a></td>
-        <td>{{ f.stato }}</td>
+        <td>{{ f.stato_mostrato }}</td>
         <td>{{ f.creato_il|date:"Y-m-d H:i" }}</td>
       </tr>
     {% empty %}

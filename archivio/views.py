@@ -88,9 +88,13 @@ def faldone(request, codice):
         fascicoli = fascicoli.filter(
             Q(titolo__icontains=cerca) | Q(soggetto__identificativi__valore_normalizzato__icontains=cerca)
         ).distinct()
+    elenco = list(fascicoli.order_by("-creato_il")[:MASSIMO_IN_ELENCO])
+    stati = caricamento.avanzamento(elenco)
+    for riga in elenco:
+        riga.stato_mostrato = stati[riga.pk]
     return render(request, "archivio/faldone.html", {
         "faldone": faldone,
-        "fascicoli": fascicoli.order_by("-creato_il")[:MASSIMO_IN_ELENCO],
+        "fascicoli": elenco,
         "cerca": cerca,
         "errore": errore,
         "puo_aprire_indagini": puo_aprire_indagini,
@@ -224,6 +228,7 @@ def _pagina_caricamento(request, fascicolo):
     puo_caricare = caricamento.puo_caricare(request.user)
     return render(request, "archivio/caricamento.html", {
         "fascicolo": fascicolo,
+        "stato_mostrato": caricamento.avanzamento([fascicolo])[fascicolo.pk],
         "caricamento": Caricamento.objects.select_related("tipo_documento").get(pk=fascicolo.pk),
         "errore": errore,
         "resoconto": resoconto,
