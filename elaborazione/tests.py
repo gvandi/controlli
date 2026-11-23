@@ -407,7 +407,7 @@ class CodaTest(ConFile):
         self.assertEqual({c.file for c in fascicolo.context["file_collegati"]}, {generale, riservato})
         # chi non può rivedere non modifica nulla
         entita = self.entita(generale, "SOCIO")
-        self.pagina(self.bruno, "file", generale.pk, azione="scarta", entita=entita.pk)
+        self.pagina(self.bruno, "file", generale.pk, azione="conserva")
         self.assertFalse(EntitaEstratta.objects.get(pk=entita.pk).ritirata)
 
 
@@ -604,6 +604,36 @@ class ScansioneTest(ConFile):
         self.assertEqual(self.stato(file), archivio.FILE_ELABORATO)
         note = {r["voce"].codice for r in coda.scheda_del_soggetto(soggetto, self.anna) if not r["mancante"]}
         self.assertEqual(note, {"COE", "AMMINISTRATORE", "RICAVI"})
+
+    def test_il_revisore_sceglie_che_cosa_conservare_e_torna_al_file(self):
+        modello = ModelloFinto([
+            risposta_del_modello(self.PAGINA_1),
+            entita_json(("AMMINISTRATORE", "Mario Rossi", "", "", ""), ("luogo", "Serravalle", "", "", "")),
+            risposta_del_modello(self.PAGINA_2),
+            entita_json(("RICAVI", "150.000,00", "", "", "2024")),
+        ])
+        file = self.carica(b"%PDF-1.4 scansione finta", nome="assemblea.pdf")
+        coda.esegui(lettori=[self.lettore_di_scansioni(modello)])
+        self.assertEqual(self.stato(file), archivio.FILE_DA_RIVEDERE)
+        luogo = self.entita(file, "luogo")
+        tenute = list(EntitaEstratta.objects.filter(file=file).exclude(pk=luogo.pk).values_list("pk", flat=True))
+
+        self.client.force_login(self.anna)
+        indirizzo = reverse("elaborazione:file", args=[file.pk])
+        risposta = self.client.post(indirizzo, {"azione": "conserva", "entita": tenute}, follow=True)
+        # si torna alla pagina del file in archivio, che dice che cosa è successo
+        self.assertRedirects(risposta, reverse("archivio:file", args=[file.pk]))
+        self.assertContains(risposta, "Revisione chiusa")
+        self.assertEqual(self.stato(file), archivio.FILE_ELABORATO)
+        self.assertTrue(EntitaEstratta.objects.get(pk=luogo.pk).ritirata)
+        self.assertFalse(EntitaEstratta.objects.filter(file=file, da_rivedere=True).exists())
+        self.assertIn("RICAVI", [e.etichetta for e in EntitaEstratta.objects.utilizzabili()])
+
+        # un'entità scartata per errore si ripristina: torna in attesa, e il file con lei
+        self.client.post(indirizzo, {"ripristina": luogo.pk})
+        luogo.refresh_from_db()
+        self.assertEqual((luogo.ritirata, luogo.da_rivedere), (False, True))
+        self.assertEqual(self.stato(file), archivio.FILE_DA_RIVEDERE)
 
     def test_una_risposta_tagliata_e_un_errore_da_ritentare_non_un_risultato(self):
         modello = ModelloFinto([risposta_del_modello(self.PAGINA_1), risposta_del_modello('{"entita": [', fine="length")])
