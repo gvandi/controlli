@@ -1,7 +1,9 @@
 """
 Pagine dell'elaborazione.
 
-    /elaborazione/file/N/        testo ed entità estratte da un file; revisione
+    /elaborazione/file/N/        testo ed entità estratte da un file; revisione:
+                                 si scelgono le entità da conservare, le altre sono
+                                 scartate, e si torna alla pagina del file in archivio
     /elaborazione/soggetto/N/    la scheda di un soggetto (N = fascicolo dell'azienda)
     /elaborazione/fuori-catalogo/   etichette raccolte ma non significative, da promuovere
 
@@ -10,10 +12,12 @@ pagina parte dai fascicoli visibili all'utente, come nell'archivio.
 """
 import collections
 
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required, permission_required
 from django.http import Http404
 from django.shortcuts import redirect, render
 
+from archivio import models as archivio
 from archivio.models import Fascicolo, FileCaricato
 from soggetti import servizi as anagrafica
 
@@ -37,14 +41,20 @@ def file(request, numero):
     riga = _file_visibile(request, numero)
     puo_rivedere = request.user.has_perm("elaborazione.change_entitaestratta")
     if request.method == "POST" and puo_rivedere:
-        scelte = [int(n) for n in request.POST.getlist("entita") if n.isdigit()]
-        azione = request.POST.get("azione")
-        if azione == "conferma_tutte":
-            coda.conferma(riga)
-        elif azione == "conferma" and scelte:
-            coda.conferma(riga, scelte)
-        elif azione == "scarta" and scelte:
-            coda.scarta(riga, scelte)
+        if request.POST.get("ripristina", "").isdigit():
+            coda.ripristina(riga, [int(request.POST["ripristina"])])
+            return redirect("elaborazione:file", numero=riga.pk)
+        if request.POST.get("azione") == "conserva":
+            scelte = [int(n) for n in request.POST.getlist("entita") if n.isdigit()]
+            conservate, scartate = coda.chiudi_revisione(riga, scelte)
+            riga.refresh_from_db()
+            esito = f"Revisione chiusa: {conservate} entità conservate, {scartate} scartate. "
+            if riga.stato == archivio.FILE_ELABORATO:
+                esito += "Il file è ora «elaborato»."
+            else:
+                esito += f"Il file resta «{riga.stato}»: la sua lettura non è ancora completa."
+            messages.success(request, esito)
+            return redirect("archivio:file", numero=riga.pk)
         return redirect("elaborazione:file", numero=riga.pk)
 
     elaborazioni = list(riga.elaborazioni.order_by("-iniziata_il"))

@@ -20,6 +20,10 @@ I LETTORI sono intercambiabili: ognuno dichiara quali nature di file sa leggere 
 restituisce una Lettura. Qui ce ne sono due: i file che sono già testo (regole, più
 il modello per le entità) e le scansioni e i PDF (modello visivo). Le prove ne usano
 uno finto.
+
+REVISIONE (DECISIONI.md, n. 78): dalla pagina "Testo ed entità estratte" il revisore
+sceglie le entità da conservare e chiude la revisione in un solo passo
+(chiudi_revisione); un'entità scartata si può ripristinare (ripristina).
 """
 import collections
 import datetime
@@ -512,6 +516,40 @@ def scarta(file, numeri):
     )
     _aggiorna_stato(file)
     return scartate
+
+
+def chiudi_revisione(file, conservate):
+    """
+    Il revisore ha scelto che cosa tenere: le entità indicate sono confermate, tutte
+    le altre del file sono scartate (restano nel registro come ritirate e si possono
+    ripristinare). Il file, se era stato letto per intero, diventa "elaborato"; se la
+    lettura non è ancora completa o è fallita, il suo stato non cambia.
+    Restituisce (quante conservate, quante scartate).
+    """
+    with transaction.atomic():
+        vive = EntitaEstratta.objects.filter(file=file, ritirata=False)
+        scartate = vive.exclude(pk__in=conservate).update(ritirata=True, da_rivedere=False)
+        tenute = vive.filter(pk__in=conservate).update(da_rivedere=False, motivo_revisione="")
+        FileCaricato.objects.filter(pk=file.pk, stato=archivio.FILE_DA_RIVEDERE).update(stato=archivio.FILE_ELABORATO)
+    return tenute, scartate
+
+
+def ripristina(file, numeri):
+    """
+    Un'entità scartata per errore torna fra quelle del file, in attesa di revisione;
+    il file torna "da rivedere". Non vale per i file di un caricamento annullato.
+    """
+    if file.stato == archivio.FILE_ANNULLATO:
+        return 0
+    with transaction.atomic():
+        ripristinate = EntitaEstratta.objects.filter(file=file, pk__in=numeri, ritirata=True).update(
+            ritirata=False, da_rivedere=True, motivo_revisione="Ripristinata dopo essere stata scartata"
+        )
+        if ripristinate:
+            FileCaricato.objects.filter(pk=file.pk, stato=archivio.FILE_ELABORATO).update(
+                stato=archivio.FILE_DA_RIVEDERE
+            )
+    return ripristinate
 
 
 # =====================================================================
