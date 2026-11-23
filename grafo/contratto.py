@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   contratto.py  -  app grafo, VERSIONE 22
+#   contratto.py  -  app grafo, VERSIONE 23
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: contratto
@@ -57,6 +57,8 @@
 #        dal servizio MCP).
 #   [22] Settimo strumento calcola in NOMI_STRUMENTI; STRUMENTI_SENZA_ARCHIVIO elenca gli
 #        strumenti che non leggono punteggi e dati.
+#   [23] Ottavo strumento scheda in NOMI_STRUMENTI e in STRUMENTI_SENZA_ARCHIVIO: legge
+#        l'archivio dei file caricati, non quello dell'analisi di rete.
 #
 # <<< NOVITA
 """
@@ -84,7 +86,7 @@ from packaging.version import InvalidVersion, Version
 # 1) PROGETTO: quale rilascio è installato. Solo provenienza: non blocca nulla.
 #    Dalla versione 20 è un numero intero (20, 21...): non essendo mai confrontato
 #    con un intervallo, un secondo numero non serviva.
-VERSIONE_CODICE = "22"
+VERSIONE_CODICE = "23"
 
 # 2) SCHEMA del database: decide se un lettore può aprire l'archivio.
 #    Secondo numero: modifiche che AGGIUNGONO (tabella, colonna facoltativa, indice).
@@ -218,11 +220,14 @@ DESCRIZIONE_POPOLAZIONE = {
 }
 
 # Strumenti che il server MCP espone alla chat: uno per intento
-NOMI_STRUMENTI = ("classifica", "relazione", "spiegazione", "vicinato", "indicatore", "mappa", "calcola")
+NOMI_STRUMENTI = (
+    "classifica", "relazione", "spiegazione", "vicinato", "indicatore", "mappa", "calcola", "scheda",
+)
 # I primi cinque stanno in interrogazione.py; "mappa" in servizio_mcp.py, perché
-# scrive un file e lo registra nella sessione; "calcola" in calcolatrice.py.
-# Strumenti che non leggono l'archivio: per loro non si registra la coppia calcolo/dati
-STRUMENTI_SENZA_ARCHIVIO = ("calcola",)
+# scrive un file e lo registra nella sessione; "calcola" in calcolatrice.py; "scheda"
+# in servizio_mcp.py, perché ha bisogno dell'utente della sessione.
+# Strumenti che non leggono l'archivio dell'analisi di rete: per loro non si registra la coppia calcolo/dati
+STRUMENTI_SENZA_ARCHIVIO = ("calcola", "scheda")
 
 # Come una sessione ha dimostrato chi è l'utente
 ACCESSO_TOKEN = "token"  # token personale copiato a mano (versione 20)

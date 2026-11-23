@@ -31,6 +31,9 @@ di ogni parte legata a un soggetto diventa la sua DENOMINAZIONE (un'entità con 
 "documento") e, se il soggetto non ne aveva una, anche il suo nome in anagrafica.
 La scheda del soggetto elenca i documenti confermati in cui compare, con il ruolo.
 
+PER LA CHAT (n. 84): descrivi_azienda() dice in parole ciò che si sa di un'azienda;
+la usa lo strumento "scheda" del servizio MCP (grafo/servizio_mcp.py).
+
 REVISIONE (DECISIONI.md, n. 78): dalla pagina "Testo ed entità estratte" il revisore
 sceglie le entità da conservare e chiude la revisione in un solo passo
 (chiudi_revisione); un'entità scartata si può ripristinare (ripristina).
@@ -54,6 +57,7 @@ from archivio import servizi as servizi_archivio
 from archivio.models import Fascicolo, FileCaricato
 from decodifiche.models import TipoIdentificativo
 from soggetti import servizi as anagrafica
+from soggetti.models import IdentificativoSoggetto, Soggetto
 
 from . import lettura_modello, models, regole, riconoscimento
 from .models import Documento, Elaborazione, EntitaEstratta, ParteDelDocumento, TestoPagina, VoceCatalogo
@@ -806,3 +810,91 @@ def scheda_del_soggetto(soggetto, utente):
         {"voce": voce, "valori": note.get(voce.pk, []), "mancante": voce.pk not in note}
         for voce in voci_valide()
     ]
+
+
+# =====================================================================
+# 7. CIÒ CHE SI SA DI UN'AZIENDA, IN PAROLE (per la chat, DECISIONI.md n. 84)
+# =====================================================================
+MASSIMO_OMONIMI = 10
+
+
+def trova_azienda(cercata):
+    """
+    Il soggetto indicato con un identificativo (COE, partita IVA: contano le sole cifre)
+    oppure con il nome, anche parziale. Restituisce (soggetto, "") oppure (None, messaggio):
+    il messaggio dice che non c'è, o elenca gli omonimi fra cui scegliere.
+    """
+    cercata = " ".join(str(cercata or "").split())
+    if not cercata:
+        return None, "Indicare l'azienda: COE, partita IVA oppure nome."
+    cifre = re.sub(r"\D", "", cercata)
+    if len(cifre) >= 5 and len(re.sub(r"[\W\d_]", "", cercata)) <= 6:  # un identificativo, con al più una sigla (COE, SM, IT)
+        # si confrontano le sole cifre: la forma normalizzata può portare una sigla davanti
+        candidati = IdentificativoSoggetto.objects.filter(valore_normalizzato__endswith=cifre)
+        trovati = Soggetto.objects.filter(pk__in=[
+            riga.soggetto_id for riga in candidati if re.sub(r"\D", "", riga.valore_normalizzato) == cifre
+        ])
+    else:
+        trovati = Soggetto.objects.filter(denominazione__icontains=cercata)
+    trovati = list(trovati.order_by("denominazione", "pk")[:MASSIMO_OMONIMI + 1])
+    if not trovati:
+        return None, f"Nessuna azienda nota corrisponde a «{cercata}»."
+    if len(trovati) > 1:
+        elenco = "\n".join(f"- {anagrafica.etichetta(s)}" for s in trovati[:MASSIMO_OMONIMI])
+        altre = "\n(ce ne sono altre: restringere la ricerca)" if len(trovati) > MASSIMO_OMONIMI else ""
+        return None, f"Più aziende corrispondono a «{cercata}». Indicare l'identificativo di una di queste:\n{elenco}{altre}"
+    return trovati[0], ""
+
+
+def descrivi_azienda(cercata, utente):
+    """
+    Ciò che l'archivio sa di un'azienda, come testo per la chat: le voci della scheda
+    (note e mancanti) e i documenti confermati in cui compare. Come la pagina della
+    scheda, usa solo ciò che viene da file che l'utente può vedere: non rivela né le
+    indagini né i caricamenti riservati.
+    """
+    if not utente.has_perm("elaborazione.view_entitaestratta"):
+        return "L'utente non ha il diritto di consultare i dati estratti dai file."
+    soggetto, messaggio = trova_azienda(cercata)
+    if soggetto is None:
+        return messaggio
+    scheda = scheda_del_soggetto(soggetto, utente)
+    documenti = documenti_del_soggetto(soggetto, utente)
+    righe = [f"Azienda: {anagrafica.etichetta(soggetto)}"]
+    if soggetto.provvisorio:
+        righe.append("Anagrafica provvisoria: il soggetto è noto solo da identificativi dichiarati o letti nei file.")
+
+    note = [riga for riga in scheda if not riga["mancante"]]
+    righe.append(f"\nVoci note ({len(note)}):" if note else "\nNessuna voce nota.")
+    for riga in note:
+        valori = riga["valori"] if riga["voce"].multipla else riga["valori"][:1]
+        for entita in valori:
+            periodo = f" (periodo {entita.periodo})" if entita.periodo else ""
+            pagina = f", pag. {entita.pagina}" if entita.pagina else ""
+            righe.append(
+                f"- {riga['voce'].descrizione}: {entita.valore}{periodo} "
+                f"[dal file {entita.file.percorso_originale}{pagina}, acquisito il {entita.estratta_il:%Y-%m-%d}]"
+            )
+    mancanti = [riga["voce"].descrizione for riga in scheda if riga["mancante"]]
+    if mancanti:
+        righe.append(f"\nVoci non ancora arrivate ({len(mancanti)}): " + "; ".join(mancanti) + ".")
+        righe.append("Una voce non arrivata è un dato mancante, non un valore zero.")
+
+    righe.append(f"\nDocumenti confermati in cui compare ({len(documenti)}):" if documenti else "\nNessun documento confermato.")
+    for riga in documenti:
+        documento = riga["documento"]
+        dati = [f"{documento.tipo or 'documento'} n. {documento.numero or '-'}"]
+        if documento.data:
+            dati.append(f"del {documento.data:%Y-%m-%d}")
+        if documento.totale is not None:
+            dati.append(f"totale {documento.totale}")
+        altre = "; ".join(
+            f"{altra.ruolo}: {altra.denominazione}" + (f" ({altra.identificativo})" if altra.identificativo else "")
+            for altra in riga["altre"]
+        )
+        righe.append(f"- {' '.join(dati)}; ruolo dell'azienda: {riga['ruolo']}" + (f"; altre parti: {altre}" if altre else ""))
+    righe.append(
+        "\nFonte: file caricati nell'archivio ed elaborati. Questi dati non vengono dall'analisi di rete "
+        "e non sono punteggi di rischio."
+    )
+    return "\n".join(righe)
