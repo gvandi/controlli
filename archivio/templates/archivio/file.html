@@ -73,4 +73,11 @@
   </form>
 </div>
 {% endif %}
+{% if puo_cancellare %}
+<div class="scheda">
+  <h2>{% translate "Cancellazione definitiva" %}</h2>
+  <p class="tenue">{% translate "Toglie il file e tutti i dati che ne sono stati ricavati. Non si può annullare. Prima di cancellare vedrai che cosa verrà tolto." %}</p>
+  <p><a class="bottone" href="{% url 'archivio:cancella_file' file.pk %}">{% translate "Cancella definitivamente questo file" %}</a></p>
+</div>
+{% endif %}
 {% endblock %}

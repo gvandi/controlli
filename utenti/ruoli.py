@@ -24,6 +24,7 @@ CARICATORE_DATI = "Caricatore dati"
 ANALISTA = "Analista"
 CONFIGURATORE = "Configuratore"
 LETTORE = "Lettore"
+RESPONSABILE_DEI_DATI = "Responsabile dei dati"
 
 TUTTE = ("add", "change", "delete", "view")
 SOLO_LETTURA = ("view",)
@@ -36,6 +37,8 @@ AGGIUNGE_E_LEGGE = ("add", "view")
 CARICA = ("add", "change", "delete")
 # Rivedere le entità estratte: confermarle o scartarle (elaborazione.change_entitaestratta)
 RIVEDE = ("change",)
+# Cancellare definitivamente un file e i dati che ne derivano (archivio.cancella_definitivamente)
+CANCELLA = ("cancella",)
 
 # ruolo -> elenco di (app, modello o None per tutti i modelli dell'app, azioni)
 DIRITTI = {
@@ -71,6 +74,14 @@ DIRITTI = {
     LETTORE: [
         ("decodifiche", None, SOLO_LETTURA),
         ("archivio", None, SOLO_LETTURA),
+        ("soggetti", None, SOLO_LETTURA),
+        ("elaborazione", None, SOLO_LETTURA),
+    ],
+    # Ruolo a parte, da dare a pochi: nessun altro ruolo può cancellare definitivamente.
+    # Vede l'archivio come un Lettore; per un file riservato deve essere assegnato all'indagine.
+    RESPONSABILE_DEI_DATI: [
+        ("archivio", None, SOLO_LETTURA),
+        ("archivio", "filecaricato", CANCELLA),
         ("soggetti", None, SOLO_LETTURA),
         ("elaborazione", None, SOLO_LETTURA),
     ],

@@ -200,6 +200,9 @@ class FileCaricato(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["fascicolo", "percorso_originale"], name="file_unico_per_percorso"),
         ]
+        permissions = [
+            ("cancella_definitivamente", "Può cancellare definitivamente un file e i dati che ne derivano"),
+        ]
 
     def __str__(self):
         return self.percorso_originale
