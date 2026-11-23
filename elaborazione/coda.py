@@ -504,7 +504,7 @@ def conferma(file, numeri=None):
     in_attesa = EntitaEstratta.objects.filter(file=file, da_rivedere=True, ritirata=False)
     if numeri is not None:
         in_attesa = in_attesa.filter(pk__in=numeri)
-    confermate = in_attesa.update(da_rivedere=False, motivo_revisione="")
+    confermate = in_attesa.update(da_rivedere=False, motivo_revisione="", confermata=True)
     _aggiorna_stato(file)
     return confermate
 
@@ -520,7 +520,8 @@ def scarta(file, numeri):
 
 def chiudi_revisione(file, conservate):
     """
-    Il revisore ha scelto che cosa tenere: le entità indicate sono confermate, tutte
+    Il revisore ha scelto che cosa tenere: le entità indicate sono confermate (e la
+    conferma prevale sul controllo "il valore compare nel testo"), tutte
     le altre del file sono scartate (restano nel registro come ritirate e si possono
     ripristinare). Il file, se era stato letto per intero, diventa "elaborato"; se la
     lettura non è ancora completa o è fallita, il suo stato non cambia.
@@ -529,7 +530,7 @@ def chiudi_revisione(file, conservate):
     with transaction.atomic():
         vive = EntitaEstratta.objects.filter(file=file, ritirata=False)
         scartate = vive.exclude(pk__in=conservate).update(ritirata=True, da_rivedere=False)
-        tenute = vive.filter(pk__in=conservate).update(da_rivedere=False, motivo_revisione="")
+        tenute = vive.filter(pk__in=conservate).update(da_rivedere=False, motivo_revisione="", confermata=True)
         FileCaricato.objects.filter(pk=file.pk, stato=archivio.FILE_DA_RIVEDERE).update(stato=archivio.FILE_ELABORATO)
     return tenute, scartate
 
@@ -543,7 +544,8 @@ def ripristina(file, numeri):
         return 0
     with transaction.atomic():
         ripristinate = EntitaEstratta.objects.filter(file=file, pk__in=numeri, ritirata=True).update(
-            ritirata=False, da_rivedere=True, motivo_revisione="Ripristinata dopo essere stata scartata"
+            ritirata=False, da_rivedere=True, confermata=False,
+            motivo_revisione="Ripristinata dopo essere stata scartata",
         )
         if ripristinate:
             FileCaricato.objects.filter(pk=file.pk, stato=archivio.FILE_ELABORATO).update(

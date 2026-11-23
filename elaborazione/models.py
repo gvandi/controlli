@@ -17,8 +17,8 @@ lo stesso, con voce vuota: restano consultabili e si possono promuovere in segui
 senza rileggere il file (coda.promuovi).
 
 COSA ENTRA NEL CALCOLO. Solo le entità di EntitaEstratta.objects.utilizzabili():
-significative, verificate nel testo, attribuite a un soggetto, non in attesa di
-revisione e non ritirate. Un file caricato che non c'entra nulla attraversa tutto
+significative, verificate nel testo OPPURE confermate da una persona, attribuite a
+un soggetto, non in attesa di revisione e non ritirate (DECISIONI.md, n. 79). Un file caricato che non c'entra nulla attraversa tutto
 il percorso e non produce nessuna entità utilizzabile.
 
 LA DESCRIZIONE DI UN SOGGETTO CRESCE NEL TEMPO. Le entità arrivano da file diversi
@@ -97,7 +97,8 @@ class EntitaQuerySet(models.QuerySet):
     def utilizzabili(self):
         """Le sole entità che possono descrivere un soggetto ed entrare nel calcolo."""
         return self.filter(
-            voce__isnull=False, verificata=True, soggetto__isnull=False, da_rivedere=False, ritirata=False
+            models.Q(verificata=True) | models.Q(confermata=True),
+            voce__isnull=False, soggetto__isnull=False, da_rivedere=False, ritirata=False,
         )
 
     def fuori_catalogo(self):
@@ -123,6 +124,8 @@ class EntitaEstratta(models.Model):
     fonte = models.CharField(max_length=20, blank=True, default="")
     # Il valore si ritrova nel testo della pagina (DECISIONI.md, n. 25)
     verificata = models.BooleanField(default=False)
+    # Un revisore l'ha conservata: la sua conferma prevale sul controllo contro il testo
+    confermata = models.BooleanField(default=False)
     soggetto = models.ForeignKey(
         "soggetti.Soggetto", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
     )

@@ -608,7 +608,10 @@ class ScansioneTest(ConFile):
     def test_il_revisore_sceglie_che_cosa_conservare_e_torna_al_file(self):
         modello = ModelloFinto([
             risposta_del_modello(self.PAGINA_1),
-            entita_json(("AMMINISTRATORE", "Mario Rossi", "", "", ""), ("luogo", "Serravalle", "", "", "")),
+            entita_json(
+                ("AMMINISTRATORE", "Mario Rossi", "", "", ""), ("luogo", "Serravalle", "", "", ""),
+                ("SOCIO", "Luigi Verdi", "", "", ""),  # non è nel testo
+            ),
             risposta_del_modello(self.PAGINA_2),
             entita_json(("RICAVI", "150.000,00", "", "", "2024")),
         ])
@@ -628,11 +631,15 @@ class ScansioneTest(ConFile):
         self.assertTrue(EntitaEstratta.objects.get(pk=luogo.pk).ritirata)
         self.assertFalse(EntitaEstratta.objects.filter(file=file, da_rivedere=True).exists())
         self.assertIn("RICAVI", [e.etichetta for e in EntitaEstratta.objects.utilizzabili()])
+        # la conferma di una persona prevale sul controllo contro il testo
+        socio = self.entita(file, "SOCIO")
+        self.assertEqual((socio.verificata, socio.confermata), (False, True))
+        self.assertIn("SOCIO", [e.etichetta for e in EntitaEstratta.objects.utilizzabili()])
 
         # un'entità scartata per errore si ripristina: torna in attesa, e il file con lei
         self.client.post(indirizzo, {"ripristina": luogo.pk})
         luogo.refresh_from_db()
-        self.assertEqual((luogo.ritirata, luogo.da_rivedere), (False, True))
+        self.assertEqual((luogo.ritirata, luogo.da_rivedere, luogo.confermata), (False, True, False))
         self.assertEqual(self.stato(file), archivio.FILE_DA_RIVEDERE)
 
     def test_una_risposta_tagliata_e_un_errore_da_ritentare_non_un_risultato(self):

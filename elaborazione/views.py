@@ -71,7 +71,7 @@ def file(request, numero):
         "in_attesa": sum(1 for e in entita if e.da_rivedere and not e.ritirata),
         "utilizzabili": sum(
             1 for e in entita
-            if e.voce_id and e.verificata and e.soggetto_id and not e.da_rivedere and not e.ritirata
+            if e.voce_id and (e.verificata or e.confermata) and e.soggetto_id and not e.da_rivedere and not e.ritirata
         ),
         "puo_rivedere": puo_rivedere,
     })
