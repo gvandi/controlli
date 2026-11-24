@@ -1,7 +1,7 @@
 """
 Pagine dei lavori.
 
-    /lavori/            elenco dei lavori con il loro esito, e pulsanti per lanciarli
+    /lavori/            la sequenza dei lavori con i pulsanti per lanciarli, e lo storico con gli esiti
     /lavori/richiedi/   (POST) registra la richiesta di un lavoro e torna alla pagina di partenza
 """
 from django.conf import settings
@@ -22,9 +22,9 @@ MASSIMO_IN_ELENCO = 100
 def elenco(request):
     lavori = list(Lavoro.objects.select_related("richiesto_da")[:MASSIMO_IN_ELENCO])
     for lavoro in lavori:
-        lavoro.titolo = servizi.TIPI[lavoro.tipo][0] if lavoro.tipo in servizi.TIPI else lavoro.tipo
+        lavoro.titolo = servizi.TIPI[lavoro.tipo].titolo if lavoro.tipo in servizi.TIPI else lavoro.tipo
     return render(request, "lavori/elenco.html", {
-        "lavori": lavori, "sezioni": servizi.per_le_pagine(),
+        "lavori": lavori, "percorso": servizi.per_le_pagine(),
         "in_attivita": any(lavoro.stato in APERTI for lavoro in lavori),
         "nessun_esecutore": not servizi.tipi_serviti(),
         "puo_lanciare": request.user.has_perm("lavori.lancia_lavori"),
@@ -42,7 +42,7 @@ def richiedi(request):
     if tipo not in servizi.TIPI:
         messages.error(request, "Tipo di lavoro sconosciuto.")
         return redirect(ritorno)
-    titolo = servizi.TIPI[tipo][0]
+    titolo = servizi.TIPI[tipo].titolo
     parametri, ingresso, nome_ingresso = {}, "", ""
 
     if tipo == "elabora_file" and request.POST.get("massimo", "").strip():

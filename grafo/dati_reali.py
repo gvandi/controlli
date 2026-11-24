@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   dati_reali.py  -  app grafo, VERSIONE 32
+#   dati_reali.py  -  app grafo, VERSIONE 33
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: calcolo
@@ -68,6 +68,9 @@
 #        AZIENDA: per ogni file che riguarda un'azienda segue il documento fino alla mappa
 #        (elaborato, riconosciuto, confermato, completo, non riservato, fotografato, calcolato,
 #        in uso) e dice dove si ferma e che cosa fare.
+#   [33] La diagnosi chiama il lavoro da lanciare con il suo nuovo nome, «Aggiorna il grafo e
+#        calcola gli indici» (prima «Calcola gli indici»): è il passo che fotografa i rapporti,
+#        applica le regole e mette il risultato in uso.
 #
 # <<< NOVITA
 """
@@ -236,7 +239,7 @@ def diagnosi(soggetto_anagrafica):
     del_grafo = Soggetto.objects.filter(riferimento=riferimento(soggetto_anagrafica)).first()
     righe.append(f"\n2. Documenti pronti per il grafo: {pronti}")
     if del_grafo is None:
-        righe.append("   L'azienda non è in nessuna fotografia dei dati: lanciare «Calcola gli indici» "
+        righe.append("   L'azienda non è in nessuna fotografia dei dati: lanciare «Aggiorna il grafo e calcola gli indici» "
                      "(python manage.py calcola_indici).")
         return righe
     righe.append(f"   Nel grafo è la società n. {del_grafo.pk}.")
@@ -269,10 +272,10 @@ def diagnosi(soggetto_anagrafica):
         righe.append(f"   In questa fotografia l'azienda ha {conteggi.get(numero, '?')} rapporti.")
     righe.append("\nChe cosa fare:")
     if pronti and (piu_recente is None or conteggi.get(piu_recente, 0) < pronti):
-        righe.append("   - Ci sono documenti pronti che non sono ancora in una fotografia: lanciare «Calcola gli indici».")
+        righe.append("   - Ci sono documenti pronti che non sono ancora in una fotografia: lanciare «Aggiorna il grafo e calcola gli indici».")
     if piu_recente is not None and numero != piu_recente:
         righe.append(f"   - La fotografia più recente con l'azienda è la n. {piu_recente}, ma è in uso la n. {numero}: "
-                     "manca un calcolo sulla più recente (lanciare «Calcola gli indici»), oppure una restrizione "
+                     "manca un calcolo sulla più recente (lanciare «Aggiorna il grafo e calcola gli indici»), oppure una restrizione "
                      "del cruscotto sta scegliendo un altro calcolo.")
     if not pronti:
         righe.append("   - Nessun documento è pronto: guardare al punto 1 che cosa manca a ciascuno.")

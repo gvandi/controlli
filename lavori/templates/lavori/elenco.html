@@ -4,11 +4,9 @@
 {% block contenuto %}
 <style>
   main { max-width: 72rem; }
-  table { width: 100%; border-collapse: collapse; }
-  th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--bordo); vertical-align: top; }
+  table.storico { width: 100%; border-collapse: collapse; }
+  table.storico th, table.storico td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--bordo); vertical-align: top; }
   td.esito { white-space: pre-line; }
-  .lavoro { border-top: 1px solid var(--bordo); padding-top: 0.5rem; }
-  .lavoro p { margin: 0.3rem 0; }
 </style>
 <p><a href="{% url 'home' %}">{% translate "Inizio" %}</a> &rsaquo; {% translate "Lavori" %}</p>
 <h1>{% translate "Lavori" %}</h1>
@@ -18,14 +16,15 @@
 {% endif %}
 
 {% if puo_lanciare %}
-  <div class="scheda"><h2>{% translate "Caricamento dati" %}</h2>{% include "lavori/_pulsanti.html" with voci=sezioni.caricamento %}</div>
-  <div class="scheda"><h2>{% translate "Analisi" %}</h2>{% include "lavori/_pulsanti.html" with voci=sezioni.analisi %}</div>
-  <div class="scheda"><h2>{% translate "Analisi di rete" %}</h2>{% include "lavori/_pulsanti.html" with voci=sezioni.rete %}</div>
+  <div class="scheda">
+    <h2>{% translate "Elaborazioni e calcoli, nell'ordine in cui vanno fatti" %}</h2>
+    {% include "lavori/_percorso.html" %}
+  </div>
 {% endif %}
 
 <div class="scheda">
   <h2>{% translate "Storico" %}</h2>
-  <table>
+  <table class="storico">
     <tr><th>N.</th><th>{% translate "Lavoro" %}</th><th>{% translate "Stato" %}</th><th>{% translate "Chiesto" %}</th><th>{% translate "Durata" %}</th><th>{% translate "Esito" %}</th></tr>
     {% for lavoro in lavori %}
       <tr>

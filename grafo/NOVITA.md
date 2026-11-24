@@ -1,6 +1,6 @@
 # Registro delle novità
 
-Versione corrente: 32
+Versione corrente: 33
 
 Elenco completo delle novità rispetto alla versione 12 (ultimo file unico di partenza).
 È l'UNICO posto in cui le novità si scrivono a mano: `aggiorna_intestazioni.py` ricopia
@@ -77,6 +77,7 @@ Dalla 20 il numero di versione del codice è un intero.
 - [25] (calcolo) registra_esecuzione() accetta la versione del calcolo: l'indice a regole (app indici) si registra come esecuzione a sé, calcolo 1.0+regole, con le regole scattate come spiegazione.
 - [25] (calcolo) La fotografia dei dati reali comprende anche le aziende che hanno dati per periodo (soggetti.DatiPerPeriodo), pur senza documenti.
 - [32] (calcolo) Nuova funzione diagnosi() in dati_reali.py e comando python manage.py grafo_diagnosi AZIENDA: per ogni file che riguarda un'azienda segue il documento fino alla mappa (elaborato, riconosciuto, confermato, completo, non riservato, fotografato, calcolato, in uso) e dice dove si ferma e che cosa fare.
+- [33] (calcolo) La diagnosi chiama il lavoro da lanciare con il suo nuovo nome, «Aggiorna il grafo e calcola gli indici» (prima «Calcola gli indici»): è il passo che fotografa i rapporti, applica le regole e mette il risultato in uso.
 
 ## interrogazione
 

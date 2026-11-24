@@ -97,12 +97,33 @@ python manage.py importa_anagrafica nuovo_file.csv --fonte "Camera di Commercio 
 python manage.py calcola_indici
 ```
 
-## Lo stesso, dall'interfaccia
+## Lo stesso, dall'interfaccia: la sequenza
 
-L'Amministratore può lanciare dalla pagina iniziale (o da `/lavori/`) l'elaborazione dei file,
-l'importazione dell'anagrafica da CSV, il calcolo degli indici, il riallineamento delle denominazioni,
-la fotografia dei dati reali, il calcolo della GNN e delle spiegazioni. I pulsanti registrano la
-richiesta: la esegue il processo `esegui_lavori`, che deve essere acceso.
+L'Amministratore lancia tutto dal riquadro "Elaborazioni e calcoli" della pagina iniziale (o da
+`/lavori/`). I pulsanti sono in un posto solo e nell'ordine in cui vanno usati; registrano la
+richiesta, che viene eseguita dal processo `esegui_lavori` (deve essere acceso).
+
+**Percorso dei dati reali**
+
+| Passo | Dall'interfaccia | Da comando | Che cosa aggiorna |
+|---|---|---|---|
+| 1 | Caricare i file (lo fa l'ispettore) | - | I file in archivio |
+| 2 | Elabora i file in attesa | `python manage.py elabora_coda` | Lo stato dei file; niente ancora nel grafo |
+| 3 | Rivedere e confermare i documenti (lo fa l'ispettore) | - | I documenti confermati |
+| 4 | Importa l'anagrafica da CSV | `python manage.py importa_anagrafica file.csv` | L'anagrafica per periodo |
+| 5 | Aggiorna il grafo e calcola gli indici | `python manage.py calcola_indici` | Ciò che leggono chat, mappa, classifica e spazio degli indici |
+
+I passi 1-3 portano i rapporti fra aziende, il passo 4 i dati per le regole: sono indipendenti, e il
+passo 5 li usa entrambi. **Il passo 5 va rilanciato ogni volta che si conferma un documento o si
+importa un'anagrafica**: finché non lo si fa, chat e mappa mostrano la situazione precedente.
+
+**Rete simulata (prototipo)**: "Calcola la GNN (dati simulati)" (`grafo_calcolo`) e "Calcola le
+spiegazioni in coda". Lavorano su una rete inventata dal programma: non leggono né i file caricati
+né l'anagrafica, e non cambiano ciò che si vede delle aziende vere.
+
+**Strumenti di servizio**, fuori sequenza: "Riallinea le denominazioni" (`allinea_denominazioni`) e
+"Fotografa i dati reali senza calcolare" (`grafo_dati_reali`), che è la sola prima parte del passo 5
+e serve per un controllo: la sua fotografia non è usata da chat e mappa finché non si fa il passo 5.
 
 ## Che cosa NON si fa con un comando
 
