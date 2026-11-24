@@ -60,6 +60,7 @@ Un file di esempio con dati inventati è in `indici/esempio_anagrafica.csv`.
 |---|---|
 | Vedere versioni di codice, schema e calcolo, e quale coppia calcolo/dati è in uso | `python manage.py grafo_versioni` |
 | Prendere la fotografia dei dati reali senza calcolare nulla | `python manage.py grafo_dati_reali` |
+| Capire perché un'azienda non ha rapporti nella mappa o nella chat | `python manage.py grafo_diagnosi 10276` |
 | Addestrare la GNN e calcolare i punteggi (oggi sui dati simulati) | `python manage.py grafo_calcolo` |
 | Calcolare le spiegazioni richieste dalla chat e rimaste in coda | `python manage.py grafo_calcolo --spiegazioni` |
 | Fare una domanda senza la chat (prova degli strumenti) | `python manage.py grafo_consulta "quali sono le aziende più rischiose?"` |
