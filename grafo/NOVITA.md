@@ -1,6 +1,6 @@
 # Registro delle novità
 
-Versione corrente: 28
+Versione corrente: 29
 
 Elenco completo delle novità rispetto alla versione 12 (ultimo file unico di partenza).
 È l'UNICO posto in cui le novità si scrivono a mano: `aggiorna_intestazioni.py` ricopia
@@ -114,6 +114,7 @@ Dalla 20 il numero di versione del codice è un intero.
 - [20] (interrogazione) apri() legge le restrizioni dell'amministratore (restrizioni_in_vigore) e le applica a schema, calcolo e documenti di spiegazione; i messaggi di errore dicono quando il rifiuto viene da una restrizione.
 - [20] (interrogazione) in_esclusiva diventa un nome pubblico: lo usa lo strumento mappa.
 - [28] (interrogazione) Con una fotografia dei dati senza indicatori (dati reali) contesto_indicatore() spiega che gli indicatori appartengono al calcolo della GNN e rimanda agli strumenti spazio e classifica, invece di chiedere di copiare un file.
+- [29] (interrogazione) risolvi_societa() riconosce un codice comunque scritto: COE10000, COE 10000, C.O.E. SM 10000 e 10000 sono la stessa società; il codice viene cercato prima del numero interno della società, perché sui dati reali il numero che l'ispettore conosce è il COE.
 
 ## server
 

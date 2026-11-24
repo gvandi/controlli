@@ -169,6 +169,8 @@ class NomiEStrumentiTest(ConArchivio):
         attesi = {
             "Beta Legnami": 20, "beta legnami": 20, "legnami": 20, "rossi costruzioni": 3,
             "l'oro": 7, "X1": 7, "b-0020": 20, "SIM-00020": 20,
+            # lo stesso codice scritto in altri modi: attaccato, con spazi, senza trattino
+            "B0020": 20, "b 0020": 20, "sim00020": 20, "SIM 00020": 20,
         }
         for riferimento, nodo in attesi.items():
             self.assertEqual(interrogazione.risolvi_societa(riferimento), (self.s(nodo), None), riferimento)
