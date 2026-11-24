@@ -25,7 +25,6 @@
   {% else %}
     <p class="tenue">{% translate "Non hai i diritti per caricare file." %}</p>
   {% endif %}
-  {% if lavori %}{% include "lavori/_pulsanti.html" with voci=lavori.caricamento %}{% endif %}
 </div>
 
 <div class="scheda">
@@ -36,7 +35,6 @@
   {% else %}
     <p class="tenue">{% translate "Non hai i diritti per consultare gli indici di rischio." %}</p>
   {% endif %}
-  {% if lavori %}{% include "lavori/_pulsanti.html" with voci=lavori.analisi %}{% endif %}
 </div>
 
 <div class="scheda">
@@ -48,11 +46,18 @@
   {% if puo_amministrare_il_grafo %}
     <p><a class="bottone" href="{% url 'grafo:cruscotto' %}">{% translate "Cruscotto: versioni, parametri e sessioni" %}</a></p>
   {% endif %}
-  {% if lavori %}{% include "lavori/_pulsanti.html" with voci=lavori.rete %}{% endif %}
+</div>
+
+{% if lavori or puo_vedere_i_lavori %}
+<div class="scheda">
+  <h2>{% translate "Elaborazioni e calcoli" %}</h2>
+  <p class="tenue">{% translate "Ciò che trasforma i file caricati e l'anagrafica in quello che si vede nelle sezioni Analisi e Analisi di rete, nell'ordine in cui va fatto." %}</p>
+  {% if lavori %}{% include "lavori/_percorso.html" with percorso=lavori %}{% endif %}
   {% if puo_vedere_i_lavori %}
-    <p><a href="{% url 'lavori:elenco' %}">{% translate "Tutti i lavori e il loro esito" %}</a></p>
+    <p><a href="{% url 'lavori:elenco' %}">{% translate "Storico dei lavori e loro esito" %}</a></p>
   {% endif %}
 </div>
+{% endif %}
 
 <div class="scheda">
   <h2>{% translate "Configurazione" %}</h2>

@@ -1,6 +1,15 @@
 """
 LA CODA DEI LAVORI: che cosa si può lanciare, come si chiede e come si esegue.
 
+NOVITÀ
+    [2] I lavori sono presentati come UNA SEQUENZA ordinata (PERCORSO), non più divisi fra le
+        sezioni della pagina iniziale: prima il percorso dei dati reali, passo per passo e
+        con i passi che fa una persona, poi la rete simulata, poi gli strumenti di servizio.
+        Ogni voce dice a che cosa serve, che cosa le serve prima e che cosa aggiorna.
+        "Calcola gli indici" si chiama ora "Aggiorna il grafo e calcola gli indici", perché
+        è ciò che fa. Il tipo resta "calcola_indici": lo storico non cambia.
+    [1] Prima versione: coda nel database, processo esegui_lavori.
+
     richiedi()   chiamata dalle pagine: registra la richiesta (o restituisce quella già aperta)
     prendi()     chiamata dal processo esegui_lavori: prende il lavoro più vecchio
     esegui()     lo esegue e ne scrive l'esito; un errore diventa "fallito", non ferma il processo
@@ -9,6 +18,7 @@ Ogni tipo di lavoro è una funzione che riceve il Lavoro e restituisce l'esito i
 parole, fatto di soli conteggi. Le funzioni importano ciò che serve al momento
 dell'uso: il processo che elabora i file non ha bisogno di PyTorch, e viceversa.
 """
+import collections
 import datetime
 import logging
 
@@ -19,8 +29,8 @@ from .models import APERTI, FALLITO, FINITO, IN_CORSO, RICHIESTO, Esecutore, Lav
 
 registro = logging.getLogger(__name__)
 
-# Sezioni della pagina iniziale in cui compaiono i pulsanti
-CARICAMENTO, ANALISI, RETE = "caricamento", "analisi", "rete"
+# I tre gruppi in cui la sequenza è divisa
+REALI, SIMULATA, SERVIZIO = "reali", "simulata", "servizio"
 # Dopo quanti secondi senza segnale un esecutore si considera fermo
 SECONDI_DI_VITA = 30
 
@@ -80,6 +90,8 @@ def _dati_reali(lavoro):
         return "Nessuna azienda con dati per periodo e nessun documento confermato utilizzabile: nessuna fotografia."
     stato = "Nuova fotografia" if r["nuova"] else "Nessuna novità: resta la fotografia"
     testo = f"{stato} dati n. {r['versione_dati'].numero}: {r['soggetti']} soggetti, {r['relazioni']} relazioni."
+    if r["nuova"]:
+        testo += f"\nChat e mappa non la usano ancora: lanciare «{TIPI['calcola_indici'].titolo}»."
     for motivo, quanti in sorted(r["esclusi"].items()):
         testo += f"\nDocumenti confermati non usati, {motivo}: {quanti}"
     return testo
@@ -89,7 +101,10 @@ def _calcola_gnn(lavoro):
     from grafo import calcolo  # richiede PyTorch
 
     calcolo.esegui_calcolo()
-    return "Calcolo della GNN completato: vedere il cruscotto dell'analisi di rete per la coppia calcolo/dati in uso."
+    return (
+        "Calcolo della GNN completato sui dati simulati: le fatture e i DDT caricati non vi entrano. "
+        "Vedere il cruscotto dell'analisi di rete per la coppia calcolo/dati in uso."
+    )
 
 
 def _spiegazioni(lavoro):
@@ -99,23 +114,81 @@ def _spiegazioni(lavoro):
     return "Spiegazioni in coda calcolate."
 
 
-# tipo -> (titolo del pulsante, sezione, spiegazione, funzione)
+# Un tipo di lavoro. "serve" = che cosa deve esserci prima; "aggiorna" = che cosa cambia dopo.
+Tipo = collections.namedtuple("Tipo", "titolo gruppo spiegazione funzione serve aggiorna")
+
 TIPI = {
-    "elabora_file": ("Elabora i file in attesa", CARICAMENTO,
-                     "Legge i file caricati: testo, entità, documenti. Serve il modello locale acceso.", _elabora_file),
-    "importa_anagrafica": ("Importa l'anagrafica da CSV", ANALISI,
-                           "Attività, dipendenti e fatturato delle aziende, per periodo.", _importa_anagrafica),
-    "calcola_indici": ("Calcola gli indici", ANALISI,
-                       "Applica le regole di rischio ai dati reali; aggiorna ciò che la chat usa.", _calcola_indici),
-    "allinea_denominazioni": ("Riallinea le denominazioni", ANALISI,
-                              "Rimette in ordine i nomi delle aziende: prevale l'anagrafica ufficiale.", _allinea_denominazioni),
-    "dati_reali": ("Aggiorna la fotografia dei dati reali", RETE,
-                   "Aziende e rapporti dai documenti confermati, senza calcolare punteggi.", _dati_reali),
-    "calcola_gnn": ("Calcola la GNN", RETE,
-                    "Addestra il modello di rete e calcola i punteggi. Serve PyTorch sulla macchina che esegue.", _calcola_gnn),
-    "spiegazioni": ("Calcola le spiegazioni in coda", RETE,
-                    "Le spiegazioni chieste dalla chat e non ancora calcolate. Serve PyTorch.", _spiegazioni),
+    "elabora_file": Tipo(
+        "Elabora i file in attesa", REALI,
+        "Il modello locale legge i file caricati: testo, entità, documento con mittente e destinatario.", _elabora_file,
+        "File caricati e confermati; il modello locale acceso.",
+        "Lo stato dei file (elaborato, da rivedere). Niente ancora nel grafo.",
+    ),
+    "importa_anagrafica": Tipo(
+        "Importa l'anagrafica da CSV", REALI,
+        "Attività, dipendenti e fatturato delle aziende, per periodo: sono i dati su cui lavorano le regole.",
+        _importa_anagrafica,
+        "Un file CSV. Non dipende dai passi precedenti.",
+        "L'anagrafica per periodo e il nome delle aziende. Niente ancora negli indici.",
+    ),
+    "calcola_indici": Tipo(
+        "Aggiorna il grafo e calcola gli indici", REALI,
+        "Fa tre cose insieme: fotografa aziende e rapporti (dai documenti confermati), applica le regole di "
+        "rischio, e mette il risultato in uso.", _calcola_indici,
+        "Documenti confermati e/o anagrafica importata. Va rilanciato ogni volta che uno dei due cambia.",
+        "Ciò che leggono chat, mappa di rete, classifica e spazio degli indici.",
+    ),
+    "calcola_gnn": Tipo(
+        "Calcola la GNN (dati simulati)", SIMULATA,
+        "Addestra il modello di rete e calcola i punteggi su una rete inventata dal programma.", _calcola_gnn,
+        "PyTorch sulla macchina che esegue. Non usa né i file caricati né l'anagrafica.",
+        "Un'esecuzione sui dati simulati, che si sceglie dal cruscotto: non tocca i dati reali.",
+    ),
+    "spiegazioni": Tipo(
+        "Calcola le spiegazioni in coda", SIMULATA,
+        "Le spiegazioni dei punteggi della GNN chieste dalla chat e non ancora calcolate.", _spiegazioni,
+        "Un calcolo della GNN già fatto; PyTorch.",
+        "Le spiegazioni che la chat mostra per l'esecuzione della GNN.",
+    ),
+    "allinea_denominazioni": Tipo(
+        "Riallinea le denominazioni", SERVIZIO,
+        "Rimette in ordine i nomi delle aziende: prevale l'anagrafica ufficiale.", _allinea_denominazioni,
+        "Serve solo se un'azienda compare con un nome sbagliato o come «non rilevata».",
+        "Il nome delle aziende in anagrafica.",
+    ),
+    "dati_reali": Tipo(
+        "Fotografa i dati reali senza calcolare", SERVIZIO,
+        "La sola prima parte di «Aggiorna il grafo e calcola gli indici»: conta aziende e rapporti e dice quali "
+        "documenti restano fuori.", _dati_reali,
+        "Serve per un controllo. Per l'uso normale basta il passo del percorso.",
+        "Una fotografia che chat e mappa NON usano finché non si calcolano gli indici.",
+    ),
 }
+
+# Ciò che fa una persona, e che nessun pulsante può fare al suo posto
+_CARICARE = ("Caricare i file", "Fatture, DDT e altri documenti: file singoli, una cartella o uno ZIP.",
+             "Lo fa l'ispettore, da Caricamento dati.")
+_CONFERMARE = (
+    "Rivedere e confermare i documenti",
+    "Per ogni file letto, controllare entità, mittente e destinatario e confermare. Solo un documento "
+    "confermato, con mittente, destinatario, data e totale, diventa un rapporto nel grafo.",
+    "Lo fa l'ispettore, dalla pagina «Testo ed entità estratte» del file.",
+)
+
+# LA SEQUENZA: (gruppo, titolo, nota, voci). Una voce è il nome di un tipo oppure un passo manuale.
+PERCORSO = (
+    (REALI, "Percorso dei dati reali",
+     "In quest'ordine. I passi 1-3 portano i rapporti fra aziende, il passo 4 i dati per le regole: sono "
+     "indipendenti fra loro, e il passo 5 li usa entrambi.",
+     (_CARICARE, "elabora_file", _CONFERMARE, "importa_anagrafica", "calcola_indici")),
+    (SIMULATA, "Rete simulata (prototipo)",
+     "La GNN non è ancora calcolata sui dati reali: questi due lavori servono a provare il modello e non "
+     "cambiano ciò che si vede delle aziende vere.",
+     ("calcola_gnn", "spiegazioni")),
+    (SERVIZIO, "Strumenti di servizio",
+     "Non fanno parte della sequenza: si lanciano quando serve.",
+     ("allinea_denominazioni", "dati_reali")),
+)
 
 
 # ---------------------------------------------------------------------
@@ -161,7 +234,7 @@ def prendi(tipi=None):
 def esegui(lavoro):
     """Esegue un lavoro preso con prendi() e ne scrive l'esito. Non solleva mai: un errore diventa "fallito"."""
     try:
-        esito, stato = TIPI[lavoro.tipo][3](lavoro), FINITO
+        esito, stato = TIPI[lavoro.tipo].funzione(lavoro), FINITO
     except ModuleNotFoundError as errore:
         esito, stato = (
             f"Su questa macchina manca la libreria '{errore.name}': questo lavoro va eseguito dal processo "
@@ -204,18 +277,29 @@ def tipi_serviti():
 # ---------------------------------------------------------------------
 def per_le_pagine():
     """
-    Per ogni sezione, i lavori che vi si possono lanciare con il loro ultimo stato:
-        {sezione: [{"tipo", "titolo", "spiegazione", "ultimo" (Lavoro o None), "aperto", "servito"}]}
+    La sequenza dei lavori con il loro ultimo stato, per le pagine:
+        [{"codice", "titolo", "nota", "voci": [voce, ...]}]
+    Una voce ha sempre "titolo", "spiegazione", "passo" (numero nel percorso dei dati reali, o None).
+    Se è un lavoro ha anche "tipo", "serve", "aggiorna", "ultimo" (Lavoro o None), "aperto", "servito";
+    se è un passo che fa una persona ha "tipo" None e "chi".
     """
     serviti = tipi_serviti()
     ultimi = {}
     for lavoro in Lavoro.objects.select_related("richiesto_da").order_by("-richiesto_il", "-pk")[:200]:
         ultimi.setdefault(lavoro.tipo, lavoro)
-    sezioni = {CARICAMENTO: [], ANALISI: [], RETE: []}
-    for tipo, (titolo, sezione, spiegazione, _) in TIPI.items():
-        ultimo = ultimi.get(tipo)
-        sezioni[sezione].append({
-            "tipo": tipo, "titolo": titolo, "spiegazione": spiegazione, "ultimo": ultimo,
-            "aperto": ultimo is not None and ultimo.stato in APERTI, "servito": tipo in serviti,
-        })
-    return sezioni
+    gruppi = []
+    for codice, titolo, nota, elenco in PERCORSO:
+        voci = []
+        for posizione, voce in enumerate(elenco, start=1):
+            passo = posizione if codice == REALI else None
+            if not isinstance(voce, str):
+                voci.append({"tipo": None, "titolo": voce[0], "spiegazione": voce[1], "chi": voce[2], "passo": passo})
+                continue
+            tipo, ultimo = TIPI[voce], ultimi.get(voce)
+            voci.append({
+                "tipo": voce, "titolo": tipo.titolo, "spiegazione": tipo.spiegazione, "serve": tipo.serve,
+                "aggiorna": tipo.aggiorna, "passo": passo, "ultimo": ultimo,
+                "aperto": ultimo is not None and ultimo.stato in APERTI, "servito": voce in serviti,
+            })
+        gruppi.append({"codice": codice, "titolo": titolo, "nota": nota, "voci": voci})
+    return gruppi

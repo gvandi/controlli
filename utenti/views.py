@@ -19,7 +19,7 @@ def home(request):
         "puo_usare_la_chat": utente.has_perm("grafo.usa_chat"),
         "puo_amministrare_il_grafo": utente.has_perm("grafo.change_parametro"),
         "puo_vedere_i_lavori": utente.has_perm("lavori.view_lavoro"),
-        # I pulsanti per lanciare elaborazioni e calcoli, sezione per sezione (solo per chi può)
+        # La sequenza di elaborazioni e calcoli con i pulsanti per lanciarli (solo per chi può)
         "lavori": lavori.per_le_pagine() if utente.has_perm("lavori.lancia_lavori") else None,
     }
     return render(request, "home.html", contesto)

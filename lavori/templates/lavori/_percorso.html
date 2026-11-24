@@ -1,0 +1,70 @@
+{% load i18n %}
+{% comment %}
+  LA SEQUENZA DEI LAVORI, con la legenda accanto a ogni pulsante.
+  Si include con  {% templatetag openblock %} include "lavori/_percorso.html" with percorso=... {% templatetag closeblock %}
+  dove percorso è lavori.servizi.per_le_pagine(). "ritorno" è la pagina a cui tornare.
+  Usata dalla pagina iniziale e dalla pagina dei lavori: i pulsanti stanno in un posto solo.
+{% endcomment %}
+<style>
+  .percorso { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
+  .percorso th, .percorso td { text-align: left; vertical-align: top; padding: 0.55rem 0.6rem; border-top: 1px solid var(--bordo); }
+  .percorso th { font-weight: 600; color: var(--tenue); font-size: 0.85rem; border-top: 0; }
+  .percorso td.passo { width: 2.2rem; }
+  .percorso td.lancio { width: 34%; }
+  .percorso .numero { display: inline-block; min-width: 1.7rem; text-align: center; border-radius: 1rem; padding: 0.1rem 0.3rem;
+                      background: var(--accento); color: #fff; font-weight: 600; }
+  .percorso tr.manuale .numero { background: #fff; color: var(--accento); border: 1px solid var(--accento); }
+  .percorso p { margin: 0 0 0.3rem; }
+  .percorso form { margin: 0; }
+</style>
+{% for gruppo in percorso %}
+  <h3 style="margin: 1.2rem 0 0.2rem; font-size: 1rem;">{{ gruppo.titolo }}</h3>
+  <p class="tenue" style="margin-top:0">{{ gruppo.nota }}</p>
+  <table class="percorso">
+    <tr>
+      <th></th><th>{% translate "Che cosa si lancia" %}</th><th>{% translate "A che cosa serve" %}</th>
+      <th>{% translate "Che cosa serve prima" %}</th><th>{% translate "Che cosa aggiorna" %}</th>
+    </tr>
+    {% for voce in gruppo.voci %}
+      {% if voce.tipo %}
+        <tr>
+          <td class="passo">{% if voce.passo %}<span class="numero">{{ voce.passo }}</span>{% endif %}</td>
+          <td class="lancio">
+            <form method="post" action="{% url 'lavori:richiedi' %}"{% if voce.tipo == "importa_anagrafica" %} enctype="multipart/form-data"{% endif %}>
+              {% csrf_token %}
+              <input type="hidden" name="tipo" value="{{ voce.tipo }}">
+              <input type="hidden" name="ritorno" value="{{ ritorno|default:request.path }}">
+              <p><button type="submit"{% if voce.aperto %} disabled{% endif %}>{{ voce.titolo }}</button></p>
+              {% if voce.tipo == "elabora_file" %}
+                <p><label style="display:inline">{% translate "al massimo" %} <input type="number" name="massimo" min="1" style="width:5rem"> {% translate "file (vuoto: tutti)" %}</label></p>
+              {% elif voce.tipo == "importa_anagrafica" %}
+                <p><input type="file" name="file" accept=".csv,text/csv" required></p>
+                <p><input type="text" name="fonte" placeholder="{% translate 'da dove viene il file' %}" style="width:14rem"></p>
+              {% endif %}
+            </form>
+            <p class="tenue">
+              {% if voce.ultimo %}
+                {% translate "Ultimo:" %} <strong>{{ voce.ultimo.stato }}</strong>,
+                {{ voce.ultimo.richiesto_il|date:"Y-m-d H:i" }}{% if voce.ultimo.richiesto_da %}, {{ voce.ultimo.richiesto_da }}{% endif %}.
+                {% if voce.ultimo.esito %}{{ voce.ultimo.esito|truncatechars:200 }}{% endif %}
+              {% else %}
+                {% translate "Mai lanciato." %}
+              {% endif %}
+              {% if not voce.servito %}<br><span class="errore">{% translate "Nessun processo sta eseguendo questo tipo di lavoro: una richiesta resterebbe in attesa." %}</span>{% endif %}
+            </p>
+          </td>
+          <td>{{ voce.spiegazione }}</td>
+          <td class="tenue">{{ voce.serve }}</td>
+          <td class="tenue">{{ voce.aggiorna }}</td>
+        </tr>
+      {% else %}
+        <tr class="manuale">
+          <td class="passo"><span class="numero">{{ voce.passo }}</span></td>
+          <td class="lancio"><p><strong>{{ voce.titolo }}</strong></p><p class="tenue">{% translate "Non è un lavoro: lo fa una persona." %}</p></td>
+          <td>{{ voce.spiegazione }}</td>
+          <td class="tenue" colspan="2">{{ voce.chi }}</td>
+        </tr>
+      {% endif %}
+    {% endfor %}
+  </table>
+{% endfor %}

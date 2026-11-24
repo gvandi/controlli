@@ -60,7 +60,10 @@ class LavoriTest(TestCase):
         def senza_libreria(lavoro):
             raise ModuleNotFoundError("No module named 'torch'", name="torch")
 
-        finti = dict(servizi.TIPI, allinea_denominazioni=("x", servizi.ANALISI, "", guasto), calcola_gnn=("y", servizi.RETE, "", senza_libreria))
+        finti = dict(
+            servizi.TIPI, allinea_denominazioni=servizi.TIPI["allinea_denominazioni"]._replace(funzione=guasto),
+            calcola_gnn=servizi.TIPI["calcola_gnn"]._replace(funzione=senza_libreria),
+        )
         with mock.patch.object(servizi, "TIPI", finti), self.assertLogs("lavori.servizi", level="ERROR"):
             servizi.richiedi("calcola_gnn", self.ada)
             call_command("esegui_lavori", una_volta=True, stdout=StringIO())
@@ -108,11 +111,18 @@ class LavoriTest(TestCase):
         self.assertEqual(indici.stato, FINITO)
         self.assertIn("2 aziende, 1 sopra soglia", indici.esito)
 
-        # le pagine mostrano l'esito: l'elenco e, nelle sue sezioni, la pagina iniziale
+        # le pagine mostrano l'esito: l'elenco e la pagina iniziale, con la stessa sequenza
         elenco = self.client.get(reverse("lavori:elenco"))
         self.assertContains(elenco, "Righe nuove: 2")
-        self.assertContains(elenco, "Calcola la GNN")
-        self.assertContains(self.client.get(reverse("home")), "Importa l&#x27;anagrafica da CSV")
+        self.assertContains(elenco, "Calcola la GNN (dati simulati)")
+        inizio = self.client.get(reverse("home")).content.decode()
+        # nell'ordine in cui vanno fatti, con i passi che fa una persona
+        attesi = ["Caricare i file", "Elabora i file in attesa", "Rivedere e confermare i documenti",
+                  "Importa l&#x27;anagrafica da CSV", "Aggiorna il grafo e calcola gli indici",
+                  "Calcola la GNN (dati simulati)", "Riallinea le denominazioni"]
+        posizioni = [inizio.index(f">{testo}<") for testo in attesi]
+        self.assertEqual(posizioni, sorted(posizioni))
+        self.assertEqual(inizio.count('name="tipo"'), len(servizi.TIPI))   # ogni pulsante una volta sola
         # richieste non valide: tipo sconosciuto, file mancante, file non di testo
         for dati in ({"tipo": "inventato"}, {"tipo": "importa_anagrafica"},
                      {"tipo": "importa_anagrafica", "file": SimpleUploadedFile("x.csv", b"\xff\xfe\x00")},
@@ -122,7 +132,30 @@ class LavoriTest(TestCase):
 
     def test_chi_non_puo_lanciare_non_vede_i_pulsanti(self):
         self.client.force_login(self.bruno)
-        self.assertNotContains(self.client.get(reverse("home")), "Calcola gli indici")
+        self.assertNotContains(self.client.get(reverse("home")), "calcola gli indici")
+
+    def test_la_sequenza_contiene_ogni_lavoro_una_volta_e_numera_solo_i_dati_reali(self):
+        gruppi = servizi.per_le_pagine()
+        self.assertEqual([gruppo["codice"] for gruppo in gruppi], [servizi.REALI, servizi.SIMULATA, servizi.SERVIZIO])
+        tipi = [voce["tipo"] for gruppo in gruppi for voce in gruppo["voci"] if voce["tipo"]]
+        self.assertEqual(sorted(tipi), sorted(servizi.TIPI))
+        self.assertEqual({servizi.TIPI[tipo].gruppo for tipo in tipi if tipo in ("calcola_gnn", "spiegazioni")}, {servizi.SIMULATA})
+        for gruppo in gruppi:
+            for voce in gruppo["voci"]:
+                if voce["tipo"]:
+                    self.assertEqual(servizi.TIPI[voce["tipo"]].gruppo, gruppo["codice"])
+        self.assertEqual([voce["passo"] for voce in gruppi[0]["voci"]], [1, 2, 3, 4, 5])
+        self.assertEqual([voce["tipo"] for voce in gruppi[0]["voci"]], [None, "elabora_file", None, "importa_anagrafica", "calcola_indici"])
+        self.assertTrue(all(voce["passo"] is None for gruppo in gruppi[1:] for voce in gruppo["voci"]))
+
+    def test_la_fotografia_da_sola_avverte_che_non_e_in_uso(self):
+        from indici import importazione
+
+        importazione.importa(CSV, "prova")
+        servizi.richiedi("dati_reali", self.ada)
+        lavoro = servizi.esegui(servizi.prendi())
+        self.assertEqual(lavoro.stato, FINITO)
+        self.assertIn("Chat e mappa non la usano ancora", lavoro.esito)
 
 
 class MigrazioniTest(TestCase):
