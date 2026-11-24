@@ -26,6 +26,10 @@ class Soggetto(models.Model):
     provvisorio = models.BooleanField(default=True)
     creato_il = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        verbose_name = "soggetto"
+        verbose_name_plural = "soggetti"
+
     def __str__(self):
         return self.denominazione or f"Soggetto n. {self.pk}"
 
@@ -39,6 +43,8 @@ class IdentificativoSoggetto(models.Model):
     valido_al = models.DateField(null=True, blank=True)
 
     class Meta:
+        verbose_name = "identificativo"
+        verbose_name_plural = "identificativi"
         constraints = [
             models.UniqueConstraint(fields=["tipo", "valore_normalizzato"], name="identificativo_unico"),
         ]
@@ -76,6 +82,8 @@ class DatiPerPeriodo(models.Model):
     importato_il = models.DateTimeField(auto_now=True)
 
     class Meta:
+        verbose_name = "dati per periodo"
+        verbose_name_plural = "dati per periodo"
         constraints = [
             models.UniqueConstraint(fields=["soggetto", "periodo"], name="dati_per_periodo_unici"),
         ]

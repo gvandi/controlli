@@ -58,6 +58,22 @@ class AnagraficaTest(TestCase):
             )
 
 
+class NomiInItalianoTest(TestCase):
+    def test_ogni_modello_dell_applicativo_dichiara_singolare_e_plurale(self):
+        """Senza un nome dichiarato Django aggiunge una "s": "Faldones", "Soggettos"."""
+        from django.apps import apps
+
+        nostre = {"archivio", "decodifiche", "elaborazione", "grafo", "indici", "lavori", "soggetti", "utenti"}
+        mancanti = []
+        for modello in apps.get_models():
+            if modello._meta.app_label not in nostre or modello._meta.auto_created:
+                continue
+            opzioni = modello._meta.original_attrs
+            if "verbose_name" not in opzioni or "verbose_name_plural" not in opzioni:
+                mancanti.append(modello._meta.label)
+        self.assertEqual(mancanti, [], "Aggiungere verbose_name e verbose_name_plural in class Meta.")
+
+
 class MigrazioniTest(TestCase):
     def test_la_migrazione_scritta_a_mano_coincide_con_i_modelli(self):
         try:

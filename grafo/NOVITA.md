@@ -1,6 +1,6 @@
 # Registro delle novità
 
-Versione corrente: 33
+Versione corrente: 34
 
 Elenco completo delle novità rispetto alla versione 12 (ultimo file unico di partenza).
 È l'UNICO posto in cui le novità si scrivono a mano: `aggiorna_intestazioni.py` ricopia
@@ -44,6 +44,7 @@ Dalla 20 il numero di versione del codice è un intero.
 - [23] (contratto) Ottavo strumento scheda in NOMI_STRUMENTI e in STRUMENTI_SENZA_ARCHIVIO: legge l'archivio dei file caricati, non quello dell'analisi di rete.
 - [25] (contratto) Nuova costante VERSIONE_CALCOLO_REGOLE (1.0+regole): stessa forma dei risultati della GNN, etichetta distinta; i lettori che accettano 1.0 la accettano.
 - [26] (contratto) Nono strumento spazio in NOMI_STRUMENTI e in STRUMENTI_SENZA_ARCHIVIO: legge l'app indici, non l'archivio dell'analisi di rete.
+- [34] (contratto) Ogni modello dichiara il suo nome in italiano, singolare e plurale (migrazione 0004): nelle pagine di amministrazione non compaiono più «Sessiones», «Richiestas», «Mappa prodottas», «Token accessos». Cambiano solo le etichette.
 
 ## calcolo
 

@@ -42,6 +42,7 @@ class Lavoro(models.Model):
     esito = models.TextField(blank=True, default="")
 
     class Meta:
+        verbose_name = "lavoro"
         ordering = ["-richiesto_il", "-pk"]
         verbose_name_plural = "lavori"
         permissions = [("lancia_lavori", "Può lanciare elaborazioni e calcoli")]
@@ -60,6 +61,10 @@ class Esecutore(models.Model):
     nome = models.CharField(max_length=80, unique=True)
     tipi = models.CharField(max_length=255, blank=True, default="")
     ultimo_segnale = models.DateTimeField()
+
+    class Meta:
+        verbose_name = "esecutore"
+        verbose_name_plural = "esecutori"
 
     def __str__(self):
         return self.nome
