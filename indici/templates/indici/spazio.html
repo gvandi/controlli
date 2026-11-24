@@ -19,6 +19,7 @@
   .comandi select, .comandi input[type=range] { font: inherit; vertical-align: middle; }
   .legenda { list-style: none; padding: 0; margin: 0.5rem 0 0; }
   .legenda li { margin: 0.2rem 0; }
+  .tratto { display: inline-block; width: 1.6rem; height: 0; border-top: 4px solid #e08a00; border-radius: 2px; vertical-align: 0.2rem; margin-right: 0.4rem; }
   .pallino { display: inline-block; width: 0.85rem; height: 0.85rem; border-radius: 50%; vertical-align: -0.1rem; margin-right: 0.4rem; }
   .scelta { border-top: 1px solid var(--bordo); padding: 0.6rem 0; }
   .scelta h3 { margin: 0; font-size: 1rem; }
@@ -29,7 +30,7 @@
 <p><a href="{% url 'home' %}">{% translate "Inizio" %}</a> &rsaquo; {% translate "Spazio degli indici" %}</p>
 <h1>{% translate "Spazio degli indici" %}</h1>
 
-<form method="get" class="comandi">
+<form method="get" class="comandi" id="comandi">
   <label>{% translate "Regola" %}
     <select name="regola" onchange="this.form.submit()">
       {% for r in regole %}<option value="{{ r.codice }}"{% if r.pk == regola.pk %} selected{% endif %}>{{ r.codice }}{% if not r.attiva %} ({% translate "non attiva" %}){% endif %}</option>{% endfor %}
@@ -40,6 +41,11 @@
     <strong id="valore-z"></strong>
   </label>
   <label><input type="checkbox" id="solo-evidenziate" style="width:auto"> {% translate "solo le aziende evidenziate" %}</label>
+  <label>{% translate "Cerca un COE" %}
+    <input type="text" id="cerca-coe" inputmode="numeric" autocomplete="off" placeholder="10000" style="width: 7rem">
+  </label>
+  <button type="button" id="cerca">{% translate "Mostra nello spazio" %}</button>
+  <span id="esito-ricerca" class="tenue" role="status"></span>
   <noscript><button type="submit">{% translate "Mostra" %}</button></noscript>
 </form>
 
@@ -67,7 +73,11 @@
         <li><span class="pallino" style="background:#2a7fb8"></span>{% translate "si discosta dalle aziende simili" %}: <strong id="conta-2"></strong></li>
         <li><span class="pallino" style="background:#d1495b; box-shadow: 0 0 0 3px #2a7fb8"></span>{% translate "entrambe le cose" %}: <strong id="conta-3"></strong></li>
         <li><span class="pallino" style="background:#b4bfcc"></span>{% translate "nessuna delle due" %}: <strong id="conta-0"></strong></li>
+        <li><span class="tratto"></span>{% translate "rapporto dai documenti confermati (dati del grafo)" %}: <strong id="conta-rapporti"></strong></li>
+        <li><span class="pallino" style="background:#fff; box-shadow: 0 0 0 3px #e08a00"></span>{% translate "azienda collegata a una selezionata" %}</li>
+        <li><span class="pallino" style="background:#fff; box-shadow: 0 0 0 2px #1c2430"></span>{% translate "azienda selezionata o cercata" %}</li>
       </ul>
+      <p class="tenue" id="nota-rapporti"></p>
       {% if regola %}
         <p><strong>{{ regola.codice }}</strong>: {{ regola.descrizione }}</p>
         <p class="tenue">
@@ -101,8 +111,8 @@
   // le posizioni di ogni asse che la regola scelta richiede: si scrivono in rosso
   var DENTRO = D.regola ? [D.regola.dentro.dipendenti, D.regola.dentro.fatturato, D.regola.dentro.attivita] : [[], [], []];
   var COLORI = ["#b4bfcc", "#d1495b", "#2a7fb8", "#d1495b"];
-  var giro = -0.65, alzo = 0.4, zoom = 1, sogliaZ = D.soglia_z, soloEvidenziate = false;
-  var scelte = [], disegnati = [], L = 0, A = 0;
+  var giro = 0.35, alzo = 0.6, zoom = 1, sogliaZ = D.soglia_z, soloEvidenziate = false;
+  var scelte = [], disegnati = [], L = 0, A = 0, cercata = -1;
 
   function posto(i, asse) { var n = ASSI[asse].length; return n > 1 ? i / (n - 1) - 0.5 : 0; }
   // Più aziende hanno le stesse tre coordinate: un piccolo scarto fisso le rende distinguibili
@@ -114,6 +124,14 @@
   var POSTO = {}, IMPORTO_MASSIMO = 0;
   P.forEach(function (q, i) { POSTO[q.p.n] = i; });
   D.rapporti.forEach(function (r) { if (r.importo > IMPORTO_MASSIMO) IMPORTO_MASSIMO = r.importo; });
+  // Quanti rapporti ci sono, e quanti si possono disegnare (entrambe le aziende hanno una sfera)
+  var DISEGNABILI = D.rapporti.filter(function (r) { return POSTO[r.da] !== undefined && POSTO[r.a] !== undefined; }).length;
+  document.getElementById("conta-rapporti").textContent = D.rapporti.length;
+  document.getElementById("nota-rapporti").textContent = !D.rapporti.length
+    ? "Nei dati non c'è ancora nessun rapporto: le linee compaiono quando esistono documenti confermati fra le aziende."
+    : "Le linee compaiono selezionando un'azienda. Rapporti fra due aziende che hanno entrambe una sfera: " + DISEGNABILI + " su " + D.rapporti.length
+      + (DISEGNABILI < D.rapporti.length ? ". Gli altri riguardano aziende senza dati per periodo: sono nell'elenco dell'azienda selezionata, senza linea." : ".");
+
   function rapportiDi(n) { return D.rapporti.filter(function (r) { return r.da === n || r.a === n; }); }
   function euro(x) { return x.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
   // le aziende collegate a una selezionata si vedono sempre, anche con "solo le evidenziate"
@@ -128,7 +146,7 @@
         var altra = POSTO[r.da === P[i].p.n ? r.a : r.da];
         if (altra === undefined) return;   // l'altra azienda non è collocata: è solo nell'elenco
         var u = proietta(P[i].x, P[i].y, P[i].z), v = proietta(P[altra].x, P[altra].y, P[altra].z);
-        c.strokeStyle = "rgba(28, 36, 48, 0.55)";
+        c.strokeStyle = "rgba(224, 138, 0, 0.85)";
         c.lineWidth = 1 + 7 * Math.sqrt(IMPORTO_MASSIMO > 0 ? r.importo / IMPORTO_MASSIMO : 0);
         c.lineCap = "round";
         c.beginPath(); c.moveTo(u[0], u[1]); c.lineTo(v[0], v[1]); c.stroke();
@@ -142,7 +160,7 @@
     var cg = Math.cos(giro), sg = Math.sin(giro), ca = Math.cos(alzo), sa = Math.sin(alzo);
     var x1 = x * cg + z * sg, z1 = -x * sg + z * cg;
     var y1 = y * ca - z1 * sa, z2 = y * sa + z1 * ca;
-    var k = Math.min(L, A) * 1.45 * zoom / (2.4 + z2);
+    var k = Math.min(L, A) * 1.3 * zoom / (2.4 + z2);
     return [L / 2 + x1 * k, A / 2 - y1 * k, z2, k];
   }
 
@@ -186,7 +204,7 @@
     c.clearRect(0, 0, L, A);
     assi();
     disegnati = [];
-    var i, conta = [0, 0, 0, 0];
+    var i, conta = [0, 0, 0, 0], nomeDaScrivere = null;
     for (i = 0; i < P.length; i++) {
       var cat = categoria(P[i].p); conta[cat]++;
       if (soloEvidenziate && cat === 0 && scelte.indexOf(i) < 0 && !collegataAUnaScelta(i)) continue;
@@ -204,6 +222,20 @@
       c.globalAlpha = 1;
       if (d.cat === 3) { c.strokeStyle = "#2a7fb8"; c.lineWidth = Math.max(2, d.r * 0.4); c.beginPath(); c.arc(d.x, d.y, d.r + c.lineWidth / 2, 0, 6.2832); c.stroke(); }
       if (scelta) { c.strokeStyle = "#1c2430"; c.lineWidth = 2; c.beginPath(); c.arc(d.x, d.y, d.r + (d.cat === 3 ? 6 : 3), 0, 6.2832); c.stroke(); }
+      else if (collegataAUnaScelta(d.i)) { c.strokeStyle = "#e08a00"; c.lineWidth = 3; c.beginPath(); c.arc(d.x, d.y, d.r + (d.cat === 3 ? 7 : 4), 0, 6.2832); c.stroke(); }
+      if (d.i === cercata) {
+        // l'azienda cercata si riconosce anche in mezzo alle altre: un cerchio largo e il suo nome
+        c.strokeStyle = "#1c2430"; c.lineWidth = 1.5; c.setLineDash([4, 3]);
+        c.beginPath(); c.arc(d.x, d.y, d.r + 14, 0, 6.2832); c.stroke(); c.setLineDash([]);
+        nomeDaScrivere = d;
+      }
+    }
+    if (nomeDaScrivere) {
+      // il nome si scrive per ultimo, su un fondo chiaro, così nessuna sfera lo copre
+      var q = nomeDaScrivere, testo = P[q.i].p.nome;
+      c.font = "bold 12px system-ui, sans-serif"; c.textAlign = "left"; c.textBaseline = "middle";
+      c.fillStyle = "rgba(255, 255, 255, 0.85)"; c.fillRect(q.x + q.r + 15, q.y - 9, c.measureText(testo).width + 6, 18);
+      c.fillStyle = "#1c2430"; c.fillText(testo, q.x + q.r + 18, q.y);
     }
     for (i = 0; i < 4; i++) document.getElementById("conta-" + i).textContent = conta[i];
     document.getElementById("valore-z").textContent = sogliaZ.toFixed(1);
@@ -279,9 +311,32 @@
   tela.addEventListener("wheel", function (e) { e.preventDefault(); zoom = Math.max(0.5, Math.min(4, zoom * (e.deltaY < 0 ? 1.1 : 0.9))); disegna(); }, { passive: false });
   document.getElementById("soglia-z").addEventListener("input", function () { sogliaZ = parseFloat(this.value); elenca(); disegna(); });
   document.getElementById("solo-evidenziate").addEventListener("change", function () { soloEvidenziate = this.checked; disegna(); });
-  document.getElementById("svuota").addEventListener("click", function () { scelte = []; elenca(); disegna(); });
+  document.getElementById("svuota").addEventListener("click", function () { scelte = []; cercata = -1; elenca(); disegna(); });
+  function cerca() {
+    var esito = document.getElementById("esito-ricerca"), cifre = document.getElementById("cerca-coe").value.replace(/\D/g, "");
+    if (!cifre) { cercata = -1; esito.textContent = ""; disegna(); return; }
+    // prima il COE esatto, poi quelli che cominciano così (se ce n'è uno solo)
+    var uguali = [], simili = [];
+    P.forEach(function (q, i) {
+      var codice = q.p.codice.replace(/\D/g, "");
+      if (codice === cifre) uguali.push(i); else if (codice.indexOf(cifre) === 0) simili.push(i);
+    });
+    var trovate = uguali.length ? uguali : simili;
+    if (trovate.length !== 1) {
+      cercata = -1;
+      esito.textContent = trovate.length ? trovate.length + " aziende cominciano per " + cifre + ": scrivi il COE completo."
+        : "Nessuna sfera per il COE " + cifre + ": l'azienda non esiste o non ha dati per periodo.";
+      disegna(); return;
+    }
+    cercata = trovate[0];
+    if (scelte.indexOf(cercata) < 0) scelte.push(cercata);   // selezionata: compaiono dati e rapporti
+    esito.textContent = P[cercata].p.nome + ": evidenziata con il cerchio tratteggiato.";
+    elenca(); disegna();
+  }
+  document.getElementById("cerca").addEventListener("click", cerca);
+  document.getElementById("cerca-coe").addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); cerca(); } });
   window.addEventListener("resize", function () { misura(); disegna(); });
-  if (D.apri !== null && POSTO[D.apri] !== undefined) scelte.push(POSTO[D.apri]);
+  if (D.apri !== null && POSTO[D.apri] !== undefined) { cercata = POSTO[D.apri]; scelte.push(cercata); }
   misura(); elenca(); disegna();
 })();
 </script>
