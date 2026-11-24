@@ -701,6 +701,8 @@ class DocumentoTest(ConFile):
         self.assertFalse(dati_reali.fotografa()["nuova"])
         self.assertEqual(grafo.VersioneDati.objects.count(), 1)
         # il rapporto compare anche nello spazio degli indici, e la chat lo può chiedere
+        from django.contrib.auth import get_user_model
+
         from indici import importazione, spazio
         from indici.models import RegolaDiRischio
         RegolaDiRischio.objects.create(
