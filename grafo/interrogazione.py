@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   interrogazione.py  -  app grafo, VERSIONE 28
+#   interrogazione.py  -  app grafo, VERSIONE 29
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: interrogazione
@@ -76,6 +76,9 @@
 #   [28] Con una fotografia dei dati senza indicatori (dati reali) contesto_indicatore() spiega
 #        che gli indicatori appartengono al calcolo della GNN e rimanda agli strumenti spazio e
 #        classifica, invece di chiedere di copiare un file.
+#   [29] risolvi_societa() riconosce un codice comunque scritto: COE10000, COE 10000, C.O.E. SM
+#        10000 e 10000 sono la stessa società; il codice viene cercato prima del numero interno
+#        della società, perché sui dati reali il numero che l'ispettore conosce è il COE.
 #
 # <<< NOVITA
 """
@@ -655,6 +658,21 @@ def _normalizza(testo):
     return " ".join(re.sub(r"[^a-z0-9]+", " ", testo).split())
 
 
+def _forme_del_codice(testo):
+    """
+    I modi in cui lo stesso codice può essere scritto: tutto attaccato ("coe10000",
+    "sim00020") e, se è una sigla seguita da almeno quattro cifre, le sole cifre
+    ("10000"). Così "COE10000", "COE 10000", "C.O.E. SM 10000" e "10000" sono lo
+    stesso codice; un numero corto resta il numero della società.
+    """
+    attaccato = _normalizza(testo).replace(" ", "")
+    forme = {attaccato} if attaccato else set()
+    sigla_e_cifre = re.fullmatch(r"[a-z]{0,12}(\d{4,})", attaccato)
+    if sigla_e_cifre:
+        forme.add(sigla_e_cifre.group(1))
+    return forme
+
+
 def elenco_societa():
     """Tutte le società della fotografia dei dati in uso: nodo (chiave del soggetto),
     id_fiscale, nome, nr_iscrizione, chiave (nome normalizzato)."""
@@ -701,9 +719,9 @@ def _elenca(societa, massimo=8):
 
 def risolvi_societa(riferimento):
     """
-    Riconosce una società da ciò che ha scritto l'ispettore: numero ("12",
-    "società 12"), identificativo fiscale, numero di iscrizione oppure nome,
-    anche parziale. Restituisce (nodo, None) oppure (None, messaggio).
+    Riconosce una società da ciò che ha scritto l'ispettore: identificativo fiscale
+    o numero di iscrizione ("COE10000", "COE 10000", "10000"), numero ("12",
+    "società 12") oppure nome, anche parziale. Restituisce (nodo, None) oppure (None, messaggio).
 
     Non tira mai a indovinare: se il nome corrisponde a più società le elenca
     e chiede quale; se non corrisponde a nessuna propone i nomi più simili.
@@ -713,21 +731,24 @@ def risolvi_societa(riferimento):
         return None, "Indicare una società, per nome o per numero."
     societa = elenco_societa()
 
-    # 1. Numero identificativo
+    # 1. Identificativo fiscale o numero di iscrizione (COE, partita IVA), comunque scritti:
+    #    con o senza sigla, con o senza spazi. Viene prima del numero della società perché
+    #    sui dati reali il numero che l'ispettore conosce è il COE.
+    chiave = _normalizza(testo)
+    forme = _forme_del_codice(testo)
+    per_codice = [
+        s for s in societa
+        if forme & (_forme_del_codice(s["id_fiscale"]) | _forme_del_codice(s["nr_iscrizione"] or ""))
+    ]
+    if len(per_codice) == 1:
+        return per_codice[0]["nodo"], None
+
+    # 2. Numero della società (la chiave interna)
     numero = re.fullmatch(
         r"(?:(?:societ[àa]|nodo|azienda|soggetto|impresa|n\.?)\s*)?#?\s*(\d+)", testo, flags=re.IGNORECASE
     )
     if numero and esiste(int(numero.group(1))):
         return int(numero.group(1)), None
-
-    # 2. Identificativo fiscale o numero di iscrizione, scritti per intero
-    chiave = _normalizza(testo)
-    per_codice = [
-        s for s in societa
-        if chiave and chiave in (_normalizza(s["id_fiscale"]), _normalizza(s["nr_iscrizione"] or ""))
-    ]
-    if len(per_codice) == 1:
-        return per_codice[0]["nodo"], None
     if numero and not per_codice:
         return None, f"La società {int(numero.group(1))} non è presente nell'archivio."
 

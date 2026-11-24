@@ -186,6 +186,10 @@ class IndiciTest(TestCase):
             self.assertIn(atteso, testo)
         self.assertNotIn("1. Società", testo)
         self.assertIn("non riconosciuto", servizio_mcp.classifica(tipo="inventato"))
+        # gli strumenti del grafo riconoscono l'azienda dal COE comunque scritto, non solo dal numero interno
+        for scritto in ("COE10000", "coe 10000", "C.O.E. SM 10000", "10000", 10000, "Alfa"):
+            self.assertEqual(interrogazione.risolvi_societa(scritto), (alfa.pk, None), scritto)
+        self.assertIn("non è presente", interrogazione.risolvi_societa("99999")[1])
 
         # rieseguire senza novità sostituisce la stessa esecuzione; con dati nuovi nasce una nuova fotografia
         self.assertEqual(calcolo.esegui()["versione_dati"], resoconto["versione_dati"])
