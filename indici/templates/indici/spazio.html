@@ -54,6 +54,7 @@
     <canvas id="tela"></canvas>
     <p class="tenue">
       {% translate "Trascina per ruotare, rotella per avvicinare, clic su una sfera per selezionarla (un altro clic la toglie)." %}
+      {% translate "Di un'azienda selezionata compaiono i rapporti: una linea verso ogni azienda con cui ha documenti confermati, tanto più spessa quanto più alto è l'importo." %}
       {% blocktranslate with n=aziende %}Aziende mostrate: {{ n }}.{% endblocktranslate %}
       {% if dati.esclusi %}{% blocktranslate with n=dati.esclusi %}Non collocate perché manca attività, dipendenti o fatturato: {{ n }}.{% endblocktranslate %}{% endif %}
     </p>
@@ -109,6 +110,31 @@
   var P = D.punti.map(function (p, i) {
     return { p: p, x: posto(p.d, 0) + scarto(i, 0), y: posto(p.f, 1) + scarto(i, 1), z: posto(p.a, 2) + scarto(i, 2) };
   });
+  // I rapporti dai documenti confermati: dove sta ogni azienda, e l'importo più alto per lo spessore
+  var POSTO = {}, IMPORTO_MASSIMO = 0;
+  P.forEach(function (q, i) { POSTO[q.p.n] = i; });
+  D.rapporti.forEach(function (r) { if (r.importo > IMPORTO_MASSIMO) IMPORTO_MASSIMO = r.importo; });
+  function rapportiDi(n) { return D.rapporti.filter(function (r) { return r.da === n || r.a === n; }); }
+  function euro(x) { return x.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  // le aziende collegate a una selezionata si vedono sempre, anche con "solo le evidenziate"
+  function collegataAUnaScelta(i) {
+    var n = P[i].p.n;
+    return scelte.some(function (j) { var m = P[j].p.n; return D.rapporti.some(function (r) { return (r.da === m && r.a === n) || (r.a === m && r.da === n); }); });
+  }
+
+  function rapporti() {
+    scelte.forEach(function (i) {
+      rapportiDi(P[i].p.n).forEach(function (r) {
+        var altra = POSTO[r.da === P[i].p.n ? r.a : r.da];
+        if (altra === undefined) return;   // l'altra azienda non è collocata: è solo nell'elenco
+        var u = proietta(P[i].x, P[i].y, P[i].z), v = proietta(P[altra].x, P[altra].y, P[altra].z);
+        c.strokeStyle = "rgba(28, 36, 48, 0.55)";
+        c.lineWidth = 1 + 7 * Math.sqrt(IMPORTO_MASSIMO > 0 ? r.importo / IMPORTO_MASSIMO : 0);
+        c.lineCap = "round";
+        c.beginPath(); c.moveTo(u[0], u[1]); c.lineTo(v[0], v[1]); c.stroke();
+      });
+    });
+  }
 
   function categoria(p) { return (p.scatta ? 1 : 0) + (Math.abs(p.z) >= sogliaZ ? 2 : 0); }
 
@@ -163,11 +189,12 @@
     var i, conta = [0, 0, 0, 0];
     for (i = 0; i < P.length; i++) {
       var cat = categoria(P[i].p); conta[cat]++;
-      if (soloEvidenziate && cat === 0 && scelte.indexOf(i) < 0) continue;
+      if (soloEvidenziate && cat === 0 && scelte.indexOf(i) < 0 && !collegataAUnaScelta(i)) continue;
       var s = proietta(P[i].x, P[i].y, P[i].z);
       disegnati.push({ i: i, x: s[0], y: s[1], fondo: s[2], r: Math.max(2.5, 0.017 * s[3]), cat: cat });
     }
     disegnati.sort(function (a, b) { return b.fondo - a.fondo; });  // prima le più lontane
+    rapporti();   // le linee stanno sotto le sfere
     for (i = 0; i < disegnati.length; i++) {
       var d = disegnati[i], scelta = scelte.indexOf(d.i) >= 0;
       var sfumatura = c.createRadialGradient(d.x - d.r * 0.35, d.y - d.r * 0.35, d.r * 0.1, d.x, d.y, d.r);
@@ -212,6 +239,13 @@
       if (D.regola) riga(blocco, "Regola " + D.regola.codice + ": " + (p.scatta ? "scatta" : "non scatta"));
       if (p.altre.length) riga(blocco, "Altre regole che scattano: " + p.altre.join(", "), "tenue");
       riga(blocco, "z-score robusto: " + p.z.toFixed(2) + (Math.abs(p.z) >= sogliaZ ? " (si discosta)" : "") + " · confronto con " + p.gruppo);
+      var suoi = rapportiDi(p.n).sort(function (a, b) { return b.importo - a.importo; });
+      if (suoi.length) riga(blocco, "Rapporti dai documenti confermati:");
+      suoi.forEach(function (r) {
+        var numero = r.da === p.n ? r.a : r.da, posto = POSTO[numero];
+        var nome = posto !== undefined ? P[posto].p.nome : (D.fuori[numero] || "azienda") + " (non collocata)";
+        riga(blocco, (r.da === p.n ? "→ vende a " : "← compra da ") + nome + ": " + r.quanti + (r.quanti === 1 ? " documento, " : " documenti, ") + euro(r.importo), "tenue");
+      });
       dove.appendChild(blocco);
     });
   }
@@ -247,7 +281,8 @@
   document.getElementById("solo-evidenziate").addEventListener("change", function () { soloEvidenziate = this.checked; disegna(); });
   document.getElementById("svuota").addEventListener("click", function () { scelte = []; elenca(); disegna(); });
   window.addEventListener("resize", function () { misura(); disegna(); });
-  misura(); disegna();
+  if (D.apri !== null && POSTO[D.apri] !== undefined) scelte.push(POSTO[D.apri]);
+  misura(); elenca(); disegna();
 })();
 </script>
 {% endif %}

@@ -1,6 +1,6 @@
 # Registro delle novità
 
-Versione corrente: 25
+Versione corrente: 26
 
 Elenco completo delle novità rispetto alla versione 12 (ultimo file unico di partenza).
 È l'UNICO posto in cui le novità si scrivono a mano: `aggiorna_intestazioni.py` ricopia
@@ -43,6 +43,7 @@ Dalla 20 il numero di versione del codice è un intero.
 - [22] (contratto) Settimo strumento calcola in NOMI_STRUMENTI; STRUMENTI_SENZA_ARCHIVIO elenca gli strumenti che non leggono punteggi e dati.
 - [23] (contratto) Ottavo strumento scheda in NOMI_STRUMENTI e in STRUMENTI_SENZA_ARCHIVIO: legge l'archivio dei file caricati, non quello dell'analisi di rete.
 - [25] (contratto) Nuova costante VERSIONE_CALCOLO_REGOLE (1.0+regole): stessa forma dei risultati della GNN, etichetta distinta; i lettori che accettano 1.0 la accettano.
+- [26] (contratto) Nono strumento spazio in NOMI_STRUMENTI e in STRUMENTI_SENZA_ARCHIVIO: legge l'app indici, non l'archivio dell'analisi di rete.
 
 ## calcolo
 
@@ -139,6 +140,8 @@ Dalla 20 il numero di versione del codice è un intero.
 - [22] (server) Le chiamate a calcola sono registrate nella sessione come le altre, senza coppia calcolo/dati; lo strumento funziona anche se l'archivio non è utilizzabile.
 - [23] (server) Nuovo strumento scheda(azienda): dice ciò che l'archivio sa di un'azienda (voci note con il file di provenienza, voci non ancora arrivate, documenti confermati in cui compare con il ruolo e le altre parti); l'azienda si indica con COE, partita IVA o nome.
 - [23] (server) scheda usa solo ciò che viene da file che l'utente della sessione può vedere (stessa regola delle pagine); senza sessione (trasporto stdio) non risponde.
+- [26] (server) Nuovo strumento spazio(regola, azienda): racconta lo spazio degli indici (per quali aziende scatta una regola, quali si discostano dalle aziende simili, i rapporti di un'azienda dai documenti confermati) e dà il collegamento alla pagina in tre dimensioni, con regola e azienda già scelte.
+- [26] (server) esegui_strumento() riceve l'indirizzo pubblico dell'applicativo, per i collegamenti alle pagine che non sono mappe.
 
 ## mappa
 

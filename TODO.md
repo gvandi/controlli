@@ -93,7 +93,8 @@ Elenco unico delle cose da fare. Ogni passo si chiude con questo file aggiornato
         `calcola_indici`, `grafo_versioni`, poi gli strumenti della chat
   - [x] spazio degli indici: aziende in tre dimensioni, indice a regole e z-score robusto (`/indici/spazio/`, n. 89)
   - [ ] **prima esecuzione** dello spazio degli indici nel browser (il disegno è stato provato solo a secco)
-  - [ ] lo spazio degli indici come strumento della chat (collegamento alla pagina, come per la mappa)
+  - [x] rapporti fra aziende nello spazio degli indici e strumento `spazio` della chat (DECISIONI.md n. 91)
+  - [ ] importazione di documenti da CSV, per avere abbastanza rapporti da provare (oggi c'è un solo DDT)
   - [ ] **definire i quattro tipi di irregolarità**: che cosa sono, come si accertano, riferimento normativo
         (oggi sono solo nomi: DECISIONI.md n. 90); poi una tabella gestita dal Configuratore
   - [ ] importazione dell'anagrafica dall'interfaccia (oggi solo da comando)

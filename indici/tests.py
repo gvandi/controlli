@@ -171,6 +171,7 @@ class SpazioTest(TestCase):
         dati = spazio.costruisci(regola)
         self.assertEqual((len(dati["punti"]), dati["esclusi"]), (11, 1))
         self.assertEqual([a["codice"] for a in dati["assi"]["attivita"]], ["47", "62"])
+        self.assertEqual((dati["rapporti"], dati["fuori"]), ([], {}))  # nessun documento confermato
         per_nome = {p["nome"]: p for p in dati["punti"]}
         alfa, negozio, software = per_nome["Alfa S.r.l."], per_nome["Negozio 0"], per_nome["Software S.r.l."]
         # coordinate: posizione della classe sui due assi ordinati, e divisione dell'attività

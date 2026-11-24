@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   calcolatrice.py  -  app grafo, VERSIONE 25
+#   calcolatrice.py  -  app grafo, VERSIONE 26
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: server
@@ -62,6 +62,12 @@
 #        nome.
 #   [23] scheda usa solo ciò che viene da file che l'utente della sessione può vedere (stessa
 #        regola delle pagine); senza sessione (trasporto stdio) non risponde.
+#   [26] Nuovo strumento spazio(regola, azienda): racconta lo spazio degli indici (per quali
+#        aziende scatta una regola, quali si discostano dalle aziende simili, i rapporti di
+#        un'azienda dai documenti confermati) e dà il collegamento alla pagina in tre
+#        dimensioni, con regola e azienda già scelte.
+#   [26] esegui_strumento() riceve l'indirizzo pubblico dell'applicativo, per i collegamenti
+#        alle pagine che non sono mappe.
 #
 # <<< NOVITA
 """
