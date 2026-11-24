@@ -77,8 +77,10 @@ DELICATE_SE_DA_SCANSIONE = (regole.COE, regole.PARTITA_IVA, regole.IMPORTO)
 # pagine: [(numero, testo, origine)]   entita: [dizionari con etichetta, valore, pagina, fonte, ...]
 # completa: falso se sono state applicate le sole regole perché il modello non era disponibile
 # documento: il documento commerciale riconosciuto nel file (vedi lettura_modello), o None
+# avvisi: ciò che il revisore deve sapere di una lettura riuscita solo in parte (per esempio una
+#         risposta del modello tagliata): il file va rivisto anche se non ci sarebbero altri motivi
 Lettura = collections.namedtuple(
-    "Lettura", "pagine entita modello versione_prompt completa documento", defaults=(True, None)
+    "Lettura", "pagine entita modello versione_prompt completa documento avvisi", defaults=(True, None, ())
 )
 
 
@@ -197,18 +199,20 @@ class LettoreTesto:
         with open(percorso, "rb") as contenuto:
             testo = contenuto.read().decode("utf-8", errors="replace")
         con_modello = self._modello is not None and self._modello.disponibile()[0]
-        pagine, entita, evento, documento = [], [], "", None
+        pagine, entita, evento, documento, avvisi = [], [], "", None, []
         for numero, pezzo in enumerate(_pezzi(testo), start=1):
             pagine.append((numero, pezzo, models.TESTO_DIRETTO))
             entita += [dict(e, pagina=numero, fonte=models.DA_REGOLA) for e in regole.estrai(pezzo)]
             if con_modello:
                 with _passo("", numero):
-                    proposte, evento, proposto = self._modello.leggi_testo(pezzo, voci, evento)
+                    proposte, evento, proposto, nuovi = self._modello.leggi_testo(pezzo, voci, evento)
+                avvisi += [f"Pagina {numero}: {avviso}." for avviso in nuovi]
                 entita += [dict(proposta, pagina=numero, fonte=models.DA_MODELLO) for proposta in proposte]
                 documento = unisci_documento(documento, proposto, numero)
         if con_modello:
             return Lettura(
-                pagine, entita, self._modello.modello, lettura_modello.VERSIONE_PROMPT, documento=documento
+                pagine, entita, self._modello.modello, lettura_modello.VERSIONE_PROMPT, documento=documento,
+                avvisi=tuple(avvisi),
             )
         return Lettura(pagine, entita, "", "", completa=self._modello is None)
 
@@ -255,18 +259,19 @@ class LettoreModello:
     def leggi_testo(self, testo, voci, evento_precedente=""):
         """
         Ciò che il modello propone per un testo: le entità, l'ultimo evento incontrato e
-        l'eventuale documento commerciale con le sue parti.
+        l'eventuale documento commerciale con le sue parti, e gli
+        avvisi su ciò che della risposta non si è potuto usare.
         Gli identificativi li leggono le regole: quelli proposti dal modello non si usano (n. 23).
         """
         massimo, opzioni = self._parametri()
         with _passo("entità"):
-            proposte, evento = lettura_modello.estrai_entita(
+            proposte, evento, avvisi = lettura_modello.estrai_entita_con_avvisi(
                 self._cliente, self.modello, testo, voci, evento_precedente, massimo, opzioni
             )
         with _passo("documento e parti"):
             documento = lettura_modello.estrai_documento(self._cliente, self.modello, testo, massimo, opzioni)
         riservate_alle_regole = {_compatto(etichetta) for etichetta in TIPO_PER_REGOLA}
-        return [p for p in proposte if _compatto(p["etichetta"]) not in riservate_alle_regole], evento, documento
+        return [p for p in proposte if _compatto(p["etichetta"]) not in riservate_alle_regole], evento, documento, avvisi
 
     def entita_dal_testo(self, testo, voci, evento_precedente=""):
         """Come leggi_testo, senza il documento."""
@@ -278,17 +283,20 @@ class LettoreModello:
             immagini = self._pagine_del_pdf(percorso, int(_impostazione("ELABORAZIONE_PUNTI_PER_POLLICE", 200)))
         else:
             immagini = [self._immagine_come_jpeg(percorso)]
-        pagine, entita, evento, documento = [], [], "", None
+        pagine, entita, evento, documento, avvisi = [], [], "", None, []
         for numero, jpeg in enumerate(immagini, start=1):
             with _passo("trascrizione", numero):
                 testo = lettura_modello.trascrivi(self._cliente, self.modello, jpeg, massimo, opzioni)
             pagine.append((numero, testo, models.TESTO_OCR))
             entita += [dict(e, pagina=numero, fonte=models.DA_REGOLA) for e in regole.estrai(testo)]
             with _passo("", numero):
-                proposte, evento, proposto = self.leggi_testo(testo, voci, evento)
+                proposte, evento, proposto, nuovi = self.leggi_testo(testo, voci, evento)
+            avvisi += [f"Pagina {numero}: {avviso}." for avviso in nuovi]
             entita += [dict(proposta, pagina=numero, fonte=models.DA_MODELLO) for proposta in proposte]
             documento = unisci_documento(documento, proposto, numero)
-        return Lettura(pagine, entita, self.modello, lettura_modello.VERSIONE_PROMPT, documento=documento)
+        return Lettura(
+            pagine, entita, self.modello, lettura_modello.VERSIONE_PROMPT, documento=documento, avvisi=tuple(avvisi)
+        )
 
 
 def lettori_predefiniti():
@@ -478,10 +486,14 @@ def _salva(file, elaborazione, lettura):
         )
         return PARZIALE
 
-    da_rivedere = _qualcosa_da_rivedere(file)
+    # Una lettura riuscita solo in parte (per esempio una risposta tagliata) va sempre rivista,
+    # e il revisore deve sapere perché: l'avviso resta sul file e sull'elaborazione
+    avviso = " ".join(lettura.avvisi)[:2000]
+    da_rivedere = _qualcosa_da_rivedere(file) or bool(avviso)
     stato = archivio.FILE_DA_RIVEDERE if da_rivedere else archivio.FILE_ELABORATO
-    FileCaricato.objects.filter(pk=file.pk).update(stato=stato, ultimo_errore="")
+    FileCaricato.objects.filter(pk=file.pk).update(stato=stato, ultimo_errore=avviso)
     Elaborazione.objects.filter(pk=elaborazione.pk).update(
+        errore=avviso,
         esito=models.ESITO_DA_RIVEDERE if da_rivedere else models.ESITO_OK, finita_il=timezone.now(),
         modello=lettura.modello[:120], versione_prompt=lettura.versione_prompt[:20], pagine=len(lettura.pagine),
     )
@@ -761,8 +773,9 @@ def chiudi_revisione(file, conservate, documento=None):
         if documento is not None:
             _rivedi_documento(file, documento)
         if not _qualcosa_da_rivedere(file):
+            # chiusa la revisione, l'avviso di una lettura riuscita in parte ha fatto il suo lavoro
             FileCaricato.objects.filter(pk=file.pk, stato=archivio.FILE_DA_RIVEDERE).update(
-                stato=archivio.FILE_ELABORATO
+                stato=archivio.FILE_ELABORATO, ultimo_errore=""
             )
     return tenute, scartate
 
