@@ -13,7 +13,10 @@ from archivio.models import Fascicolo
 from decodifiche.models import TipoIdentificativo
 from grafo import contratto
 from grafo import models as grafo
-from indici import calcolo, importazione, spazio
+import types
+
+from grafo import interrogazione, servizio_mcp
+from indici import calcolo, classifica, importazione, spazio
 from indici.models import RegolaDiRischio
 from soggetti import servizi as anagrafica
 from soggetti.models import DatiPerPeriodo
@@ -132,6 +135,21 @@ class IndiciTest(TestCase):
         self.assertIn("COMMERCIO_SENZA_DIPENDENTI", spiegazione.dati["features"][0]["descrizione"])
         self.assertEqual(grafo.Spiegazione.objects.filter(esecuzione=esecuzione).count(), 1)
 
+        # la classifica della chat non presenta l'indice a regole come se fosse il punteggio della GNN
+        utente = get_user_model().objects.create_user("carla", password="x")
+        utente.user_permissions.add(Permission.objects.get(content_type__app_label="indici", codename="view_regoladirischio"))
+        interrogazione.chiudi()
+        self.addCleanup(interrogazione.chiudi)
+        servizio_mcp._chiamata.sessione = types.SimpleNamespace(utente=utente)
+        self.addCleanup(setattr, servizio_mcp._chiamata, "sessione", None)
+        testo = servizio_mcp.classifica()
+        for atteso in ("CRITERIO 1 - REGOLE DI RISCHIO (tutte le regole attive: COMMERCIO_SENZA_DIPENDENTI): 1 azienda:",
+                       "indice 0.60; regole scattate: COMMERCIO_SENZA_DIPENDENTI",
+                       "CRITERIO 4 - ANALISI DI RETE (GNN): non calcolato sui dati reali"):
+            self.assertIn(atteso, testo)
+        self.assertNotIn("1. Società", testo)
+        self.assertIn("non riconosciuto", servizio_mcp.classifica(tipo="inventato"))
+
         # rieseguire senza novità sostituisce la stessa esecuzione; con dati nuovi nasce una nuova fotografia
         self.assertEqual(calcolo.esegui()["versione_dati"], resoconto["versione_dati"])
         self.assertEqual(grafo.Esecuzione.objects.count(), 1)
@@ -200,6 +218,43 @@ class SpazioTest(TestCase):
         nessuna = spazio.costruisci(None)
         self.assertIsNone(nessuna["regola"])
         self.assertFalse(any(p["scatta"] for p in nessuna["punti"]))
+
+    def test_la_classifica_tiene_distinti_i_criteri(self):
+        criteri = classifica.criteri()
+        nome = lambda numero: criteri["punti"][numero]["nome"]
+        # criterio 1: per quali aziende scattano le regole attive, con l'indice che ne risulta
+        self.assertEqual([(nome(n), indice, codici) for n, indice, codici in criteri["regole_scattate"]],
+                         [("Alfa S.r.l.", 0.6, ["COMMERCIO_SENZA_DIPENDENTI"])])
+        # criterio 2: chi si discosta dalle aziende simili, anche senza regole
+        self.assertEqual([nome(n) for n, _ in criteri["scostamento"]], ["Alfa S.r.l."])
+        self.assertEqual(criteri["rapporti"], [])   # nessun documento confermato
+        # due regole sulla stessa azienda si combinano; una regola indicata esclude le altre
+        RegolaDiRischio.objects.create(codice="NEGOZI", descrizione="Dettaglio", tipo="triangolazione", peso="0.50", prefissi_attivita="47")
+        tutte = classifica.criteri()
+        self.assertEqual((len(tutte["regole_scattate"]), tutte["regole_scattate"][0][1:]), (10, (0.8, ["COMMERCIO_SENZA_DIPENDENTI", "NEGOZI"])))
+        sola = classifica.criteri(RegolaDiRischio.objects.get(codice="NEGOZI"))
+        self.assertEqual({indice for _, indice, _ in sola["regole_scattate"]}, {0.5})
+
+        utente = get_user_model().objects.create_user("dino", password="x")
+        self.assertIn("non ha il diritto", classifica.racconta(utente))
+        utente.user_permissions.add(Permission.objects.get(content_type__app_label="indici", codename="view_regoladirischio"))
+        utente = get_user_model().objects.get(pk=utente.pk)
+        testo = classifica.racconta(utente, n=2)
+        for atteso in ("SEGNALATE DA PIÙ CRITERI: 1 azienda:", "- Alfa S.r.l. (COE 10000): regole + scostamento",
+                       "tutte le regole attive: COMMERCIO_SENZA_DIPENDENTI, NEGOZI): 10 aziende, le prime 2:",
+                       "CRITERIO 2 - SCOSTAMENTO", "CRITERIO 3 - RAPPORTI CON AZIENDE SEGNALATE (dai documenti confermati): 0 aziende."):
+            self.assertIn(atteso, testo)
+        self.assertIn("la sola regola NEGOZI (Dettaglio)", classifica.racconta(utente, regola="negozi"))
+        self.assertIn("Nessuna regola corrisponde", classifica.racconta(utente, regola="inesistente"))
+        # dalla chat: senza esecuzioni nell'archivio l'analisi di rete è dichiarata non disponibile, il resto risponde
+        interrogazione.chiudi()
+        self.addCleanup(interrogazione.chiudi)
+        servizio_mcp._chiamata.sessione = types.SimpleNamespace(utente=utente)
+        self.addCleanup(setattr, servizio_mcp._chiamata, "sessione", None)
+        risposta = servizio_mcp.classifica(n=2)
+        self.assertIn("AZIENDE PIÙ RISCHIOSE, PER CRITERIO", risposta)
+        self.assertIn("regole + scostamento", risposta)
+        self.assertIn("CRITERIO 4 - ANALISI DI RETE (GNN): non disponibile", risposta)
 
     def test_la_pagina_e_per_chi_puo_consultare_gli_indici(self):
         Utente = get_user_model()

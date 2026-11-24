@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   protocollo_mcp.py  -  app grafo, VERSIONE 26
+#   protocollo_mcp.py  -  app grafo, VERSIONE 27
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: server
@@ -68,6 +68,13 @@
 #        dimensioni, con regola e azienda già scelte.
 #   [26] esegui_strumento() riceve l'indirizzo pubblico dell'applicativo, per i collegamenti
 #        alle pagine che non sono mappe.
+#   [27] Lo strumento classifica risponde per criteri distinti: 1) regole di rischio che
+#        scattano (tutte quelle attive, o quella indicata nel nuovo parametro regola), 2)
+#        scostamento dalle aziende simili, 3) rapporti con aziende segnalate, 4) punteggio
+#        dell'analisi di rete; in testa le aziende segnalate da più criteri.
+#   [27] Quando l'esecuzione in uso è l'indice a regole (dati reali), classifica non la presenta
+#        come un quarto criterio: dichiara che la GNN non è calcolata su quei dati. Senza
+#        sessione (stdio) classifica resta la sola analisi di rete.
 #
 # <<< NOVITA
 """

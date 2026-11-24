@@ -1,6 +1,6 @@
 # Registro delle novità
 
-Versione corrente: 26
+Versione corrente: 27
 
 Elenco completo delle novità rispetto alla versione 12 (ultimo file unico di partenza).
 È l'UNICO posto in cui le novità si scrivono a mano: `aggiorna_intestazioni.py` ricopia
@@ -142,6 +142,8 @@ Dalla 20 il numero di versione del codice è un intero.
 - [23] (server) scheda usa solo ciò che viene da file che l'utente della sessione può vedere (stessa regola delle pagine); senza sessione (trasporto stdio) non risponde.
 - [26] (server) Nuovo strumento spazio(regola, azienda): racconta lo spazio degli indici (per quali aziende scatta una regola, quali si discostano dalle aziende simili, i rapporti di un'azienda dai documenti confermati) e dà il collegamento alla pagina in tre dimensioni, con regola e azienda già scelte.
 - [26] (server) esegui_strumento() riceve l'indirizzo pubblico dell'applicativo, per i collegamenti alle pagine che non sono mappe.
+- [27] (server) Lo strumento classifica risponde per criteri distinti: 1) regole di rischio che scattano (tutte quelle attive, o quella indicata nel nuovo parametro regola), 2) scostamento dalle aziende simili, 3) rapporti con aziende segnalate, 4) punteggio dell'analisi di rete; in testa le aziende segnalate da più criteri.
+- [27] (server) Quando l'esecuzione in uso è l'indice a regole (dati reali), classifica non la presenta come un quarto criterio: dichiara che la GNN non è calcolata su quei dati. Senza sessione (stdio) classifica resta la sola analisi di rete.
 
 ## mappa
 
