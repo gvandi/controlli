@@ -19,7 +19,7 @@ class Command(BaseCommand):
             self.stdout.write(f"Documenti confermati non usati, {motivo}: {quanti}")
         versione = resoconto["versione_dati"]
         if versione is None:
-            self.stdout.write("Nessun documento confermato con mittente, destinatario, data e importo: nessuna fotografia.")
+            self.stdout.write("Nessuna azienda con dati per periodo e nessun documento confermato utilizzabile: nessuna fotografia.")
             return
         stato = "nuova fotografia" if resoconto["nuova"] else "nessuna novità: resta la fotografia"
         self.stdout.write(

@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   scrittura.py  -  app grafo, VERSIONE 24
+#   scrittura.py  -  app grafo, VERSIONE 25
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: calcolo
@@ -59,6 +59,11 @@
 #   [24] Anagrafica unica: il soggetto del grafo ricorda quello dell'anagrafica nel riferimento
 #        ANAG-<numero>; i documenti di caricamenti riservati a un'indagine non entrano nella
 #        fotografia; quelli senza data, importo o una delle due parti sono contati e riportati.
+#   [25] registra_esecuzione() accetta la versione del calcolo: l'indice a regole (app indici)
+#        si registra come esecuzione a sé, calcolo 1.0+regole, con le regole scattate come
+#        spiegazione.
+#   [25] La fotografia dei dati reali comprende anche le aziende che hanno dati per periodo
+#        (soggetti.DatiPerPeriodo), pur senza documenti.
 #
 # <<< NOVITA
 """
@@ -208,7 +213,7 @@ def registra_dati_simulati(archi, ha_etichetta_nodi, y_nodi, elenco_aziende, diz
 
 
 @transaction.atomic
-def registra_esecuzione(versione_dati, soggetti_per_nodo, punteggi_nodi, soglie, metriche):
+def registra_esecuzione(versione_dati, soggetti_per_nodo, punteggi_nodi, soglie, metriche, versione_calcolo=None):
     """
     Registra i risultati di un calcolo per la coppia (VERSIONE_CALCOLO, versione_dati).
     Se la coppia esiste già, la sostituisce insieme a punteggi, spiegazioni e coda.
@@ -216,13 +221,14 @@ def registra_esecuzione(versione_dati, soggetti_per_nodo, punteggi_nodi, soglie,
     - soggetti_per_nodo: chiave interna del soggetto per ogni nodo del grafo
     - punteggi_nodi: per ogni nodo, lista di probabilità nell'ordine di TIPI_IRREGOLARITA
     - soglie: una soglia di decisione per tipo, nello stesso ordine
+    - versione_calcolo: per un calcolo diverso dalla GNN (l'indice a regole usa
+      contratto.VERSIONE_CALCOLO_REGOLE); senza, è il calcolo di questo codice
     """
-    Esecuzione.objects.filter(
-        versione_calcolo=contratto.VERSIONE_CALCOLO, versione_dati=versione_dati
-    ).delete()
+    versione_calcolo = versione_calcolo or contratto.VERSIONE_CALCOLO
+    Esecuzione.objects.filter(versione_calcolo=versione_calcolo, versione_dati=versione_dati).delete()
 
     esecuzione = Esecuzione.objects.create(
-        versione_calcolo=contratto.VERSIONE_CALCOLO,
+        versione_calcolo=versione_calcolo,
         versione_dati=versione_dati,
         versione_codice=contratto.VERSIONE_CODICE,
         tassonomia=list(TIPI_IRREGOLARITA),

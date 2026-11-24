@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   contratto.py  -  app grafo, VERSIONE 24
+#   contratto.py  -  app grafo, VERSIONE 25
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: contratto
@@ -59,6 +59,8 @@
 #        strumenti che non leggono punteggi e dati.
 #   [23] Ottavo strumento scheda in NOMI_STRUMENTI e in STRUMENTI_SENZA_ARCHIVIO: legge
 #        l'archivio dei file caricati, non quello dell'analisi di rete.
+#   [25] Nuova costante VERSIONE_CALCOLO_REGOLE (1.0+regole): stessa forma dei risultati della
+#        GNN, etichetta distinta; i lettori che accettano 1.0 la accettano.
 #
 # <<< NOVITA
 """
@@ -86,7 +88,7 @@ from packaging.version import InvalidVersion, Version
 # 1) PROGETTO: quale rilascio è installato. Solo provenienza: non blocca nulla.
 #    Dalla versione 20 è un numero intero (20, 21...): non essendo mai confrontato
 #    con un intervallo, un secondo numero non serviva.
-VERSIONE_CODICE = "24"
+VERSIONE_CODICE = "25"
 
 # 2) SCHEMA del database: decide se un lettore può aprire l'archivio.
 #    Secondo numero: modifiche che AGGIUNGONO (tabella, colonna facoltativa, indice).
@@ -105,6 +107,10 @@ SCHEMA_RICHIESTO = "~=4.2"
 VERSIONE_CALCOLO = "1.0"
 #    Esecuzioni che i lettori considerano confrontabili fra loro
 CALCOLO_ACCETTATO = "~=1.0"
+# L'indice a regole (app indici) è un calcolo a sé, distinto dalla GNN: stessa forma dei
+# risultati, quindi stessa versione, con un'etichetta che lo distingue (PEP 440, "versione
+# locale"). I lettori che accettano 1.0 lo accettano; per escluderlo dal cruscotto: ===1.0
+VERSIONE_CALCOLO_REGOLE = VERSIONE_CALCOLO + "+regole"
 
 # 4) DATI: non è una versione di software ma una fotografia dei dati in ingresso.
 #    È un contatore (1, 2, 3...) assegnato dal database: vedi models.VersioneDati.

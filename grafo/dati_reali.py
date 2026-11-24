@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   dati_reali.py  -  app grafo, VERSIONE 24
+#   dati_reali.py  -  app grafo, VERSIONE 25
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: calcolo
@@ -59,6 +59,11 @@
 #   [24] Anagrafica unica: il soggetto del grafo ricorda quello dell'anagrafica nel riferimento
 #        ANAG-<numero>; i documenti di caricamenti riservati a un'indagine non entrano nella
 #        fotografia; quelli senza data, importo o una delle due parti sono contati e riportati.
+#   [25] registra_esecuzione() accetta la versione del calcolo: l'indice a regole (app indici)
+#        si registra come esecuzione a sé, calcolo 1.0+regole, con le regole scattate come
+#        spiegazione.
+#   [25] La fotografia dei dati reali comprende anche le aziende che hanno dati per periodo
+#        (soggetti.DatiPerPeriodo), pur senza documenti.
 #
 # <<< NOVITA
 """
@@ -71,7 +76,8 @@ al posto di quella simulata (DECISIONI.md, n. 85).
 
 Che cosa entra nella fotografia:
   - un NODO per ogni soggetto dell'anagrafica che è mittente o destinatario di un
-    documento confermato da una persona; il soggetto del grafo ricorda quello
+    documento confermato da una persona, oppure che ha dei dati per periodo
+    (soggetti.DatiPerPeriodo: le aziende importate dall'anagrafica ufficiale); il soggetto del grafo ricorda quello
     dell'anagrafica nel campo riferimento ("ANAG-<numero>"): è l'anagrafica unica;
   - un ARCO per ogni documento confermato che ha mittente, destinatario, data e
     importo totale: mittente = venditore, destinatario = acquirente.
@@ -97,6 +103,8 @@ from django.db.models import Max
 from elaborazione import models as elaborazione
 from elaborazione.models import Documento
 from soggetti import servizi as anagrafica
+from soggetti.models import DatiPerPeriodo
+from soggetti.models import Soggetto as SoggettoAnagrafica
 
 from . import scrittura
 from .models import DatiSoggetto, Relazione, Soggetto, VersioneDati
@@ -165,16 +173,15 @@ def fotografa(descrizione="dati reali dall'archivio"):
     Registra la fotografia dei dati reali e restituisce un resoconto:
         {"versione_dati", "nuova": bool, "soggetti": n, "relazioni": n, "esclusi": {motivo: quanti}}
     Se dall'ultima volta non è cambiato nulla NON crea una nuova fotografia (stessa
-    impronta). Senza nessun arco non crea nulla: "versione_dati" è None.
+    impronta). Senza nessun soggetto non crea nulla: "versione_dati" è None.
     """
     archi, esclusi = archi_dall_archivio()
     resoconto = {"versione_dati": None, "nuova": False, "soggetti": 0, "relazioni": len(archi), "esclusi": esclusi}
-    if not archi:
-        return resoconto
-
-    nodi = {}
+    nodi = {s.pk: s for s in SoggettoAnagrafica.objects.filter(dati_per_periodo__isnull=False).distinct()}
     for mittente, destinatario, _ in archi:
         nodi[mittente.pk], nodi[destinatario.pk] = mittente, destinatario
+    if not nodi:
+        return resoconto
     resoconto["soggetti"] = len(nodi)
     schede = {
         numero: (soggetto.denominazione or anagrafica.etichetta(soggetto), *_identificativi(soggetto))
@@ -184,7 +191,12 @@ def fotografa(descrizione="dati reali dall'archivio"):
         (mittente.pk, destinatario.pk, f"{documento.tipo} {documento.numero}".strip(), documento.data, documento.totale)
         for mittente, destinatario, documento in archi
     ]
-    impronta = scrittura._impronta("dati reali", schede, righe)
+    # Anche i dati per periodo fanno parte dei dati in ingresso: se cambiano, la fotografia è un'altra
+    per_periodo = list(
+        DatiPerPeriodo.objects.filter(soggetto__in=list(nodi)).order_by("soggetto_id", "periodo")
+        .values_list("soggetto_id", "periodo", "codice_attivita", "dipendenti", "fatturato")
+    )
+    impronta = scrittura._impronta("dati reali", schede, righe, per_periodo)
     esistente = VersioneDati.objects.filter(impronta=impronta).first()
     if esistente is not None:
         resoconto["versione_dati"] = esistente

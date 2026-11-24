@@ -14,3 +14,10 @@ class SoggettoAdmin(admin.ModelAdmin):
     list_filter = ("provvisorio",)
     search_fields = ("denominazione", "identificativi__valore_normalizzato")
     inlines = [IdentificativoInline]
+
+
+@admin.register(models.DatiPerPeriodo)
+class DatiPerPeriodoAdmin(admin.ModelAdmin):
+    list_display = ("soggetto", "periodo", "codice_attivita", "dipendenti", "fatturato", "fonte", "importato_il")
+    list_filter = ("periodo",)
+    search_fields = ("soggetto__denominazione", "soggetto__identificativi__valore_normalizzato", "codice_attivita")

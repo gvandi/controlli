@@ -70,8 +70,11 @@ DIRITTI = {
     CONFIGURATORE: [
         ("decodifiche", None, TUTTE),
         ("elaborazione", "vocecatalogo", TUTTE),
+        ("indici", "regoladirischio", TUTTE),
+        ("soggetti", "datiperperiodo", TUTTE),
     ],
     LETTORE: [
+        ("indici", None, SOLO_LETTURA),
         ("decodifiche", None, SOLO_LETTURA),
         ("archivio", None, SOLO_LETTURA),
         ("soggetti", None, SOLO_LETTURA),
