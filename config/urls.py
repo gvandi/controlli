@@ -29,6 +29,7 @@ urlpatterns = [
     path("elaborazione/", include("elaborazione.urls")),
     path("grafo/", include("grafo.urls")),
     path("indici/", include("indici.urls")),
+    path("lavori/", include("lavori.urls")),
     path("o/", include((INDIRIZZI_OAUTH, "oauth2_provider"))),
     # I documenti "well-known" vanno cercati alla radice del sito: è lì che la chat
     # scopre a quale server di autorizzazione rivolgersi (RFC 8414 e RFC 9728).

@@ -100,7 +100,10 @@ Elenco unico delle cose da fare. Ogni passo si chiude con questo file aggiornato
   - [ ] importazione di documenti da CSV, per avere abbastanza rapporti da provare (oggi c'è un solo DDT)
   - [ ] **definire i quattro tipi di irregolarità**: che cosa sono, come si accertano, riferimento normativo
         (oggi sono solo nomi: DECISIONI.md n. 90); poi una tabella gestita dal Configuratore
-  - [ ] importazione dell'anagrafica dall'interfaccia (oggi solo da comando)
+  - [x] lavori lanciati dall'interfaccia dall'amministratore, compresa l'importazione dell'anagrafica da CSV (n. 94)
+  - [ ] **prima esecuzione** dei lavori: `migrate`, `crea_ruoli`, `./avvia.sh`, poi i pulsanti
+  - [ ] i due processi (applicativo ed esecutore dei lavori) come servizi di sistema, per la produzione
+  - [ ] annullare un lavoro richiesto o in corso; pianificare i lavori dall'interfaccia
   - [ ] CSV con COE e partita IVA insieme: oggi vale il COE, la partita IVA non viene aggiunta al soggetto
   - [ ] regole su altri dati (forma giuridica, età dell'azienda, rapporti nel grafo)
   - [ ] tipo di relazione nello schema del grafo: vettore, persone e recapiti in comune

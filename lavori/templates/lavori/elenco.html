@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block titolo %}{% translate "Lavori" %} - Controlli{% endblock %}
+{% block contenuto %}
+<style>
+  main { max-width: 72rem; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--bordo); vertical-align: top; }
+  td.esito { white-space: pre-line; }
+  .lavoro { border-top: 1px solid var(--bordo); padding-top: 0.5rem; }
+  .lavoro p { margin: 0.3rem 0; }
+</style>
+<p><a href="{% url 'home' %}">{% translate "Inizio" %}</a> &rsaquo; {% translate "Lavori" %}</p>
+<h1>{% translate "Lavori" %}</h1>
+<p class="tenue">{% translate "Elaborazioni e calcoli lanciati dall'interfaccia. Un lavoro viene registrato subito ed eseguito dal processo avviato insieme all'applicativo; per ogni tipo ce n'è al più uno alla volta." %}</p>
+{% if nessun_esecutore %}
+  <p class="errore">{% translate "Nessun processo sta eseguendo i lavori: quelli richiesti resteranno in attesa. Avviare «python manage.py esegui_lavori» (oppure «./avvia.sh»)." %}</p>
+{% endif %}
+
+{% if puo_lanciare %}
+  <div class="scheda"><h2>{% translate "Caricamento dati" %}</h2>{% include "lavori/_pulsanti.html" with voci=sezioni.caricamento %}</div>
+  <div class="scheda"><h2>{% translate "Analisi" %}</h2>{% include "lavori/_pulsanti.html" with voci=sezioni.analisi %}</div>
+  <div class="scheda"><h2>{% translate "Analisi di rete" %}</h2>{% include "lavori/_pulsanti.html" with voci=sezioni.rete %}</div>
+{% endif %}
+
+<div class="scheda">
+  <h2>{% translate "Storico" %}</h2>
+  <table>
+    <tr><th>N.</th><th>{% translate "Lavoro" %}</th><th>{% translate "Stato" %}</th><th>{% translate "Chiesto" %}</th><th>{% translate "Durata" %}</th><th>{% translate "Esito" %}</th></tr>
+    {% for lavoro in lavori %}
+      <tr>
+        <td>{{ lavoro.pk }}</td>
+        <td>{{ lavoro.titolo }}{% if lavoro.nome_ingresso %}<br><span class="tenue">{{ lavoro.nome_ingresso }}</span>{% endif %}</td>
+        <td>{% if lavoro.stato == "fallito" %}<span class="errore">{{ lavoro.stato }}</span>{% else %}{{ lavoro.stato }}{% endif %}</td>
+        <td>{{ lavoro.richiesto_il|date:"Y-m-d H:i" }}{% if lavoro.richiesto_da %}<br><span class="tenue">{{ lavoro.richiesto_da }}</span>{% endif %}</td>
+        <td>{% if lavoro.durata %}{{ lavoro.durata.total_seconds|floatformat:0 }} s{% else %}-{% endif %}</td>
+        <td class="esito">{{ lavoro.esito|default:"-" }}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="6" class="tenue">{% translate "Nessun lavoro ancora." %}</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% if in_attivita %}
+  {# c'è un lavoro richiesto o in corso: la pagina si aggiorna da sola #}
+  <script>setTimeout(function () { window.location.reload(); }, 5000);</script>
+{% endif %}
+{% endblock %}

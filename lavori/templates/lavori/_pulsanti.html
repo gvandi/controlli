@@ -1,0 +1,30 @@
+{% load i18n %}
+{% comment %}
+  I pulsanti dei lavori di una sezione: si include con  {% templatetag openblock %} include "lavori/_pulsanti.html" with voci=... {% templatetag closeblock %}
+  dove voci è un elemento di lavori.servizi.per_le_pagine(). "ritorno" è la pagina a cui tornare.
+{% endcomment %}
+{% for voce in voci %}
+  <form method="post" action="{% url 'lavori:richiedi' %}" class="lavoro"{% if voce.tipo == "importa_anagrafica" %} enctype="multipart/form-data"{% endif %}>
+    {% csrf_token %}
+    <input type="hidden" name="tipo" value="{{ voce.tipo }}">
+    <input type="hidden" name="ritorno" value="{{ ritorno|default:request.path }}">
+    <p>
+      <button type="submit"{% if voce.aperto %} disabled{% endif %}>{{ voce.titolo }}</button>
+      {% if voce.tipo == "elabora_file" %}
+        <label style="display:inline">{% translate "al massimo" %} <input type="number" name="massimo" min="1" style="width:5rem"> {% translate "file (vuoto: tutti)" %}</label>
+      {% elif voce.tipo == "importa_anagrafica" %}
+        <input type="file" name="file" accept=".csv,text/csv" required>
+        <input type="text" name="fonte" placeholder="{% translate 'da dove viene il file' %}" style="width:14rem">
+      {% endif %}
+    </p>
+    <p class="tenue">
+      {{ voce.spiegazione }}
+      {% if voce.ultimo %}
+        <br>{% translate "Ultimo:" %} <strong>{{ voce.ultimo.stato }}</strong>,
+        {% translate "chiesto il" %} {{ voce.ultimo.richiesto_il|date:"Y-m-d H:i" }}{% if voce.ultimo.richiesto_da %} {% translate "da" %} {{ voce.ultimo.richiesto_da }}{% endif %}.
+        {% if voce.ultimo.esito %}{{ voce.ultimo.esito|truncatechars:220 }}{% endif %}
+      {% endif %}
+      {% if not voce.servito %}<br><span class="errore">{% translate "Nessun processo sta eseguendo questo tipo di lavoro: una richiesta resterebbe in attesa." %}</span>{% endif %}
+    </p>
+  </form>
+{% endfor %}
