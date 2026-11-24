@@ -92,7 +92,9 @@ Elenco unico delle cose da fare. Ogni passo si chiude con questo file aggiornato
   - [ ] **prima esecuzione**: `migrate`, `crea_ruoli`, `carica_regole`, `importa_anagrafica`,
         `calcola_indici`, `grafo_versioni`, poi gli strumenti della chat
   - [x] spazio degli indici: aziende in tre dimensioni, indice a regole e z-score robusto (`/indici/spazio/`, n. 89)
-  - [ ] **prima esecuzione** dello spazio degli indici nel browser (il disegno è stato provato solo a secco)
+  - [x] spazio degli indici provato in Chrome senza interfaccia su una copia statica della pagina (500 aziende
+        simulate, rapporti inventati): disegno, ricerca del COE, linee dei rapporti, rotazione
+  - [ ] **prima esecuzione** dello spazio degli indici dentro l'applicativo (pagina resa da Django)
   - [x] rapporti fra aziende nello spazio degli indici e strumento `spazio` della chat (DECISIONI.md n. 91)
   - [x] classifica delle aziende più rischiose per criteri distinti: regole, scostamento, rapporti, GNN (n. 92)
   - [ ] importazione di documenti da CSV, per avere abbastanza rapporti da provare (oggi c'è un solo DDT)

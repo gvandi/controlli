@@ -271,6 +271,9 @@ class SpazioTest(TestCase):
         self.assertEqual(pagina.context["regola"].codice, "COMMERCIO_SENZA_DIPENDENTI")
         self.assertContains(pagina, "Alfa S.r.l.")
         self.assertContains(pagina, 'value="2.5"')
+        # la legenda nomina anche i rapporti presi dal grafo, e c'è il campo per cercare un COE
+        self.assertContains(pagina, 'id="conta-rapporti"')
+        self.assertContains(pagina, 'id="cerca-coe"')
         # senza il diritto di aprire le schede non ci sono collegamenti alle aziende
         self.assertTrue(all(p["scheda"] == "" for p in pagina.context["dati"]["punti"]))
 
