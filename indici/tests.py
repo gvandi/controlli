@@ -166,8 +166,9 @@ class SpazioTest(TestCase):
         self.assertEqual(spazio.z_robusti([2, 2, 2]), [0.0, 0.0, 0.0])
         self.assertEqual(spazio.z_robusti([5]), [0.0])
 
-    def test_ogni_azienda_ha_tre_coordinate_un_indice_e_uno_scostamento(self):
-        dati = spazio.costruisci("falsa_fatturazione")
+    def test_ogni_azienda_ha_tre_coordinate_una_regola_e_uno_scostamento(self):
+        regola = RegolaDiRischio.objects.get(codice="COMMERCIO_SENZA_DIPENDENTI")
+        dati = spazio.costruisci(regola)
         self.assertEqual((len(dati["punti"]), dati["esclusi"]), (11, 1))
         self.assertEqual([a["codice"] for a in dati["assi"]["attivita"]], ["47", "62"])
         per_nome = {p["nome"]: p for p in dati["punti"]}
@@ -175,16 +176,29 @@ class SpazioTest(TestCase):
         # coordinate: posizione della classe sui due assi ordinati, e divisione dell'attività
         self.assertEqual((alfa["d"], alfa["f"], alfa["a"]), (0, 6, 0))
         self.assertEqual((software["d"], software["f"], software["a"]), (2, 2, 1))
-        # Alfa supera l'indice E si discosta dalle altre aziende della sua attività
-        self.assertEqual((alfa["sopra"], alfa["regole"], alfa["gruppo"]), (True, ["COMMERCIO_SENZA_DIPENDENTI"], "attività 47"))
+        # per Alfa la regola scatta E Alfa si discosta dalle altre aziende della sua attività
+        self.assertEqual((alfa["scatta"], alfa["altre"], alfa["gruppo"]), (True, [], "attività 47"))
         self.assertGreater(alfa["z"], spazio.SOGLIA_Z)
-        self.assertEqual((negozio["sopra"], negozio["z"]), (False, 0.0))
+        self.assertEqual((negozio["scatta"], negozio["z"]), (False, 0.0))
         # un'attività con poche aziende si confronta con tutte
         self.assertEqual(software["gruppo"], spazio.TUTTE)
-        # per un altro tipo di irregolarità nessuna regola: nessuna sopra soglia, stessi scostamenti
-        altro = spazio.costruisci("triangolazione")
-        self.assertFalse(any(p["sopra"] for p in altro["punti"]))
+        # ciò che la regola richiede su ogni asse, per evidenziarlo: D0, da F1 in su, la divisione 47
+        self.assertEqual(dati["regola"]["dentro"], {"dipendenti": [0], "fatturato": [1, 2, 3, 4, 5, 6, 7], "attivita": [0]})
+
+        # un'altra regola: cambia per chi scatta, non lo scostamento; la prima compare fra le "altre"
+        piccoli = RegolaDiRischio.objects.create(
+            codice="NEGOZI_PICCOLI", descrizione="Dettaglio con 1-2 dipendenti", tipo="fuori_oggetto_licenza",
+            peso="0.30", prefissi_attivita="47.1", classi_dipendenti="D1", attiva=False,
+        )
+        altro = spazio.costruisci(piccoli)
+        self.assertEqual(sum(p["scatta"] for p in altro["punti"]), 9)
+        per_nome = {p["nome"]: p for p in altro["punti"]}
+        self.assertEqual((per_nome["Alfa S.r.l."]["scatta"], per_nome["Alfa S.r.l."]["altre"]), (False, ["COMMERCIO_SENZA_DIPENDENTI"]))
         self.assertEqual([p["z"] for p in altro["punti"]], [p["z"] for p in dati["punti"]])
+        # senza regole restano i soli scostamenti
+        nessuna = spazio.costruisci(None)
+        self.assertIsNone(nessuna["regola"])
+        self.assertFalse(any(p["scatta"] for p in nessuna["punti"]))
 
     def test_la_pagina_e_per_chi_puo_consultare_gli_indici(self):
         Utente = get_user_model()
@@ -193,12 +207,16 @@ class SpazioTest(TestCase):
         self.client.force_login(bruno)
         self.assertEqual(self.client.get(reverse("indici:spazio")).status_code, 403)
         self.client.force_login(anna)
-        pagina = self.client.get(reverse("indici:spazio"), {"tipo": "falsa_fatturazione"})
+        RegolaDiRischio.objects.create(codice="ALTRA", descrizione="Altra regola", tipo="triangolazione", peso="0.10", classi_dipendenti="D7")
+        # senza scelta, o con un codice che non esiste, vale la prima regola attiva
+        for richiesta in ({}, {"regola": "inventata"}):
+            self.assertEqual(self.client.get(reverse("indici:spazio"), richiesta).context["regola"].codice, "ALTRA")
+        pagina = self.client.get(reverse("indici:spazio"), {"regola": "COMMERCIO_SENZA_DIPENDENTI"})
+        self.assertEqual(pagina.context["regola"].codice, "COMMERCIO_SENZA_DIPENDENTI")
         self.assertContains(pagina, "Alfa S.r.l.")
         self.assertContains(pagina, 'value="2.5"')
         # senza il diritto di aprire le schede non ci sono collegamenti alle aziende
         self.assertTrue(all(p["scheda"] == "" for p in pagina.context["dati"]["punti"]))
-        self.assertEqual(self.client.get(reverse("indici:spazio"), {"tipo": "inventato"}).context["tipo"], "triangolazione")
 
 
 class MigrazioniTest(TestCase):
