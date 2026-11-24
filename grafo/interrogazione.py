@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   interrogazione.py  -  app grafo, VERSIONE 27
+#   interrogazione.py  -  app grafo, VERSIONE 28
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: interrogazione
@@ -73,6 +73,9 @@
 #        schema, calcolo e documenti di spiegazione; i messaggi di errore dicono quando il
 #        rifiuto viene da una restrizione.
 #   [20] in_esclusiva diventa un nome pubblico: lo usa lo strumento mappa.
+#   [28] Con una fotografia dei dati senza indicatori (dati reali) contesto_indicatore() spiega
+#        che gli indicatori appartengono al calcolo della GNN e rimanda agli strumenti spazio e
+#        classifica, invece di chiedere di copiare un file.
 #
 # <<< NOVITA
 """
@@ -994,8 +997,11 @@ def contesto_indicatore(termine, nodo=None):
     testo += intestazione_dati()
     if voci_dizionario == 0:
         return testo + (
-            "Il dizionario degli indicatori è vuoto: copiare dizionario_descrizioni.json nella "
-            "cartella del prototipo e rieseguire il calcolo.\n"
+            "In questa fotografia dei dati non ci sono indicatori. Gli indicatori sono le caratteristiche "
+            "usate dalla GNN e arrivano con i dati del suo calcolo: sui dati reali, dove la GNN non è "
+            "ancora calcolata, l'elenco è vuoto. Non è un errore e l'ispettore non deve fare nulla. "
+            "Per le regole di rischio, gli scostamenti e lo spazio degli indici usare lo strumento spazio; "
+            "per le aziende più rischiose lo strumento classifica.\n"
         )
     if not trovati:
         return testo + f"Nessun indicatore fra i {voci_dizionario} del dizionario contiene '{termine}'.\n"

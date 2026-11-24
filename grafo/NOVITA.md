@@ -1,6 +1,6 @@
 # Registro delle novità
 
-Versione corrente: 27
+Versione corrente: 28
 
 Elenco completo delle novità rispetto alla versione 12 (ultimo file unico di partenza).
 È l'UNICO posto in cui le novità si scrivono a mano: `aggiorna_intestazioni.py` ricopia
@@ -113,6 +113,7 @@ Dalla 20 il numero di versione del codice è un intero.
 - [19] (interrogazione) Si prova senza chat con python manage.py grafo_consulta "domanda".
 - [20] (interrogazione) apri() legge le restrizioni dell'amministratore (restrizioni_in_vigore) e le applica a schema, calcolo e documenti di spiegazione; i messaggi di errore dicono quando il rifiuto viene da una restrizione.
 - [20] (interrogazione) in_esclusiva diventa un nome pubblico: lo usa lo strumento mappa.
+- [28] (interrogazione) Con una fotografia dei dati senza indicatori (dati reali) contesto_indicatore() spiega che gli indicatori appartengono al calcolo della GNN e rimanda agli strumenti spazio e classifica, invece di chiedere di copiare un file.
 
 ## server
 
@@ -144,6 +145,7 @@ Dalla 20 il numero di versione del codice è un intero.
 - [26] (server) esegui_strumento() riceve l'indirizzo pubblico dell'applicativo, per i collegamenti alle pagine che non sono mappe.
 - [27] (server) Lo strumento classifica risponde per criteri distinti: 1) regole di rischio che scattano (tutte quelle attive, o quella indicata nel nuovo parametro regola), 2) scostamento dalle aziende simili, 3) rapporti con aziende segnalate, 4) punteggio dell'analisi di rete; in testa le aziende segnalate da più criteri.
 - [27] (server) Quando l'esecuzione in uso è l'indice a regole (dati reali), classifica non la presenta come un quarto criterio: dichiara che la GNN non è calcolata su quei dati. Senza sessione (stdio) classifica resta la sola analisi di rete.
+- [28] (server) Lo strumento indicatore, se riceve come termine solo parole che indicano lo spazio degli indici (indici, spazio, regole), passa la domanda allo strumento spazio; le descrizioni dei due strumenti dicono esplicitamente quando usare l'uno e quando l'altro.
 
 ## mappa
 

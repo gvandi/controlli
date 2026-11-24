@@ -255,6 +255,13 @@ class SpazioTest(TestCase):
         self.assertIn("AZIENDE PIÙ RISCHIOSE, PER CRITERIO", risposta)
         self.assertIn("regole + scostamento", risposta)
         self.assertIn("CRITERIO 4 - ANALISI DI RETE (GNN): non disponibile", risposta)
+        # "mostrami lo spazio degli indici": se il modello sbaglia e chiama indicatore, risponde comunque spazio
+        for termine in ("indici", "spazio degli indici", "Indici di rischio", "regole"):
+            self.assertIn("Regola COMMERCIO_SENZA_DIPENDENTI", servizio_mcp.indicatore(termine), termine)
+        self.assertIn("/indici/spazio/?regola=COMMERCIO_SENZA_DIPENDENTI", servizio_mcp.indicatore("indici"))
+        # un termine vero resta una ricerca fra gli indicatori (qui l'archivio dell'analisi di rete è vuoto)
+        with self.assertRaises(contratto.ArchivioIncompatibile):
+            servizio_mcp.indicatore("paesi offshore")
 
     def test_la_pagina_e_per_chi_puo_consultare_gli_indici(self):
         Utente = get_user_model()

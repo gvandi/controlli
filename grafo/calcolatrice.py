@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   calcolatrice.py  -  app grafo, VERSIONE 27
+#   calcolatrice.py  -  app grafo, VERSIONE 28
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: server
@@ -75,6 +75,10 @@
 #   [27] Quando l'esecuzione in uso è l'indice a regole (dati reali), classifica non la presenta
 #        come un quarto criterio: dichiara che la GNN non è calcolata su quei dati. Senza
 #        sessione (stdio) classifica resta la sola analisi di rete.
+#   [28] Lo strumento indicatore, se riceve come termine solo parole che indicano lo spazio
+#        degli indici (indici, spazio, regole), passa la domanda allo strumento spazio; le
+#        descrizioni dei due strumenti dicono esplicitamente quando usare l'uno e quando
+#        l'altro.
 #
 # <<< NOVITA
 """
