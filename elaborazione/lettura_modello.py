@@ -30,7 +30,12 @@ import re
 # 2: oltre alle entità si chiede il documento commerciale con le sue parti e i loro ruoli
 # 3: risposte più corte, per non raggiungere il limite di lunghezza: il documento si chiede
 #    in una chiamata a parte, e la citazione non si chiede più (la ricava il programma dal testo)
-VERSIONE_PROMPT = "3"
+# 4: al modello si dice che cosa NON elencare (le righe di merce) e di non ripetersi; una risposta
+#    sulle entità tagliata non fa più fallire il file: si tiene ciò che è arrivato intero
+VERSIONE_PROMPT = "4"
+
+# Oltre questo numero le entità di una pagina sono quasi certamente una ripetizione
+MASSIMO_ENTITA_PER_PAGINA = 80
 
 # Come il modello può chiamare un ruolo -> il ruolo previsto
 RUOLI = {
@@ -71,6 +76,11 @@ VOCI:
 {voci}
 
 Evento della pagina precedente: {evento_precedente}
+
+NON elencare le righe di merci o servizi di una fattura o di un documento di trasporto: codici articolo,
+descrizioni dei prodotti, quantità, prezzi unitari, importi di riga, lotti. Di un documento commerciale bastano
+le aziende, gli indirizzi, il numero, la data e il totale.
+Scrivi ogni entità UNA volta sola: quando hai elencato tutte quelle della pagina, chiudi il JSON e fermati.
 
 Non inventare entità che non sono nel testo. Rispondi SOLO con un oggetto JSON di questa forma:
 {{"entita": [{{"etichetta": "...", "valore": "...", "evento": "...", "periodo": ""}}]}}
@@ -151,6 +161,40 @@ def testo_della_risposta(risposta):
     if not testo:
         raise LetturaFallita("Risposta vuota.")
     return testo
+
+
+def testo_e_taglio(risposta):
+    """
+    Come testo_della_risposta, ma una risposta tagliata non è un errore: restituisce
+    (testo arrivato, True). Serve dove ciò che è arrivato si può ancora usare.
+    """
+    try:
+        scelta = risposta.choices[0]
+        testo = scelta.message.content or ""
+    except (AttributeError, IndexError, TypeError):
+        raise LetturaFallita("Risposta del modello in una forma non prevista.")
+    testo = re.sub(r"<think>.*?</think>", "", testo, flags=re.DOTALL).strip()
+    if not testo:
+        raise LetturaFallita("Risposta vuota.")
+    return testo, getattr(scelta, "finish_reason", None) == "length"
+
+
+def oggetti_interi(testo):
+    """
+    Gli oggetti JSON completi di un elenco rimasto a metà:
+        {"entita": [{"a": 1}, {"a": 2}, {"a":     ->   [{"a": 1}, {"a": 2}]
+    Si usa per una risposta tagliata: l'ultimo oggetto, incompleto, si perde; gli altri no.
+    """
+    inizio = testo.find("[")
+    interi = []
+    for trovato in re.finditer(r"\{[^{}]*\}", testo[inizio:] if inizio >= 0 else ""):
+        try:
+            oggetto = json.loads(trovato.group(0))
+        except ValueError:
+            continue
+        if isinstance(oggetto, dict):
+            interi.append(oggetto)
+    return interi
 
 
 def json_dalla_risposta(testo):
@@ -234,33 +278,67 @@ def estrai_documento(cliente, modello, testo, massimo_token=6000, opzioni=None):
 
 
 def estrai_entita(cliente, modello, testo, voci, evento_precedente="", massimo_token=6000, opzioni=None):
+    """Come estrai_entita_con_avvisi, senza gli avvisi: (entità, ultimo evento della pagina)."""
+    return estrai_entita_con_avvisi(cliente, modello, testo, voci, evento_precedente, massimo_token, opzioni)[:2]
+
+
+def estrai_entita_con_avvisi(cliente, modello, testo, voci, evento_precedente="", massimo_token=6000, opzioni=None):
     """
     Seconda chiamata: le entità di una pagina, dal suo testo.
     voci: [(codice, descrizione)] del catalogo, proposte al modello come etichette.
-    Restituisce (entità, ultimo evento della pagina). Ogni entità è un dizionario con
+    Restituisce (entità, ultimo evento della pagina, avvisi). Ogni entità è un dizionario con
     etichetta, valore, citazione, evento, periodo; quelle senza etichetta o senza
     valore si scartano. La citazione non si chiede più al modello: resta vuota, salvo
     che il modello la dia comunque, e la ricava il programma (regole.citazione_dal_testo).
+
+    Un modello piccolo a volte non si ferma: ripete le stesse entità finché raggiunge il
+    limite di lunghezza. Per questo:
+      - una risposta TAGLIATA non fa fallire il file: si tengono gli oggetti arrivati interi;
+      - le entità ripetute (stessa etichetta e stesso valore) si contano una volta;
+      - oltre MASSIMO_ENTITA_PER_PAGINA ci si ferma.
+    In ognuno di questi casi "avvisi" dice che cosa è successo: il file andrà rivisto.
+    Se da una risposta tagliata non si ricava nulla, resta un errore (LetturaFallita).
     """
     if not testo.strip():
-        return [], evento_precedente
+        return [], evento_precedente, []
     prompt = PROMPT_ENTITA.format(
         voci="\n".join(f"- {codice}: {descrizione}" for codice, descrizione in voci) or "(nessuna)",
         evento_precedente=evento_precedente or "(nessuno)",
         testo=testo,
     )
-    oggetto = json_dalla_risposta(testo_della_risposta(_chiedi(cliente, modello, prompt, massimo_token, opzioni)))
-    grezze = oggetto.get("entita")
-    if not isinstance(grezze, list):
-        raise LetturaFallita("Nella risposta manca l'elenco 'entita'.")
-    entita, ultimo_evento = [], evento_precedente
+    risposta, tagliata = testo_e_taglio(_chiedi(cliente, modello, prompt, massimo_token, opzioni))
+    avvisi = []
+    if tagliata:
+        grezze = oggetti_interi(risposta)
+        if not grezze:
+            raise LetturaFallita("Risposta tagliata: il modello ha raggiunto il limite di lunghezza.")
+    else:
+        grezze = json_dalla_risposta(risposta).get("entita")
+        if not isinstance(grezze, list):
+            raise LetturaFallita("Nella risposta manca l'elenco 'entita'.")
+    entita, ultimo_evento, viste, ripetute = [], evento_precedente, set(), 0
     for grezza in grezze:
         if not isinstance(grezza, dict):
             continue
         campi = {nome: str(grezza.get(nome) or "").strip() for nome in ("etichetta", "valore", "citazione", "evento", "periodo")}
         if not campi["etichetta"] or not campi["valore"]:
             continue
+        chiave = (campi["etichetta"].lower(), campi["valore"].lower(), campi["periodo"])
+        if chiave in viste:
+            ripetute += 1
+            continue
+        viste.add(chiave)
+        if len(entita) >= MASSIMO_ENTITA_PER_PAGINA:
+            avvisi.append(f"il modello ha proposto più di {MASSIMO_ENTITA_PER_PAGINA} entità: le altre sono state ignorate")
+            break
         campi["evento"] = campi["evento"] or ultimo_evento
         ultimo_evento = campi["evento"] or ultimo_evento
         entita.append(campi)
-    return entita, ultimo_evento
+    if tagliata:
+        avvisi.append(
+            f"la risposta del modello sulle entità è stata tagliata dal limite di lunghezza: tenute le {len(entita)} "
+            "arrivate intere, qualcuna può mancare"
+        )
+    if ripetute > 5:
+        avvisi.append(f"il modello ha ripetuto {ripetute} volte entità già elencate")
+    return entita, ultimo_evento, avvisi

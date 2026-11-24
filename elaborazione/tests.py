@@ -897,6 +897,34 @@ class ScansioneTest(ConFile):
         self.assertEqual((TestoPagina.objects.count(), EntitaEstratta.objects.count()), (0, 0))
 
     @override_settings(ELABORAZIONE_RIVEDI_LE_SCANSIONI=False)
+    def test_una_risposta_tagliata_a_meta_elenco_non_butta_via_cio_che_e_arrivato(self):
+        # il modello non si ferma: ripete le stesse entità finché raggiunge il limite, e l'ultima resta a metà
+        ripetute = '{"etichetta": "AMMINISTRATORE", "valore": "Mario Rossi", "evento": "assemblea", "periodo": ""}, ' * 8
+        tagliata = '{"entita": [{"etichetta": "luogo", "valore": "Serravalle", "evento": "", "periodo": ""}, ' + ripetute + '{"etichetta": "SOC'
+        modello = ModelloFinto([risposta_del_modello(self.PAGINA_1), risposta_del_modello(tagliata, fine="length")])
+        file = self.carica(b"\xff\xd8\xff\xe0 immagine finta", nome="pagina.jpg", coe="12345")
+        lettore = coda.LettoreModello(cliente=modello, immagine_come_jpeg=lambda percorso: b"jpeg")
+        resoconto = coda.esegui(lettori=[lettore])
+        self.assertEqual((resoconto[coda.ERRORE], resoconto[coda.DA_RIVEDERE]), (0, 1))
+        # le entità arrivate intere ci sono, una volta sola
+        del_modello = EntitaEstratta.objects.filter(file=file, fonte=models.DA_MODELLO)
+        self.assertEqual(sorted(del_modello.values_list("etichetta", flat=True)), ["AMMINISTRATORE", "luogo"])
+        # il file va rivisto, e il revisore legge perché
+        riga = FileCaricato.objects.get(pk=file.pk)
+        self.assertEqual(riga.stato, archivio.FILE_DA_RIVEDERE)
+        for atteso in ("Pagina 1: la risposta del modello sulle entità è stata tagliata", "tenute le 2 arrivate intere", "ha ripetuto 7 volte"):
+            self.assertIn(atteso, riga.ultimo_errore)
+        self.assertEqual(Elaborazione.objects.get(file=file).errore, riga.ultimo_errore)
+        # chiusa la revisione il file è elaborato e l'avviso non serve più
+        coda.chiudi_revisione(file, list(EntitaEstratta.objects.filter(file=file).values_list("pk", flat=True)))
+        riga.refresh_from_db()
+        self.assertEqual((riga.stato, riga.ultimo_errore), (archivio.FILE_ELABORATO, ""))
+        # al modello si dice di non elencare le righe di merce
+        self.assertIn("NON elencare le righe", modello.richieste[1]["messages"][0]["content"])
+        self.assertEqual(lettura_modello.oggetti_interi('{"entita": [{"a": 1}, {"a": 2}, {"a":'), [{"a": 1}, {"a": 2}])
+        self.assertEqual(lettura_modello.oggetti_interi("nessun elenco"), [])
+
+    @override_settings(ELABORAZIONE_RIVEDI_LE_SCANSIONI=False)
     def test_la_revisione_delle_scansioni_si_puo_spegnere(self):
         modello = ModelloFinto([risposta_del_modello(self.PAGINA_2), entita_json()])
         file = self.carica(b"\xff\xd8\xff\xe0 immagine finta", nome="pagina.jpg", coe="12345")
