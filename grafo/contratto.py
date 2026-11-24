@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   contratto.py  -  app grafo, VERSIONE 33
+#   contratto.py  -  app grafo, VERSIONE 34
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: contratto
@@ -63,6 +63,9 @@
 #        GNN, etichetta distinta; i lettori che accettano 1.0 la accettano.
 #   [26] Nono strumento spazio in NOMI_STRUMENTI e in STRUMENTI_SENZA_ARCHIVIO: legge l'app
 #        indici, non l'archivio dell'analisi di rete.
+#   [34] Ogni modello dichiara il suo nome in italiano, singolare e plurale (migrazione 0004):
+#        nelle pagine di amministrazione non compaiono più «Sessiones», «Richiestas», «Mappa
+#        prodottas», «Token accessos». Cambiano solo le etichette.
 #
 # <<< NOVITA
 """
@@ -90,7 +93,7 @@ from packaging.version import InvalidVersion, Version
 # 1) PROGETTO: quale rilascio è installato. Solo provenienza: non blocca nulla.
 #    Dalla versione 20 è un numero intero (20, 21...): non essendo mai confrontato
 #    con un intervallo, un secondo numero non serviva.
-VERSIONE_CODICE = "33"
+VERSIONE_CODICE = "34"
 
 # 2) SCHEMA del database: decide se un lettore può aprire l'archivio.
 #    Secondo numero: modifiche che AGGIUNGONO (tabella, colonna facoltativa, indice).

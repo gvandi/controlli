@@ -30,6 +30,8 @@ class InfoArchivio(models.Model):
     valore = models.CharField(max_length=255)
 
     class Meta:
+        verbose_name = "informazione sull'archivio"
+        verbose_name_plural = "informazioni sull'archivio"
         db_table = "grafo_info"
 
     def __str__(self):
@@ -48,6 +50,8 @@ class Soggetto(models.Model):
     creato_il = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        verbose_name = "soggetto del grafo"
+        verbose_name_plural = "soggetti del grafo"
         db_table = "grafo_soggetto"
 
     def __str__(self):
@@ -64,6 +68,8 @@ class VersioneDati(models.Model):
     impronta = models.CharField(max_length=64, unique=True)
 
     class Meta:
+        verbose_name = "fotografia dei dati"
+        verbose_name_plural = "fotografie dei dati"
         db_table = "grafo_versione_dati"
 
     def __str__(self):
@@ -82,6 +88,8 @@ class DatiSoggetto(models.Model):
     ispezionata = models.BooleanField(default=False)
 
     class Meta:
+        verbose_name = "dati di un soggetto"
+        verbose_name_plural = "dati dei soggetti"
         db_table = "grafo_dati_soggetto"
         constraints = [
             models.UniqueConstraint(
@@ -98,6 +106,8 @@ class IrregolaritaAccertata(models.Model):
     tipo = models.CharField(max_length=60)
 
     class Meta:
+        verbose_name = "irregolarità accertata"
+        verbose_name_plural = "irregolarità accertate"
         db_table = "grafo_irregolarita"
         constraints = [
             models.UniqueConstraint(
@@ -117,6 +127,8 @@ class Relazione(models.Model):
     importo = models.DecimalField(max_digits=14, decimal_places=2)
 
     class Meta:
+        verbose_name = "relazione"
+        verbose_name_plural = "relazioni"
         db_table = "grafo_relazione"
         indexes = [
             models.Index(fields=["versione_dati", "venditore"], name="grafo_rel_venditore"),
@@ -132,6 +144,8 @@ class Indicatore(models.Model):
     descrizione = models.TextField()
 
     class Meta:
+        verbose_name = "indicatore"
+        verbose_name_plural = "indicatori"
         db_table = "grafo_indicatore"
         constraints = [
             models.UniqueConstraint(
@@ -156,6 +170,8 @@ class Esecuzione(models.Model):
     metriche = models.JSONField()  # metriche sul test set
 
     class Meta:
+        verbose_name = "esecuzione"
+        verbose_name_plural = "esecuzioni"
         db_table = "grafo_esecuzione"
         constraints = [
             models.UniqueConstraint(
@@ -175,6 +191,8 @@ class NodoSoggetto(models.Model):
     soggetto = models.ForeignKey(Soggetto, on_delete=models.PROTECT, related_name="+")
 
     class Meta:
+        verbose_name = "nodo di un soggetto"
+        verbose_name_plural = "nodi dei soggetti"
         db_table = "grafo_nodo"
         constraints = [
             models.UniqueConstraint(fields=["esecuzione", "indice_nodo"], name="grafo_nodo_unico"),
@@ -192,6 +210,8 @@ class PunteggioRischio(models.Model):
     sopra_soglia = models.BooleanField()
 
     class Meta:
+        verbose_name = "punteggio di rischio"
+        verbose_name_plural = "punteggi di rischio"
         db_table = "grafo_punteggio"
         constraints = [
             models.UniqueConstraint(
@@ -210,6 +230,8 @@ class Spiegazione(models.Model):
     dati = models.JSONField()  # forma: contratto.SCHEMA_SPIEGAZIONE, vedi COMPATIBILITA.md
 
     class Meta:
+        verbose_name = "spiegazione"
+        verbose_name_plural = "spiegazioni"
         db_table = "grafo_spiegazione"
         constraints = [
             models.UniqueConstraint(
@@ -227,6 +249,8 @@ class RichiestaSpiegazione(models.Model):
     richiesta_il = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        verbose_name = "richiesta di spiegazione"
+        verbose_name_plural = "richieste di spiegazione"
         db_table = "grafo_richiesta_spiegazione"
         constraints = [
             models.UniqueConstraint(
@@ -254,6 +278,8 @@ class Parametro(models.Model):
     )
 
     class Meta:
+        verbose_name = "parametro"
+        verbose_name_plural = "parametri"
         db_table = "grafo_parametro"
 
     def __str__(self):
@@ -276,6 +302,8 @@ class TokenAccesso(models.Model):
     revocato_il = models.DateTimeField(null=True, blank=True)
 
     class Meta:
+        verbose_name = "token di accesso"
+        verbose_name_plural = "token di accesso"
         db_table = "grafo_token"
 
     def __str__(self):
@@ -306,6 +334,8 @@ class Sessione(models.Model):
     client_oauth = models.CharField(max_length=255, blank=True, default="")
 
     class Meta:
+        verbose_name = "sessione della chat"
+        verbose_name_plural = "sessioni della chat"
         db_table = "grafo_sessione"
         permissions = [("usa_chat", "Può interrogare l'analisi di rete dalla chat")]
 
@@ -329,6 +359,8 @@ class Richiesta(models.Model):
     numero_dati = models.PositiveIntegerField(null=True, blank=True)
 
     class Meta:
+        verbose_name = "richiesta della chat"
+        verbose_name_plural = "richieste della chat"
         db_table = "grafo_richiesta"
         indexes = [models.Index(fields=["sessione", "ricevuta_il"], name="grafo_richiesta_sessione")]
 
@@ -345,6 +377,8 @@ class MappaProdotta(models.Model):
     numero_dati = models.PositiveIntegerField(null=True, blank=True)
 
     class Meta:
+        verbose_name = "mappa prodotta"
+        verbose_name_plural = "mappe prodotte"
         db_table = "grafo_mappa"
         constraints = [
             models.UniqueConstraint(fields=["sessione", "nome_file"], name="grafo_mappa_unica"),

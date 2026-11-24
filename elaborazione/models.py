@@ -74,6 +74,10 @@ class VoceCatalogo(models.Model):
     valida_dal = models.DateField(null=True, blank=True)
     valida_al = models.DateField(null=True, blank=True)
 
+    class Meta:
+        verbose_name = "voce del catalogo"
+        verbose_name_plural = "voci del catalogo"
+
     def __str__(self):
         return f"{self.codice} - {self.descrizione}"
 
@@ -91,6 +95,10 @@ class Elaborazione(models.Model):
     pagine = models.PositiveIntegerField(default=0)
     errore = models.TextField(blank=True, default="")
 
+    class Meta:
+        verbose_name = "elaborazione"
+        verbose_name_plural = "elaborazioni"
+
 
 class TestoPagina(models.Model):
     elaborazione = models.ForeignKey(Elaborazione, on_delete=models.CASCADE, related_name="testi")
@@ -99,6 +107,8 @@ class TestoPagina(models.Model):
     origine = models.CharField(max_length=20, blank=True, default="")
 
     class Meta:
+        verbose_name = "testo di una pagina"
+        verbose_name_plural = "testi delle pagine"
         constraints = [
             models.UniqueConstraint(fields=["elaborazione", "pagina"], name="testo_unico_per_pagina"),
         ]
@@ -149,6 +159,8 @@ class EntitaEstratta(models.Model):
     objects = EntitaQuerySet.as_manager()
 
     class Meta:
+        verbose_name = "entità estratta"
+        verbose_name_plural = "entità estratte"
         indexes = [models.Index(fields=["soggetto", "voce"], name="entita_soggetto_voce")]
 
     @property
@@ -186,6 +198,10 @@ class Documento(models.Model):
 
     objects = DocumentoQuerySet.as_manager()
 
+    class Meta:
+        verbose_name = "documento"
+        verbose_name_plural = "documenti"
+
 
 class ParteDelDocumento(models.Model):
     documento = models.ForeignKey(Documento, on_delete=models.CASCADE, related_name="parti")
@@ -201,3 +217,7 @@ class ParteDelDocumento(models.Model):
     )
     # Il revisore l'ha tolta dal documento
     ritirata = models.BooleanField(default=False)
+
+    class Meta:
+        verbose_name = "parte del documento"
+        verbose_name_plural = "parti dei documenti"

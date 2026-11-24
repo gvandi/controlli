@@ -66,6 +66,10 @@ class Faldone(models.Model):
     # A cosa è legato un fascicolo di questo faldone: caricamento, soggetto, indagine
     legato_a = models.CharField(max_length=20, blank=True, default="")
 
+    class Meta:
+        verbose_name = "faldone"
+        verbose_name_plural = "faldoni"
+
     def __str__(self):
         return self.nome
 
@@ -101,6 +105,8 @@ class Fascicolo(models.Model):
     objects = FascicoloQuerySet.as_manager()
 
     class Meta:
+        verbose_name = "fascicolo"
+        verbose_name_plural = "fascicoli"
         constraints = [
             models.UniqueConstraint(fields=["faldone", "soggetto"], name="fascicolo_unico_per_soggetto"),
         ]
@@ -121,6 +127,8 @@ class Assegnazione(models.Model):
     assegnato_il = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        verbose_name = "assegnazione"
+        verbose_name_plural = "assegnazioni"
         constraints = [
             models.UniqueConstraint(fields=["fascicolo", "utente"], name="assegnazione_unica"),
         ]
@@ -138,6 +146,8 @@ class SoggettoInIndagine(models.Model):
     aggiunto_il = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        verbose_name = "soggetto in indagine"
+        verbose_name_plural = "soggetti in indagine"
         constraints = [
             models.UniqueConstraint(fields=["fascicolo", "soggetto"], name="soggetto_in_indagine_unico"),
         ]
@@ -163,6 +173,10 @@ class Caricamento(models.Model):
     periodo_dal = models.DateField(null=True, blank=True)
     periodo_al = models.DateField(null=True, blank=True)
     note = models.TextField(blank=True, default="")
+
+    class Meta:
+        verbose_name = "caricamento"
+        verbose_name_plural = "caricamenti"
 
 
 class FileCaricato(models.Model):
@@ -197,6 +211,8 @@ class FileCaricato(models.Model):
     periodo_al = models.DateField(null=True, blank=True)
 
     class Meta:
+        verbose_name = "file caricato"
+        verbose_name_plural = "file caricati"
         constraints = [
             models.UniqueConstraint(fields=["fascicolo", "percorso_originale"], name="file_unico_per_percorso"),
         ]
@@ -228,6 +244,10 @@ class SoggettoDichiarato(models.Model):
     principale = models.BooleanField(default=False)
     soggetto = models.ForeignKey("soggetti.Soggetto", on_delete=models.PROTECT, related_name="+")
 
+    class Meta:
+        verbose_name = "soggetto dichiarato"
+        verbose_name_plural = "soggetti dichiarati"
+
     def __str__(self):
         return f"{self.tipo.codice} {self.valore_normalizzato}"
 
@@ -245,6 +265,10 @@ class Evento(models.Model):
     azione = models.CharField(max_length=30)
     dettaglio = models.CharField(max_length=500, blank=True, default="")
 
+    class Meta:
+        verbose_name = "evento del registro"
+        verbose_name_plural = "eventi del registro"
+
 
 class CollegamentoFile(models.Model):
     """Un file collegato a un fascicolo diverso da quello in cui è stato caricato.
@@ -261,6 +285,8 @@ class CollegamentoFile(models.Model):
     collegato_il = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        verbose_name = "collegamento di un file"
+        verbose_name_plural = "collegamenti dei file"
         constraints = [
             models.UniqueConstraint(fields=["file", "fascicolo"], name="collegamento_unico"),
         ]
