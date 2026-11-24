@@ -47,6 +47,7 @@ dalle sole regole e restano da elaborare; le scansioni aspettano.
 |---|---|
 | Importare attività, dipendenti e fatturato per periodo da un CSV | `python manage.py importa_anagrafica percorso/file.csv --fonte "da dove viene"` |
 | Calcolare l'indice di rischio a regole sui dati reali | `python manage.py calcola_indici` |
+| Rimettere in ordine i nomi delle aziende (prevale l'anagrafica ufficiale) | `python manage.py allinea_denominazioni` |
 
 `calcola_indici` aggiorna da solo la fotografia dei dati reali: dopo, la chat usa i dati reali.
 Un file di esempio con dati inventati è in `indici/esempio_anagrafica.csv`.

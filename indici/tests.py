@@ -16,7 +16,8 @@ from grafo import models as grafo
 import types
 
 from grafo import interrogazione, servizio_mcp
-from indici import calcolo, classifica, importazione, spazio
+from archivio import servizi as servizi_archivio
+from indici import allineamento, calcolo, classifica, importazione, spazio
 from indici.models import RegolaDiRischio
 from soggetti import servizi as anagrafica
 from soggetti.models import DatiPerPeriodo
@@ -67,6 +68,42 @@ class IndiciTest(TestCase):
         self.assertEqual(DatiPerPeriodo.objects.filter(soggetto=alfa.soggetto).count(), 3)
         with self.assertRaises(importazione.RigaNonValida):
             importazione.importa("nome;valore\nx;1\n")
+
+    def test_il_nome_dell_anagrafica_ufficiale_prevale_su_quello_nato_dai_file(self):
+        # l'azienda è nata da un documento, con un segnaposto al posto del nome
+        fascicolo = servizi_archivio.acquisisci_azienda(self.coe, "10000", "non rilevata")
+        soggetto = fascicolo.soggetto
+        self.assertEqual((soggetto.denominazione, fascicolo.titolo), ("", "Senza denominazione (COE 10000)"))
+        # un nome letto in un documento vale finché non c'è di meglio
+        self.assertTrue(anagrafica.imposta_denominazione(soggetto, "Alfa (da un DDT)"))
+        self.assertFalse(anagrafica.imposta_denominazione(soggetto, "Altro nome da un altro DDT"))
+        self.assertFalse(anagrafica.imposta_denominazione(soggetto, "non rilevata", ufficiale=True))
+
+        # il nome del CSV prevale, e lo mostrano tutti: anagrafica, faldone Aziende, spazio degli indici
+        importazione.importa("coe;periodo;denominazione;ateco;dipendenti;fatturato\n10000;2025;Alfa Servizi Digitali S.r.l.;62.01;D2;F2\n")
+        soggetto.refresh_from_db()
+        fascicolo.refresh_from_db()
+        self.assertEqual(soggetto.denominazione, "Alfa Servizi Digitali S.r.l.")
+        self.assertEqual(fascicolo.titolo, "Alfa Servizi Digitali S.r.l. (COE 10000)")
+        self.assertEqual(spazio.costruisci(None)["punti"][0]["nome"], "Alfa Servizi Digitali S.r.l.")
+        # un periodo più vecchio importato dopo non cambia il nome; uno più recente sì
+        importazione.importa("coe;periodo;denominazione\n10000;2023;Vecchio Nome S.r.l.\n")
+        soggetto.refresh_from_db()
+        self.assertEqual(soggetto.denominazione, "Alfa Servizi Digitali S.r.l.")
+        importazione.importa("coe;periodo;denominazione\n10000;2026;Alfa Digitale S.p.A.\n")
+        soggetto.refresh_from_db()
+        self.assertEqual(soggetto.denominazione, "Alfa Digitale S.p.A.")
+
+        # i dati già presenti si rimettono in ordine con il comando di riallineamento
+        type(soggetto).objects.filter(pk=soggetto.pk).update(denominazione="non rilevata")
+        type(fascicolo).objects.filter(pk=fascicolo.pk).update(titolo="non rilevata (COE 10000)")
+        senza_anagrafica = servizi_archivio.acquisisci_azienda(self.coe, "20000").soggetto
+        type(soggetto).objects.filter(pk=senza_anagrafica.pk).update(denominazione="Non rilevata")
+        cambiati = allineamento.esegui()
+        self.assertEqual({(s.pk, dopo) for s, _, dopo in cambiati}, {(soggetto.pk, "Alfa Digitale S.p.A."), (senza_anagrafica.pk, "")})
+        fascicolo.refresh_from_db()
+        self.assertEqual(fascicolo.titolo, "Alfa Digitale S.p.A. (COE 10000)")
+        self.assertEqual(allineamento.esegui(), [])   # rilanciato, non cambia nulla
 
     def test_la_fonte_puo_dare_la_classe_al_posto_del_valore(self):
         testo = (
