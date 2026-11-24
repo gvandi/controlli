@@ -29,6 +29,16 @@ def fascicolo_azienda(soggetto):
     )
 
 
+def allinea_titolo(soggetto):
+    """Il titolo del fascicolo dell'azienda segue la denominazione del soggetto. Restituisce il fascicolo."""
+    fascicolo, creato = fascicolo_azienda(soggetto)
+    titolo = anagrafica.etichetta(soggetto)[:200]
+    if not creato and fascicolo.titolo != titolo:
+        fascicolo.titolo = titolo
+        fascicolo.save(update_fields=["titolo"])
+    return fascicolo
+
+
 def acquisisci_azienda(tipo, valore, denominazione=""):
     """
     Trova o crea il soggetto con quell'identificativo e il suo fascicolo nel faldone
@@ -36,13 +46,8 @@ def acquisisci_azienda(tipo, valore, denominazione=""):
     """
     with transaction.atomic():
         soggetto, _ = anagrafica.trova_o_crea(tipo, valore, denominazione)
-        fascicolo, creato = fascicolo_azienda(soggetto)
-        if not creato:
-            # la denominazione può essere arrivata dopo: il titolo la segue
-            titolo = anagrafica.etichetta(soggetto)[:200]
-            if fascicolo.titolo != titolo:
-                fascicolo.titolo = titolo
-                fascicolo.save(update_fields=["titolo"])
+        # la denominazione può essere arrivata dopo: il titolo la segue
+        fascicolo = allinea_titolo(soggetto)
     return fascicolo
 
 

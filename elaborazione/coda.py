@@ -702,7 +702,7 @@ def _denominazioni_dal_documento(file, documento):
     testo = " ".join(TestoPagina.objects.filter(elaborazione__file=file).values_list("testo", flat=True))
     viste = set()
     for parte in documento.parti.filter(ritirata=False, soggetto__isnull=False).select_related("soggetto"):
-        nome = " ".join(parte.denominazione.split())
+        nome = anagrafica.nome_vero(parte.denominazione)   # "non rilevata" non è un nome
         if not nome or parte.ruolo == models.LUOGO_DI_DESTINAZIONE or parte.soggetto_id in viste:
             continue
         viste.add(parte.soggetto_id)
@@ -713,11 +713,9 @@ def _denominazioni_dal_documento(file, documento):
             fonte=models.DA_DOCUMENTO, verificata=regole.compare_nel_testo(nome, testo), confermata=True,
             soggetto=parte.soggetto,
         )
-        if not parte.soggetto.denominazione:
-            parte.soggetto.denominazione = nome[:255]
-            parte.soggetto.save(update_fields=["denominazione"])
-            fascicolo, _ = servizi_archivio.fascicolo_azienda(parte.soggetto)
-            Fascicolo.objects.filter(pk=fascicolo.pk).update(titolo=anagrafica.etichetta(parte.soggetto)[:200])
+        # Il nome di un documento vale solo se il soggetto non ne ha già uno vero (n. 93)
+        if anagrafica.imposta_denominazione(parte.soggetto, nome):
+            servizi_archivio.allinea_titolo(parte.soggetto)
 
 
 def documenti_del_soggetto(soggetto, utente):

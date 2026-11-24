@@ -45,6 +45,7 @@ from archivio.models import Fascicolo
 from decodifiche.models import ClasseDipendenti, ClasseFatturato
 from elaborazione import coda as elaborazione
 from grafo import dati_reali
+from soggetti import servizi as anagrafica
 from soggetti.models import DatiPerPeriodo
 
 from . import calcolo
@@ -101,8 +102,8 @@ def rapporti():
         voce = per_coppia.setdefault((mittente.pk, destinatario.pk), [0, 0.0])
         voce[0] += 1
         voce[1] += float(documento.totale)
-        nomi[mittente.pk] = mittente.denominazione or "senza denominazione"
-        nomi[destinatario.pk] = destinatario.denominazione or "senza denominazione"
+        nomi[mittente.pk] = anagrafica.nome_vero(mittente.denominazione) or "senza denominazione"
+        nomi[destinatario.pk] = anagrafica.nome_vero(destinatario.denominazione) or "senza denominazione"
     elenco = [
         {"da": da, "a": a, "quanti": quanti, "importo": round(importo, 2)}
         for (da, a), (quanti, importo) in sorted(per_coppia.items())
@@ -170,7 +171,8 @@ def costruisci(regola=None):
         identificativi = list(dato.soggetto.identificativi.all())
         punti.append({
             "n": dato.soggetto_id,
-            "nome": dato.soggetto.denominazione or dato.denominazione or "senza denominazione",
+            "nome": anagrafica.nome_vero(dato.soggetto.denominazione) or anagrafica.nome_vero(dato.denominazione)
+            or "senza denominazione",
             "codice": str(identificativi[0]) if identificativi else "",
             "ateco": dato.codice_attivita, "periodo": dato.periodo,
             "d": punto["d"], "f": punto["f"], "a": posto_a[punto["divisione"]],
@@ -258,7 +260,7 @@ def racconta(utente, regola="", azienda=""):
         soggetto, messaggio = elaborazione.trova_azienda(azienda)
         if soggetto is None:
             return messaggio, None
-        nome = soggetto.denominazione or "senza denominazione"
+        nome = anagrafica.nome_vero(soggetto.denominazione) or "senza denominazione"
         punto = punti.get(soggetto.pk)
         if punto is None:
             righe.append(f"\n{nome}: non è collocata nello spazio, perché non ha dati per periodo completi "

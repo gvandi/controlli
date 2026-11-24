@@ -21,6 +21,8 @@ per lo stesso periodo AGGIORNA la riga, un periodo nuovo ne aggiunge una.
 Una riga sbagliata non ferma l'importazione: viene saltata e riportata con il motivo.
 Il soggetto che non esiste viene creato, con il suo fascicolo nel faldone Aziende;
 un soggetto che arriva dall'anagrafica non è più provvisorio.
+La denominazione del file PREVALE su quella che il soggetto aveva già (nata da un
+documento o da una dichiarazione), se la riga è del suo periodo più recente.
 """
 import csv
 import decimal
@@ -96,6 +98,13 @@ def _una_riga(riga, tipi, classi, fonte):
             "classe_dipendenti": classe_dipendenti, "classe_fatturato": classe_fatturato, "fonte": fonte[:120],
         },
     )
+    # Il nome dell'anagrafica ufficiale prevale su quello nato dai documenti o dalle
+    # dichiarazioni, purché questa riga sia del periodo più recente del soggetto (n. 93)
+    piu_recente = DatiPerPeriodo.objects.filter(soggetto_id=fascicolo.soggetto_id).order_by("-periodo").first()
+    if piu_recente.periodo == periodo:
+        soggetto = Soggetto.objects.get(pk=fascicolo.soggetto_id)
+        if anagrafica.imposta_denominazione(soggetto, riga["denominazione"], ufficiale=True):
+            archivio.allinea_titolo(soggetto)
     return creata
 
 
