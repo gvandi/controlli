@@ -30,9 +30,9 @@
 <h1>{% translate "Spazio degli indici" %}</h1>
 
 <form method="get" class="comandi">
-  <label>{% translate "Tipo di irregolarità" %}
-    <select name="tipo" onchange="this.form.submit()">
-      {% for nome in tipi %}<option value="{{ nome }}"{% if nome == tipo %} selected{% endif %}>{{ nome }}</option>{% endfor %}
+  <label>{% translate "Regola" %}
+    <select name="regola" onchange="this.form.submit()">
+      {% for r in regole %}<option value="{{ r.codice }}"{% if r.pk == regola.pk %} selected{% endif %}>{{ r.codice }}{% if not r.attiva %} ({% translate "non attiva" %}){% endif %}</option>{% endfor %}
     </select>
   </label>
   <label>{% translate "Soglia dello z-score robusto" %}
@@ -62,15 +62,23 @@
     <div class="scheda">
       <h2>{% translate "Colori" %}</h2>
       <ul class="legenda">
-        <li><span class="pallino" style="background:#d1495b"></span>{% translate "supera l'indice a regole" %}: <strong id="conta-1"></strong></li>
+        <li><span class="pallino" style="background:#d1495b"></span>{% translate "la regola scatta" %}: <strong id="conta-1"></strong></li>
         <li><span class="pallino" style="background:#2a7fb8"></span>{% translate "si discosta dalle aziende simili" %}: <strong id="conta-2"></strong></li>
         <li><span class="pallino" style="background:#d1495b; box-shadow: 0 0 0 3px #2a7fb8"></span>{% translate "entrambe le cose" %}: <strong id="conta-3"></strong></li>
         <li><span class="pallino" style="background:#b4bfcc"></span>{% translate "nessuna delle due" %}: <strong id="conta-0"></strong></li>
       </ul>
-      <p class="tenue">
-        {% blocktranslate with soglia=dati.soglia %}Indice: punteggio delle regole di questo tipo da {{ soglia }} in su.{% endblocktranslate %}
-        {% if dati.regole %}{% translate "Regole attive:" %} {{ dati.regole|join:", " }}.{% else %}<span class="errore">{% translate "Nessuna regola attiva per questo tipo." %}</span>{% endif %}
-      </p>
+      {% if regola %}
+        <p><strong>{{ regola.codice }}</strong>: {{ regola.descrizione }}</p>
+        <p class="tenue">
+          {% translate "Scatta quando valgono tutte le condizioni scritte:" %}
+          {% translate "attività che comincia per" %} <strong>{{ regola.prefissi_attivita|default:"(qualsiasi)" }}</strong>;
+          {% translate "classe di dipendenti" %} <strong>{{ regola.classi_dipendenti|default:"(qualsiasi)" }}</strong>;
+          {% translate "classe di fatturato" %} <strong>{{ regola.classi_fatturato|default:"(qualsiasi)" }}</strong>.
+          {% translate "Sugli assi i valori richiesti dalla regola sono in rosso." %}
+        </p>
+      {% else %}
+        <p class="errore">{% translate "Nessuna regola definita: i punti mostrano solo lo scostamento." %}</p>
+      {% endif %}
       <p class="tenue">{% translate "Scostamento: fatturato rispetto al personale, confrontato con le aziende della stessa attività (o con tutte, se sono poche). È un invito a guardare, non un'irregolarità." %}</p>
     </div>
     <div class="scheda">
@@ -89,6 +97,8 @@
   var tela = document.getElementById("tela"), c = tela.getContext("2d");
   var ASSI = [D.assi.dipendenti, D.assi.fatturato, D.assi.attivita];
   var NOMI = ["dipendenti", "fatturato", "attività"];
+  // le posizioni di ogni asse che la regola scelta richiede: si scrivono in rosso
+  var DENTRO = D.regola ? [D.regola.dentro.dipendenti, D.regola.dentro.fatturato, D.regola.dentro.attivita] : [[], [], []];
   var COLORI = ["#b4bfcc", "#d1495b", "#2a7fb8", "#d1495b"];
   var giro = -0.65, alzo = 0.4, zoom = 1, sogliaZ = D.soglia_z, soloEvidenziate = false;
   var scelte = [], disegnati = [], L = 0, A = 0;
@@ -100,7 +110,7 @@
     return { p: p, x: posto(p.d, 0) + scarto(i, 0), y: posto(p.f, 1) + scarto(i, 1), z: posto(p.a, 2) + scarto(i, 2) };
   });
 
-  function categoria(p) { return (p.sopra ? 1 : 0) + (Math.abs(p.z) >= sogliaZ ? 2 : 0); }
+  function categoria(p) { return (p.scatta ? 1 : 0) + (Math.abs(p.z) >= sogliaZ ? 2 : 0); }
 
   function proietta(x, y, z) {
     var cg = Math.cos(giro), sg = Math.sin(giro), ca = Math.cos(alzo), sa = Math.sin(alzo);
@@ -135,11 +145,14 @@
       for (i = 0; i < ASSI[j].length; i++) {
         var t = posto(i, j), q = j === 0 ? [t, m - 0.05, m] : j === 1 ? [m - 0.06, t, m] : [m - 0.06, m, t];
         var s = proietta(q[0], q[1], q[2]);
+        var richiesto = DENTRO[j].indexOf(i) >= 0;
+        c.fillStyle = richiesto ? "#d1495b" : "#5b6675";
+        c.font = (richiesto ? "bold " : "") + "11px system-ui, sans-serif";
         c.fillText(ASSI[j][i].codice, s[0], s[1]);
       }
       var fine = j === 0 ? [M + 0.1, m, m] : j === 1 ? [m, M + 0.08, m] : [m, m, M + 0.1];
       var f = proietta(fine[0], fine[1], fine[2]);
-      c.font = "bold 12px system-ui, sans-serif"; c.fillText(NOMI[j], f[0], f[1]); c.font = "11px system-ui, sans-serif";
+      c.fillStyle = "#5b6675"; c.font = "bold 12px system-ui, sans-serif"; c.fillText(NOMI[j], f[0], f[1]);
     }
   }
 
@@ -196,7 +209,8 @@
       blocco.appendChild(titolo);
       riga(blocco, (p.codice ? p.codice + " · " : "") + "periodo " + p.periodo, "tenue");
       riga(blocco, "Attività " + p.ateco + " · " + ASSI[0][p.d].descrizione + " · " + ASSI[1][p.f].descrizione);
-      riga(blocco, "Indice: " + p.punteggio.toFixed(2) + (p.sopra ? " (sopra soglia)" : "") + (p.regole.length ? " · regole: " + p.regole.join(", ") : ""));
+      if (D.regola) riga(blocco, "Regola " + D.regola.codice + ": " + (p.scatta ? "scatta" : "non scatta"));
+      if (p.altre.length) riga(blocco, "Altre regole che scattano: " + p.altre.join(", "), "tenue");
       riga(blocco, "z-score robusto: " + p.z.toFixed(2) + (Math.abs(p.z) >= sogliaZ ? " (si discosta)" : "") + " · confronto con " + p.gruppo);
       dove.appendChild(blocco);
     });

@@ -9,8 +9,10 @@ Le tre dimensioni sono quelle su cui lavorano le regole:
 
 Di ogni azienda si dicono due cose DIVERSE, che la pagina mostra con colori diversi:
 
-  1. se supera l'indice a regole per il tipo di irregolarità scelto (indici/calcolo.py):
-     è ciò che una persona ha dichiarato sospetto scrivendo una regola;
+  1. se per lei SCATTA LA REGOLA scelta fra quelle definite (indici/calcolo.py): è ciò
+     che una persona ha dichiarato sospetto scrivendo quella regola. Si sceglie una
+     regola e non un tipo di irregolarità perché i tipi non hanno ancora una
+     definizione scritta, mentre una regola dice esattamente che cosa guarda (n. 90);
 
   2. se si discosta dalle aziende simili, con lo z-score robusto: è ciò che è
      insolito nei dati, anche se nessuna regola lo prevede.
@@ -35,7 +37,6 @@ import statistics
 from archivio import models as archivio
 from archivio.models import Fascicolo
 from decodifiche.models import ClasseDipendenti, ClasseFatturato
-from grafo import contratto
 from soggetti.models import DatiPerPeriodo
 
 from . import calcolo
@@ -67,18 +68,33 @@ def _classi(modello):
     return [(c.codice, c.descrizione) for c in modello.objects.order_by("minimo", "codice")]
 
 
-def costruisci(tipo):
+def _dentro_la_regola(regola, dipendenti, fatturato, divisioni):
+    """Le posizioni dei tre assi che la regola richiede: servono a evidenziarle nel disegno."""
+    classi_d, classi_f = calcolo._valori(regola.classi_dipendenti), calcolo._valori(regola.classi_fatturato)
+    prefissi = calcolo._valori(regola.prefissi_attivita)
+    return {
+        "dipendenti": [i for i, (codice, _) in enumerate(dipendenti) if codice.upper() in classi_d],
+        "fatturato": [i for i, (codice, _) in enumerate(fatturato) if codice.upper() in classi_f],
+        # una divisione è toccata dalla regola se un prefisso la contiene o ne è contenuto
+        "attivita": [
+            i for i, divisione in enumerate(divisioni)
+            if any(p.startswith(divisione) or divisione.startswith(p) for p in prefissi)
+        ],
+    }
+
+
+def costruisci(regola=None):
     """
-    I dati della pagina per un tipo di irregolarità:
-        {"tipo", "soglia", "soglia_z", "assi": {"dipendenti", "fatturato", "attivita"},
-         "punti": [...], "esclusi": n, "regole": [codice, ...]}
+    I dati della pagina per una regola (una RegolaDiRischio, anche non attiva; None = nessuna):
+        {"regola": {...} o None, "soglia_z", "assi": {"dipendenti", "fatturato", "attivita"},
+         "punti": [...], "esclusi": n}
     Un punto: {"n" soggetto, "nome", "codice", "ateco", "periodo", "d", "f", "a" (posizioni
-    sui tre assi), "punteggio", "sopra", "regole", "z", "gruppo", "fascicolo"}.
+    sui tre assi), "scatta" (la regola scelta), "altre" (le altre regole attive che scattano),
+    "z", "gruppo", "fascicolo"}.
     Per ogni azienda valgono i dati del periodo più recente. Un'azienda a cui manca una
     delle tre coordinate non si può collocare: è contata in "esclusi".
     """
-    indice_tipo = contratto.TIPI_IRREGOLARITA.index(tipo)
-    regole = [r for r in RegolaDiRischio.objects.filter(attiva=True) if r.tipo in contratto.TIPI_IRREGOLARITA]
+    attive = [r for r in RegolaDiRischio.objects.filter(attiva=True) if regola is None or r.pk != regola.pk]
     dipendenti, fatturato = _classi(ClasseDipendenti), _classi(ClasseFatturato)
     posto_d = {codice.upper(): i for i, (codice, _) in enumerate(dipendenti)}
     posto_f = {codice.upper(): i for i, (codice, _) in enumerate(fatturato)}
@@ -95,11 +111,10 @@ def costruisci(tipo):
         if d is None or f is None or len(caratteristiche["attivita"]) < 2:
             esclusi += 1
             continue
-        scattate = [r for r in regole if calcolo.scatta(r, caratteristiche)]
         collocati.append({
             "dato": dato, "d": d, "f": f, "divisione": caratteristiche["attivita"][:2],
-            "punteggio": calcolo.punteggi(scattate)[indice_tipo],
-            "regole": [r.codice for r in scattate if r.tipo == tipo],
+            "scatta": regola is not None and calcolo.scatta(regola, caratteristiche),
+            "altre": [r.codice for r in attive if calcolo.scatta(r, caratteristiche)],
         })
 
     # Lo scostamento dalle aziende simili: fatturato rispetto al personale
@@ -130,17 +145,21 @@ def costruisci(tipo):
             "codice": str(identificativi[0]) if identificativi else "",
             "ateco": dato.codice_attivita, "periodo": dato.periodo,
             "d": punto["d"], "f": punto["f"], "a": posto_a[punto["divisione"]],
-            "punteggio": punto["punteggio"], "sopra": punto["punteggio"] >= calcolo.SOGLIA,
-            "regole": punto["regole"], "z": round(punto["z"], 2), "gruppo": punto["gruppo"],
+            "scatta": punto["scatta"], "altre": punto["altre"],
+            "z": round(punto["z"], 2), "gruppo": punto["gruppo"],
             "fascicolo": fascicoli.get(dato.soggetto_id),
         })
     return {
-        "tipo": tipo, "soglia": calcolo.SOGLIA, "soglia_z": SOGLIA_Z,
+        "regola": None if regola is None else {
+            "codice": regola.codice, "descrizione": regola.descrizione, "tipo": regola.tipo,
+            "peso": float(regola.peso), "attiva": regola.attiva,
+            "dentro": _dentro_la_regola(regola, dipendenti, fatturato, divisioni),
+        },
+        "soglia_z": SOGLIA_Z,
         "assi": {
             "dipendenti": [{"codice": c, "descrizione": d} for c, d in dipendenti],
             "fatturato": [{"codice": c, "descrizione": d} for c, d in fatturato],
             "attivita": [{"codice": divisione, "descrizione": f"attività {divisione}"} for divisione in divisioni],
         },
         "punti": punti, "esclusi": esclusi,
-        "regole": sorted(r.codice for r in regole if r.tipo == tipo),
     }
