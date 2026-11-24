@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   protocollo_mcp.py  -  app grafo, VERSIONE 29
+#   protocollo_mcp.py  -  app grafo, VERSIONE 30
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: server
@@ -79,6 +79,10 @@
 #        degli indici (indici, spazio, regole), passa la domanda allo strumento spazio; le
 #        descrizioni dei due strumenti dicono esplicitamente quando usare l'uno e quando
 #        l'altro.
+#   [30] La pagina di una mappa che non si può mostrare resta 404 ma spiega che cosa fare: con
+#        quale utente si è collegati e che la mappa si apre con l'utente che ha autorizzato la
+#        chat, oppure che il file non c'è più e va richiesta di nuovo; il motivo preciso va nel
+#        registro del server.
 #
 # <<< NOVITA
 """

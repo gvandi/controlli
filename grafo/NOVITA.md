@@ -1,6 +1,6 @@
 # Registro delle novità
 
-Versione corrente: 29
+Versione corrente: 30
 
 Elenco completo delle novità rispetto alla versione 12 (ultimo file unico di partenza).
 È l'UNICO posto in cui le novità si scrivono a mano: `aggiorna_intestazioni.py` ricopia
@@ -147,6 +147,7 @@ Dalla 20 il numero di versione del codice è un intero.
 - [27] (server) Lo strumento classifica risponde per criteri distinti: 1) regole di rischio che scattano (tutte quelle attive, o quella indicata nel nuovo parametro regola), 2) scostamento dalle aziende simili, 3) rapporti con aziende segnalate, 4) punteggio dell'analisi di rete; in testa le aziende segnalate da più criteri.
 - [27] (server) Quando l'esecuzione in uso è l'indice a regole (dati reali), classifica non la presenta come un quarto criterio: dichiara che la GNN non è calcolata su quei dati. Senza sessione (stdio) classifica resta la sola analisi di rete.
 - [28] (server) Lo strumento indicatore, se riceve come termine solo parole che indicano lo spazio degli indici (indici, spazio, regole), passa la domanda allo strumento spazio; le descrizioni dei due strumenti dicono esplicitamente quando usare l'uno e quando l'altro.
+- [30] (server) La pagina di una mappa che non si può mostrare resta 404 ma spiega che cosa fare: con quale utente si è collegati e che la mappa si apre con l'utente che ha autorizzato la chat, oppure che il file non c'è più e va richiesta di nuovo; il motivo preciso va nel registro del server.
 
 ## mappa
 

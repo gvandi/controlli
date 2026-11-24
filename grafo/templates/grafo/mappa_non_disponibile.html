@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block titolo %}{% translate "Mappa non disponibile" %} - Controlli{% endblock %}
+{% block contenuto %}
+<p><a href="{% url 'home' %}">{% translate "Inizio" %}</a> &rsaquo; {% translate "Mappa" %}</p>
+<h1>{% translate "Mappa non disponibile" %}</h1>
+<div class="scheda">
+  {% if motivo == "file_mancante" %}
+    <p>{% translate "Questa mappa è stata prodotta, ma il suo file non è più sul server." %}</p>
+    <p>{% translate "Chiedila di nuovo nella chat: verrà rifatta con i dati di adesso." %}</p>
+  {% else %}
+    <p>{% translate "Questa mappa non esiste, oppure è stata prodotta da un altro utente." %}</p>
+    <p>
+      {% blocktranslate with nome=request.user.get_username %}In questo browser sei collegato come <strong>{{ nome }}</strong>.{% endblocktranslate %}
+      {% translate "Una mappa si apre con lo stesso utente che ha autorizzato la chat in cui è stata chiesta: se nella chat sei entrato con un altro utente, esci e rientra con quello." %}
+    </p>
+    <p class="tenue">{% translate "Controlla anche che il collegamento sia stato copiato per intero dalla risposta della chat." %}</p>
+  {% endif %}
+</div>
+{% endblock %}
