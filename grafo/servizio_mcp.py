@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   servizio_mcp.py  -  app grafo, VERSIONE 27
+#   servizio_mcp.py  -  app grafo, VERSIONE 28
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: server
@@ -75,6 +75,10 @@
 #   [27] Quando l'esecuzione in uso è l'indice a regole (dati reali), classifica non la presenta
 #        come un quarto criterio: dichiara che la GNN non è calcolata su quei dati. Senza
 #        sessione (stdio) classifica resta la sola analisi di rete.
+#   [28] Lo strumento indicatore, se riceve come termine solo parole che indicano lo spazio
+#        degli indici (indici, spazio, regole), passa la domanda allo strumento spazio; le
+#        descrizioni dei due strumenti dicono esplicitamente quando usare l'uno e quando
+#        l'altro.
 #
 # <<< NOVITA
 """
@@ -161,6 +165,29 @@ def mappa(societa: Union[int, str] = "") -> str:
     )
 
 
+# Parole con cui il modello della chat scambia lo spazio degli indici per un "indicatore"
+_PAROLE_DELLO_SPAZIO = ("spazio", "indici", "indice", "regola", "regole")
+
+
+def indicatore(termine: str, societa: Union[int, str] = "") -> str:
+    """Cerca un INDICATORE della GNN (una caratteristica usata dal modello di rete) partendo da una
+    parola della sua descrizione, e dice per quali società pesa di più. Da usare per domande come
+    "quali aziende hanno l'indicatore sui paesi offshore" o "per la società Rossi conta il fatturato?".
+    NON è lo strumento per lo "spazio degli indici", per gli indici di rischio o per le regole di
+    rischio: per quelli usare lo strumento spazio.
+    termine: una o più parole della descrizione dell'indicatore, oppure il suo numero.
+    societa: lasciare vuoto per cercare fra tutte le società, oppure indicarne una per nome o numero."""
+    parole = "".join(c if c.isalnum() else " " for c in str(termine).lower()).split()
+    # Rete di sicurezza: "indici" somiglia a "indicatore", e il modello a volte sbaglia strumento.
+    # Se il termine parla solo dello spazio degli indici, risponde lo strumento giusto.
+    if parole and any(p in _PAROLE_DELLO_SPAZIO for p in parole) and all(
+        p in _PAROLE_DELLO_SPAZIO or p in ("degli", "di", "dello", "lo", "gli", "le", "rischio", "mostra", "mostrami")
+        for p in parole
+    ):
+        return spazio("", societa)
+    return interrogazione.indicatore(termine, societa)
+
+
 ERRORI_DI_CLASSIFICA = ("Tipo di irregolarità non riconosciuto", "Popolazione non riconosciuta", "Il numero di aziende")
 
 
@@ -234,9 +261,12 @@ def scheda(azienda: Union[int, str]) -> str:
 
 
 def spazio(regola: str = "", azienda: Union[int, str] = "") -> str:
-    """Interroga lo "spazio degli indici": le aziende collocate per classe di dipendenti, classe di
-    fatturato e attività, con due segnalazioni distinte: per quali scatta una regola di rischio e
-    quali si discostano dalle aziende simili (z-score robusto del fatturato rispetto al personale).
+    """Mostra lo SPAZIO DEGLI INDICI e ne dà il collegamento: è lo strumento da usare ogni volta che
+    l'ispettore chiede di mostrare, aprire o vedere lo spazio degli indici, gli indici di rischio o
+    le regole di rischio ("mostrami lo spazio degli indici", "apri lo spazio degli indici per il
+    COE 10000"). Le aziende sono collocate per classe di dipendenti, classe di fatturato e
+    attività, con due segnalazioni distinte: per quali scatta una regola di rischio e quali si
+    discostano dalle aziende simili (z-score robusto del fatturato rispetto al personale).
     Dà anche i rapporti fra aziende che risultano dai documenti confermati, con numero di documenti
     e importi. Da usare per domande come "per quali aziende scatta la regola sul commercio senza
     dipendenti?", "la Alfa si discosta dalle aziende simili?", "con chi ha rapporti il COE 10000 e
@@ -266,7 +296,7 @@ def spazio(regola: str = "", azienda: Union[int, str] = "") -> str:
 
 # Tutti gli strumenti esposti alla chat, nell'ordine del contratto
 STRUMENTI = {
-    **interrogazione.STRUMENTI, "classifica": classifica, "mappa": mappa, "calcola": calcolatrice.calcola, "scheda": scheda, "spazio": spazio,
+    **interrogazione.STRUMENTI, "classifica": classifica, "indicatore": indicatore, "mappa": mappa, "calcola": calcolatrice.calcola, "scheda": scheda, "spazio": spazio,
 }
 
 
