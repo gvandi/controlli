@@ -34,7 +34,7 @@ calcolo.py + scrittura.py  -->  PostgreSQL  <--  interrogazione.py  <--  mappa.p
 | `interrogazione.py` | interrogazione | Query, testi di contesto, cinque strumenti | - |
 | `sessioni.py` | sessioni | Parametri dell'amministratore, token, sessioni, registro | - |
 | `protocollo_mcp.py` | server | Regole del protocollo MCP (JSON-RPC), senza Django | - |
-| `servizio_mcp.py` | server | Esegue uno strumento e lo registra; strumenti `mappa` e `scheda` | - |
+| `servizio_mcp.py` | server | Esegue uno strumento e lo registra; strumenti `mappa`, `scheda` e `spazio` | - |
 | `calcolatrice.py` | server | Strumento `calcola`: aritmetica esatta, senza Django né database | - |
 | `views.py`, `urls.py`, `templates/` | server | Servizio HTTP, pagina della mappa, collegamento, cruscotto | - |
 | `server_mcp.py` | server | Trasporto stdio per le prove su un solo computer | mcp |

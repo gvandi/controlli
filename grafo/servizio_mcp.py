@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   servizio_mcp.py  -  app grafo, VERSIONE 25
+#   servizio_mcp.py  -  app grafo, VERSIONE 26
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: server
@@ -62,6 +62,12 @@
 #        nome.
 #   [23] scheda usa solo ciò che viene da file che l'utente della sessione può vedere (stessa
 #        regola delle pagine); senza sessione (trasporto stdio) non risponde.
+#   [26] Nuovo strumento spazio(regola, azienda): racconta lo spazio degli indici (per quali
+#        aziende scatta una regola, quali si discostano dalle aziende simili, i rapporti di
+#        un'azienda dai documenti confermati) e dà il collegamento alla pagina in tre
+#        dimensioni, con regola e azienda già scelte.
+#   [26] esegui_strumento() riceve l'indirizzo pubblico dell'applicativo, per i collegamenti
+#        alle pagine che non sono mappe.
 #
 # <<< NOVITA
 """
@@ -77,7 +83,8 @@ Contiene anche il sesto strumento, "mappa": sta qui e non in interrogazione.py
 perché scrive un file e lo registra nella sessione. Il settimo, "calcola", è in
 calcolatrice.py e qui viene solo aggiunto all'elenco. L'ottavo, "scheda", legge
 dall'archivio dei file caricati (app elaborazione) ciò che si sa di un'azienda,
-con la visibilità dell'utente della sessione.
+con la visibilità dell'utente della sessione. Il nono, "spazio", racconta lo
+spazio degli indici (app indici) e dà il collegamento alla sua pagina.
 
 Importa contratto.py, interrogazione.py, mappa.py, sessioni.py, calcolo_cartella.py,
 calcolatrice.py.
@@ -92,7 +99,7 @@ from . import mappa as modulo_mappa
 
 registro = logging.getLogger("grafo.servizio_mcp")
 
-# Chi sta chiamando lo strumento in questo thread: {sessione, richiesta, indirizzo_mappa}.
+# Chi sta chiamando lo strumento in questo thread: {sessione, richiesta, indirizzo_mappa, indirizzo_pubblico}.
 # Vuoto quando gli strumenti sono usati senza sessione (trasporto stdio, prove).
 _chiamata = threading.local()
 
@@ -163,11 +170,44 @@ def scheda(azienda: Union[int, str]) -> str:
     return coda.descrivi_azienda(azienda, sessione.utente)
 
 
+def spazio(regola: str = "", azienda: Union[int, str] = "") -> str:
+    """Interroga lo "spazio degli indici": le aziende collocate per classe di dipendenti, classe di
+    fatturato e attività, con due segnalazioni distinte: per quali scatta una regola di rischio e
+    quali si discostano dalle aziende simili (z-score robusto del fatturato rispetto al personale).
+    Dà anche i rapporti fra aziende che risultano dai documenti confermati, con numero di documenti
+    e importi. Da usare per domande come "per quali aziende scatta la regola sul commercio senza
+    dipendenti?", "la Alfa si discosta dalle aziende simili?", "con chi ha rapporti il COE 10000 e
+    sono aziende segnalate?".
+    regola: codice della regola, o parole del suo nome; lasciare vuoto per la prima regola attiva.
+    azienda: COE, partita IVA o nome; lasciare vuoto per il quadro generale della regola.
+    La risposta contiene il collegamento alla pagina in tre dimensioni: va riportato così com'è."""
+    sessione = getattr(_chiamata, "sessione", None)
+    if sessione is None:
+        return "Lo spazio degli indici si può chiedere solo da una sessione con accesso (servizio HTTP)."
+    # Importati qui: l'app grafo resta utilizzabile anche senza l'app indici
+    from django.urls import reverse
+    from django.utils.http import urlencode
+
+    from indici import spazio as spazio_degli_indici
+
+    testo, parametri = spazio_degli_indici.racconta(sessione.utente, regola, azienda)
+    if parametri is None:
+        return testo
+    indirizzo = (getattr(_chiamata, "indirizzo_pubblico", "") or "") + reverse("indici:spazio") + "?" + urlencode(parametri)
+    return (
+        testo
+        + f"\n\nCollegamento alla pagina in tre dimensioni: {indirizzo}\n"
+        + "Per aprirla l'ispettore deve accedere all'applicativo controlli con il proprio utente."
+    )
+
+
 # Tutti gli strumenti esposti alla chat, nell'ordine del contratto
-STRUMENTI = {**interrogazione.STRUMENTI, "mappa": mappa, "calcola": calcolatrice.calcola, "scheda": scheda}
+STRUMENTI = {
+    **interrogazione.STRUMENTI, "mappa": mappa, "calcola": calcolatrice.calcola, "scheda": scheda, "spazio": spazio,
+}
 
 
-def esegui_strumento(nome, parametri, domanda="", sessione=None, indirizzo_mappa=None):
+def esegui_strumento(nome, parametri, domanda="", sessione=None, indirizzo_mappa=None, indirizzo_pubblico=""):
     """
     Esegue uno strumento e restituisce (testo, e_errore). Con una sessione, la
     richiesta viene scritta nel registro prima dell'esecuzione e completata dopo
@@ -178,6 +218,7 @@ def esegui_strumento(nome, parametri, domanda="", sessione=None, indirizzo_mappa
     """
     richiesta = sessioni.registra_richiesta(sessione, nome, parametri, domanda) if sessione else None
     _chiamata.sessione, _chiamata.richiesta, _chiamata.indirizzo_mappa = sessione, richiesta, indirizzo_mappa
+    _chiamata.indirizzo_pubblico = indirizzo_pubblico
     inizio = time.monotonic()
     try:
         testo, esito = STRUMENTI[nome](**parametri), "ok"
@@ -188,6 +229,7 @@ def esegui_strumento(nome, parametri, domanda="", sessione=None, indirizzo_mappa
         testo, esito = "Errore interno durante l'esecuzione dello strumento: segnalarlo all'amministratore.", "errore"
     finally:
         _chiamata.sessione = _chiamata.richiesta = _chiamata.indirizzo_mappa = None
+        _chiamata.indirizzo_pubblico = ""
 
     if richiesta is not None:
         # La calcolatrice non usa punteggi né dati: per lei nessuna coppia da registrare

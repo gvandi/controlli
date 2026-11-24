@@ -700,6 +700,43 @@ class DocumentoTest(ConFile):
         # senza novità non nasce una seconda fotografia
         self.assertFalse(dati_reali.fotografa()["nuova"])
         self.assertEqual(grafo.VersioneDati.objects.count(), 1)
+        # il rapporto compare anche nello spazio degli indici, e la chat lo può chiedere
+        from indici import importazione, spazio
+        from indici.models import RegolaDiRischio
+        RegolaDiRischio.objects.create(
+            codice="SENZA_DIPENDENTI", descrizione="Commercio senza dipendenti", tipo="falsa_fatturazione",
+            peso="0.60", prefissi_attivita="47", classi_dipendenti="D0",
+        )
+        importazione.importa(
+            "coe;piva;periodo;ateco;dipendenti;fatturato\n10000;;2025;47.26;D0;F3\n;01234567890;2025;63.91;D2;F2\n"
+        )
+        elenco, _ = spazio.rapporti()
+        self.assertEqual(elenco, [{"da": mittente.pk, "a": destinatario.pk, "quanti": 1, "importo": 1234.56}])
+        dati = spazio.costruisci(RegolaDiRischio.objects.get())
+        self.assertEqual((len(dati["punti"]), dati["rapporti"], dati["fuori"]), (2, elenco, {}))
+        diritti(self.anna, "indici.view_regoladirischio")
+        anna = get_user_model().objects.get(pk=self.anna.pk)  # riletta: i diritti di un utente già usato restano in memoria
+        testo, parametri = spazio.racconta(anna, "senza dipendenti", "COE 10000")
+        self.assertEqual(parametri, {"regola": "SENZA_DIPENDENTI", "azienda": mittente.pk})
+        for atteso in ("La regola SCATTA", "vende a Notizie & Media Italia S.r.l. (nessuna segnalazione): 1 documenti, importo totale 1234.56"):
+            self.assertIn(atteso, testo)
+        self.assertIn("compra da Alfa S.r.l. (la regola scatta)", spazio.racconta(anna, "", "01234567890")[0])
+        generale, parametri = spazio.racconta(anna)
+        self.assertIn("La regola scatta per 1", generale)
+        self.assertEqual(parametri, {"regola": "SENZA_DIPENDENTI"})
+        self.assertIn("Nessuna regola corrisponde", spazio.racconta(anna, "inesistente")[0])
+        self.assertIn("non ha il diritto", spazio.racconta(self.bruno)[0])
+        # lo strumento della chat aggiunge il collegamento alla pagina, con regola e azienda già scelte
+        servizio_mcp._chiamata.sessione = types.SimpleNamespace(utente=anna)
+        servizio_mcp._chiamata.indirizzo_pubblico = "https://controlli.example"
+        self.addCleanup(setattr, servizio_mcp._chiamata, "indirizzo_pubblico", "")
+        risposta = servizio_mcp.spazio("SENZA_DIPENDENTI", 10000)
+        self.assertIn(f"https://controlli.example/indici/spazio/?regola=SENZA_DIPENDENTI&azienda={mittente.pk}", risposta)
+        pagina = self.client.get(reverse("indici:spazio"), {"regola": "SENZA_DIPENDENTI", "azienda": mittente.pk})
+        self.assertEqual(pagina.context["dati"]["apri"], mittente.pk)
+        servizio_mcp._chiamata.sessione = None
+        self.assertIn("solo da una sessione", servizio_mcp.spazio())
+        servizio_mcp._chiamata.sessione = types.SimpleNamespace(utente=anna)
         # rivedere di nuovo non raddoppia le denominazioni
         self.client.post(indirizzo, dict(modulo, entita=list(EntitaEstratta.objects.filter(file=file).values_list("pk", flat=True))))
         self.assertEqual(EntitaEstratta.objects.filter(etichetta="DENOMINAZIONE").count(), 3)

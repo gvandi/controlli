@@ -1,7 +1,8 @@
 """
 Pagine dell'app indici.
 
-    /indici/spazio/?regola=CODICE              le aziende come punti in tre dimensioni
+    /indici/spazio/?regola=CODICE&azienda=N    le aziende come punti in tre dimensioni;
+                                               azienda = soggetto da selezionare all'apertura
                                                (classe di dipendenti, classe di fatturato,
                                                attività): vedi indici/spazio.py
 """
@@ -20,6 +21,8 @@ def spazio(request):
     regole = list(RegolaDiRischio.objects.order_by("-attiva", "codice"))
     scelta = next((r for r in regole if r.codice == request.GET.get("regola", "")), regole[0] if regole else None)
     dati = spazio_degli_indici.costruisci(scelta)
+    # L'azienda da mostrare già selezionata (così arriva il collegamento dato dalla chat)
+    dati["apri"] = int(request.GET["azienda"]) if request.GET.get("azienda", "").isdigit() else None
     # Il collegamento alla scheda dell'azienda solo per chi può aprirla
     apre_le_schede = request.user.has_perm("elaborazione.view_entitaestratta")
     for punto in dati["punti"]:
