@@ -29,7 +29,12 @@
 
 <div class="scheda">
   <h2>{% translate "Analisi" %}</h2>
-  <p class="tenue">{% translate "Confronto con il gruppo e segnalazione delle anomalie. In arrivo con uno dei prossimi passi (vedi TODO.md)." %}</p>
+  {% if perms.indici.view_regoladirischio %}
+    <p>{% translate "Le aziende come punti in tre dimensioni (dipendenti, fatturato, attività): quelle che superano l'indice a regole e quelle che si discostano dalle aziende simili." %}</p>
+    <p><a class="bottone" href="{% url 'indici:spazio' %}">{% translate "Apri lo spazio degli indici" %}</a></p>
+  {% else %}
+    <p class="tenue">{% translate "Non hai i diritti per consultare gli indici di rischio." %}</p>
+  {% endif %}
 </div>
 
 <div class="scheda">

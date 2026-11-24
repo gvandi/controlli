@@ -66,6 +66,7 @@ DIRITTI = {
         ("soggetti", None, AGGIUNGE_E_LEGGE),
         ("elaborazione", None, SOLO_LETTURA),
         ("elaborazione", "entitaestratta", RIVEDE),
+        ("indici", None, SOLO_LETTURA),
     ],
     CONFIGURATORE: [
         ("decodifiche", None, TUTTE),

@@ -98,3 +98,4 @@ python manage.py calcola_indici
 - Caricare file, rivedere entità e ruoli, cancellare un file: dall'interfaccia (`/archivio/`).
 - Modificare regole di rischio, catalogo delle entità, decodifiche, utenti e ruoli: dall'amministrazione (`/admin/`).
 - Parametri e restrizioni dell'analisi di rete: dal cruscotto (`/grafo/cruscotto/`).
+- Vedere le aziende in tre dimensioni, con indice a regole e scostamenti: dalla pagina `/indici/spazio/`.
