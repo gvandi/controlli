@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   views.py  -  app grafo, VERSIONE 29
+#   views.py  -  app grafo, VERSIONE 30
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: server
@@ -79,6 +79,10 @@
 #        degli indici (indici, spazio, regole), passa la domanda allo strumento spazio; le
 #        descrizioni dei due strumenti dicono esplicitamente quando usare l'uno e quando
 #        l'altro.
+#   [30] La pagina di una mappa che non si può mostrare resta 404 ma spiega che cosa fare: con
+#        quale utente si è collegati e che la mappa si apre con l'utente che ha autorizzato la
+#        chat, oppure che il file non c'è più e va richiesta di nuovo; il motivo preciso va nel
+#        registro del server.
 #
 # <<< NOVITA
 """
@@ -93,6 +97,7 @@ Qui non c'è logica di interrogazione: il protocollo sta in protocollo_mcp.py,
 l'esecuzione degli strumenti in servizio_mcp.py, sessioni e parametri in sessioni.py.
 """
 import json
+import logging
 import pathlib
 
 from django.conf import settings
@@ -107,6 +112,7 @@ from oauth2_provider.oauth2_backends import get_oauthlib_core
 from . import calcolo_cartella, contratto, interrogazione, protocollo_mcp, servizio_mcp, sessioni
 from .models import Esecuzione, InfoArchivio, MappaProdotta, Richiesta, Sessione, TokenAccesso
 
+registro = logging.getLogger(__name__)
 INTESTAZIONE_CONNESSIONE = "Mcp-Session-Id"
 ISTRUZIONI = (pathlib.Path(__file__).resolve().parent / "prompt_di_sistema.txt").read_text(encoding="utf-8")
 
@@ -252,16 +258,27 @@ def mcp(request):
 # =====================================================================
 @login_required
 def mappa(request, numero):
-    """Mostra una mappa a chi l'ha prodotta, o a chi può vedere le mappe di tutti."""
-    riga = MappaProdotta.objects.select_related("sessione").filter(pk=numero).first()
+    """
+    Mostra una mappa a chi l'ha prodotta, o a chi può vedere le mappe di tutti.
+
+    Quando non si può mostrare, la risposta resta 404 ma dice che cosa fare, senza
+    rivelare nulla: "non esiste" e "non è tua" hanno lo stesso identico testo. Il
+    motivo preciso va nel registro del server, per chi amministra.
+    """
+    riga = MappaProdotta.objects.select_related("sessione__utente").filter(pk=numero).first()
     if riga is None or not (
         riga.sessione.utente_id == request.user.pk or request.user.has_perm("grafo.view_mappaprodotta")
     ):
-        raise Http404  # stessa risposta per "non esiste" e "non è tua"
+        registro.warning(
+            "Mappa %s negata all'utente %s: %s", numero, request.user.get_username(),
+            "non esiste" if riga is None else f"è dell'utente {riga.sessione.utente.get_username()}",
+        )
+        return render(request, "grafo/mappa_non_disponibile.html", {"motivo": "altro_utente"}, status=404)
     # Il nome viene dal database, ma si usa comunque solo l'ultima parte del percorso
     percorso = calcolo_cartella.cartella_dati() / pathlib.Path(riga.nome_file).name
     if not percorso.is_file():
-        raise Http404
+        registro.warning("Mappa %s: il file %s non è nella cartella %s", numero, percorso.name, percorso.parent)
+        return render(request, "grafo/mappa_non_disponibile.html", {"motivo": "file_mancante"}, status=404)
     return HttpResponse(percorso.read_bytes(), content_type="text/html; charset=utf-8")
 
 

@@ -627,8 +627,17 @@ class SessioniTest(ConArchivio):
             for utente, atteso in ((self.analista, 200), (self.collega, 404), (self.amministratore, 200)):
                 self.client.force_login(utente)
                 self.assertEqual(self.client.get(indirizzo).status_code, atteso, utente.username)
+            # chi non può aprirla legge perché, senza sapere se la mappa esiste: stesso testo per una che non c'è
+            self.client.force_login(self.collega)
+            for altro in (indirizzo, reverse("grafo:mappa", args=[riga.pk + 1000])):
+                self.assertContains(self.client.get(altro), "prodotta da un altro utente", status_code=404)
+            self.assertContains(self.client.get(indirizzo), self.collega.username, status_code=404)
             self.client.force_login(self.analista)
             self.assertIn(f"mappa di {self.s(20)}", self.client.get(indirizzo).content.decode())
+            # se il file non c'è più, chi l'ha prodotta lo viene a sapere
+            (pathlib.Path(cartella) / riga.nome_file).rename(pathlib.Path(cartella) / "spostata.html")
+            self.assertContains(self.client.get(indirizzo), "non è più sul server", status_code=404)
+            (pathlib.Path(cartella) / "spostata.html").rename(pathlib.Path(cartella) / riga.nome_file)
             # rifare la stessa mappa nella stessa sessione non crea una seconda riga
             self.chiama(connessione, "mappa", societa="Beta Legnami")
             self.assertEqual(MappaProdotta.objects.count(), 1)
