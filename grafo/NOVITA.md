@@ -1,6 +1,6 @@
 # Registro delle novità
 
-Versione corrente: 31
+Versione corrente: 32
 
 Elenco completo delle novità rispetto alla versione 12 (ultimo file unico di partenza).
 È l'UNICO posto in cui le novità si scrivono a mano: `aggiorna_intestazioni.py` ricopia
@@ -76,6 +76,7 @@ Dalla 20 il numero di versione del codice è un intero.
 - [24] (calcolo) Anagrafica unica: il soggetto del grafo ricorda quello dell'anagrafica nel riferimento ANAG-<numero>; i documenti di caricamenti riservati a un'indagine non entrano nella fotografia; quelli senza data, importo o una delle due parti sono contati e riportati.
 - [25] (calcolo) registra_esecuzione() accetta la versione del calcolo: l'indice a regole (app indici) si registra come esecuzione a sé, calcolo 1.0+regole, con le regole scattate come spiegazione.
 - [25] (calcolo) La fotografia dei dati reali comprende anche le aziende che hanno dati per periodo (soggetti.DatiPerPeriodo), pur senza documenti.
+- [32] (calcolo) Nuova funzione diagnosi() in dati_reali.py e comando python manage.py grafo_diagnosi AZIENDA: per ogni file che riguarda un'azienda segue il documento fino alla mappa (elaborato, riconosciuto, confermato, completo, non riservato, fotografato, calcolato, in uso) e dice dove si ferma e che cosa fare.
 
 ## interrogazione
 

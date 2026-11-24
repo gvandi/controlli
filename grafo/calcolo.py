@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   calcolo.py  -  app grafo, VERSIONE 31
+#   calcolo.py  -  app grafo, VERSIONE 32
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: calcolo
@@ -64,6 +64,10 @@
 #        spiegazione.
 #   [25] La fotografia dei dati reali comprende anche le aziende che hanno dati per periodo
 #        (soggetti.DatiPerPeriodo), pur senza documenti.
+#   [32] Nuova funzione diagnosi() in dati_reali.py e comando python manage.py grafo_diagnosi
+#        AZIENDA: per ogni file che riguarda un'azienda segue il documento fino alla mappa
+#        (elaborato, riconosciuto, confermato, completo, non riservato, fotografato, calcolato,
+#        in uso) e dice dove si ferma e che cosa fare.
 #
 # <<< NOVITA
 """

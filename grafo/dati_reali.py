@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   dati_reali.py  -  app grafo, VERSIONE 31
+#   dati_reali.py  -  app grafo, VERSIONE 32
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: calcolo
@@ -64,6 +64,10 @@
 #        spiegazione.
 #   [25] La fotografia dei dati reali comprende anche le aziende che hanno dati per periodo
 #        (soggetti.DatiPerPeriodo), pur senza documenti.
+#   [32] Nuova funzione diagnosi() in dati_reali.py e comando python manage.py grafo_diagnosi
+#        AZIENDA: per ogni file che riguarda un'azienda segue il documento fino alla mappa
+#        (elaborato, riconosciuto, confermato, completo, non riservato, fotografato, calcolato,
+#        in uso) e dice dove si ferma e che cosa fare.
 #
 # <<< NOVITA
 """
@@ -127,6 +131,30 @@ def soggetto_dell_anagrafica(riferimento_del_grafo):
     return int(numero) if numero.isdigit() else None
 
 
+def come_arco(documento):
+    """
+    Un documento confermato visto come arco: (mittente, destinatario, None), oppure
+    (None, None, motivo) se non può diventarlo. È il solo punto in cui lo si decide:
+    lo usano la fotografia dei dati e la diagnosi.
+    """
+    per_ruolo = {}
+    for parte in documento.parti.all():
+        if not parte.ritirata and parte.soggetto_id:
+            per_ruolo.setdefault(parte.ruolo, parte.soggetto)
+    mittente, destinatario = per_ruolo.get(elaborazione.MITTENTE), per_ruolo.get(elaborazione.DESTINATARIO)
+    if mittente is None:
+        return None, None, SENZA_MITTENTE
+    if destinatario is None:
+        return None, None, SENZA_DESTINATARIO
+    if mittente.pk == destinatario.pk:
+        return None, None, STESSO_SOGGETTO
+    if documento.data is None:
+        return None, None, SENZA_DATA
+    if documento.totale is None:
+        return None, None, SENZA_IMPORTO
+    return mittente, destinatario, None
+
+
 def archi_dall_archivio():
     """
     I documenti confermati e non riservati che possono diventare archi.
@@ -140,24 +168,117 @@ def archi_dall_archivio():
     )
     archi, esclusi = [], collections.Counter()
     for documento in documenti:
-        per_ruolo = {}
-        for parte in documento.parti.all():
-            if not parte.ritirata and parte.soggetto_id:
-                per_ruolo.setdefault(parte.ruolo, parte.soggetto)
-        mittente, destinatario = per_ruolo.get(elaborazione.MITTENTE), per_ruolo.get(elaborazione.DESTINATARIO)
-        if mittente is None:
-            esclusi[SENZA_MITTENTE] += 1
-        elif destinatario is None:
-            esclusi[SENZA_DESTINATARIO] += 1
-        elif mittente.pk == destinatario.pk:
-            esclusi[STESSO_SOGGETTO] += 1
-        elif documento.data is None:
-            esclusi[SENZA_DATA] += 1
-        elif documento.totale is None:
-            esclusi[SENZA_IMPORTO] += 1
+        mittente, destinatario, motivo = come_arco(documento)
+        if motivo:
+            esclusi[motivo] += 1
         else:
             archi.append((mittente, destinatario, documento))
     return archi, dict(esclusi)
+
+
+def diagnosi(soggetto_anagrafica):
+    """
+    Perché un'azienda ha, o non ha, rapporti nell'analisi di rete: segue un documento
+    lungo tutta la strada che deve fare per diventare una linea nella mappa.
+
+        file caricato -> elaborato -> documento riconosciuto -> confermato da una persona
+        -> mittente, destinatario, data e totale presenti -> non riservato a un'indagine
+        -> entrato in una fotografia dei dati -> quella fotografia ha un calcolo -> è quella in uso
+
+    Restituisce le righe di un resoconto, in parole. Non dice nulla dei file che chi
+    esegue il comando non dovrebbe vedere oltre al fatto che esistono: è uno strumento
+    per chi amministra il sistema, da terminale.
+    """
+    from archivio.models import CollegamentoFile
+
+    from . import contratto, interrogazione
+
+    righe = [f"Azienda: {anagrafica.etichetta(soggetto_anagrafica)} (soggetto n. {soggetto_anagrafica.pk} dell'anagrafica)"]
+
+    # 1. I file che la riguardano e i documenti riconosciuti
+    collegati = (
+        CollegamentoFile.objects.filter(fascicolo__soggetto=soggetto_anagrafica)
+        .select_related("file__fascicolo__faldone").order_by("file_id")
+    )
+    file_visti, pronti = {}, 0
+    for collegamento in collegati:
+        file_visti[collegamento.file_id] = collegamento.file
+    righe.append(f"\n1. File che la riguardano: {len(file_visti)}")
+    for file in file_visti.values():
+        documenti = list(Documento.objects.filter(file=file).prefetch_related("parti__soggetto"))
+        riservato = file.fascicolo.faldone.riservato or file.fascicolo.riservato_a_id is not None
+        righe.append(f"   - file n. {file.pk} «{file.percorso_originale}»: stato «{file.stato}»"
+                     + (f" ({file.ultimo_errore[:120]})" if file.ultimo_errore else ""))
+        if not documenti:
+            righe.append("       nessun documento riconosciuto: il file non è stato ancora elaborato dal modello, "
+                         "oppure il modello non vi ha visto un documento commerciale")
+        for documento in documenti:
+            parti = "; ".join(
+                f"{parte.ruolo or '(ruolo da assegnare)'}: {parte.denominazione or '-'}"
+                + (" [senza soggetto]" if not parte.soggetto_id else "") + (" [tolta]" if parte.ritirata else "")
+                for parte in documento.parti.all()
+            )
+            righe.append(f"       documento {documento.tipo or '?'} n. {documento.numero or '?'} del {documento.data or '?'}, "
+                         f"totale {documento.totale if documento.totale is not None else '?'}; parti: {parti or 'nessuna'}")
+            if documento.ritirato:
+                esito = "NON entra: è stato scartato"
+            elif not documento.confermato:
+                esito = "NON entra: non è ancora confermato (aprire «Testo ed entità estratte» e chiudere la revisione)"
+            elif riservato:
+                esito = "NON entra: viene da un caricamento riservato a un'indagine"
+            else:
+                _, _, motivo = come_arco(documento)
+                esito = f"NON entra: {motivo} (correggerlo nella revisione)" if motivo else "può entrare nel grafo"
+                pronti += motivo is None
+            righe.append(f"       -> {esito}")
+
+    # 2. Le fotografie dei dati
+    del_grafo = Soggetto.objects.filter(riferimento=riferimento(soggetto_anagrafica)).first()
+    righe.append(f"\n2. Documenti pronti per il grafo: {pronti}")
+    if del_grafo is None:
+        righe.append("   L'azienda non è in nessuna fotografia dei dati: lanciare «Calcola gli indici» "
+                     "(python manage.py calcola_indici).")
+        return righe
+    righe.append(f"   Nel grafo è la società n. {del_grafo.pk}.")
+    fotografie = list(VersioneDati.objects.filter(
+        pk__in=DatiSoggetto.objects.filter(soggetto=del_grafo).values("versione_dati")
+    ).order_by("-numero"))
+    conteggi = {}
+    for fotografia in fotografie[:5]:
+        conteggi[fotografia.numero] = (
+            Relazione.objects.filter(versione_dati=fotografia, venditore=del_grafo).count()
+            + Relazione.objects.filter(versione_dati=fotografia, acquirente=del_grafo).count()
+        )
+        righe.append(f"   - dati n. {fotografia.numero} ({fotografia.descrizione}): {conteggi[fotografia.numero]} rapporti dell'azienda")
+
+    # 3. Che cosa stanno usando la chat e la mappa
+    try:
+        interrogazione.chiudi()
+        interrogazione.apri()
+        in_uso = interrogazione.leggi_esecuzione()
+    except contratto.ArchivioIncompatibile as errore:
+        righe.append(f"\n3. L'archivio dell'analisi di rete non è utilizzabile: {errore}")
+        return righe
+    numero = in_uso["numero_dati"]
+    righe.append(f"\n3. In uso da chat e mappa: calcolo {in_uso['versione_calcolo']} / dati n. {numero}")
+    piu_recente = fotografie[0].numero if fotografie else None
+    if numero not in {f.numero for f in fotografie}:
+        righe.append("   Questa fotografia NON contiene l'azienda: per questo la mappa non la mostra con i suoi rapporti. "
+                     "Probabilmente è la fotografia dei dati simulati (calcolo della GNN).")
+    else:
+        righe.append(f"   In questa fotografia l'azienda ha {conteggi.get(numero, '?')} rapporti.")
+    righe.append("\nChe cosa fare:")
+    if pronti and (piu_recente is None or conteggi.get(piu_recente, 0) < pronti):
+        righe.append("   - Ci sono documenti pronti che non sono ancora in una fotografia: lanciare «Calcola gli indici».")
+    if piu_recente is not None and numero != piu_recente:
+        righe.append(f"   - La fotografia più recente con l'azienda è la n. {piu_recente}, ma è in uso la n. {numero}: "
+                     "manca un calcolo sulla più recente (lanciare «Calcola gli indici»), oppure una restrizione "
+                     "del cruscotto sta scegliendo un altro calcolo.")
+    if not pronti:
+        righe.append("   - Nessun documento è pronto: guardare al punto 1 che cosa manca a ciascuno.")
+    if pronti and piu_recente == numero and conteggi.get(numero, 0) >= pronti:
+        righe.append("   - Nulla: i rapporti sono nella fotografia in uso. Richiedere la mappa.")
+    return righe
 
 
 def _identificativi(soggetto):

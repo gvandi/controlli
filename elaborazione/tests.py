@@ -697,6 +697,17 @@ class DocumentoTest(ConFile):
         nodo = grafo.DatiSoggetto.objects.get(versione_dati=resoconto["versione_dati"], soggetto=arco.venditore)
         self.assertEqual(nodo.nome, "Alfa S.r.l.")
         self.assertIn("10000", nodo.nr_iscrizione)
+        # la diagnosi segue il documento fino al grafo e dice a che punto è
+        diagnosi = "\n".join(dati_reali.diagnosi(mittente))
+        for atteso in ("File che la riguardano: 1", "documento DDT n. 45/2026 del 2026-11-12, totale 1234.56",
+                       "-> può entrare nel grafo", "Documenti pronti per il grafo: 1", "1 rapporti dell'azienda",
+                       "non è utilizzabile"):   # nessun calcolo ancora: chat e mappa non hanno nulla da usare
+            self.assertIn(atteso, diagnosi)
+        Documento.objects.filter(file=file).update(confermato=False)
+        self.assertIn("NON entra: non è ancora confermato", "\n".join(dati_reali.diagnosi(mittente)))
+        Documento.objects.filter(file=file).update(confermato=True, totale=None)
+        self.assertIn("NON entra: senza importo totale", "\n".join(dati_reali.diagnosi(mittente)))
+        Documento.objects.filter(file=file).update(totale=decimal.Decimal("1234.56"))
         # senza novità non nasce una seconda fotografia
         self.assertFalse(dati_reali.fotografa()["nuova"])
         self.assertEqual(grafo.VersioneDati.objects.count(), 1)
