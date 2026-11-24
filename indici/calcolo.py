@@ -40,7 +40,8 @@ def descrivi(dato):
     """
     Le caratteristiche su cui lavorano le regole, da una riga di DatiPerPeriodo:
         {"periodo", "attivita", "classe_dipendenti", "classe_fatturato"}   (codici, o "" se non noti)
-    Le classi sono quelle valide alla fine dell'anno del periodo.
+    Se la fonte ha dato direttamente la classe si usa quella; altrimenti la classe si
+    calcola dal valore, con le classi valide alla fine dell'anno del periodo.
     """
     giorno = datetime.date(int(dato.periodo[:4]), 12, 31)
     dipendenti = ClasseDipendenti.per_valore(dato.dipendenti, giorno) if dato.dipendenti is not None else None
@@ -48,8 +49,8 @@ def descrivi(dato):
     return {
         "periodo": dato.periodo,
         "attivita": dato.codice_attivita.strip().upper(),
-        "classe_dipendenti": dipendenti.codice.upper() if dipendenti else "",
-        "classe_fatturato": fatturato.codice.upper() if fatturato else "",
+        "classe_dipendenti": (dato.classe_dipendenti or (dipendenti.codice if dipendenti else "")).upper(),
+        "classe_fatturato": (dato.classe_fatturato or (fatturato.codice if fatturato else "")).upper(),
     }
 
 

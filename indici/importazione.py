@@ -8,8 +8,13 @@ Colonne (la prima riga porta i nomi; l'ordine non conta; separatore ; oppure ,):
     periodo        anno (2025) oppure anno e mese (2025-03)
     denominazione  facoltativa
     ateco          codice dell'attività economica, facoltativo
-    dipendenti     numero intero, facoltativo (vuoto = non noto)
-    fatturato      importo, facoltativo: 350.000,00 oppure 350000.00
+    dipendenti     numero intero OPPURE codice della classe di dipendenti (D0, D1...);
+                   facoltativo (vuoto = non noto)
+    fatturato      importo (350.000,00 oppure 350000.00) OPPURE codice della classe di
+                   fatturato (F0, F1...); facoltativo
+
+Le fonti statistiche danno spesso la classe e non il valore: in quel caso si scrive
+il codice della classe, che deve esistere nelle decodifiche (DECISIONI.md, n. 88).
 
 La chiave di una riga è identificativo + periodo: reimportare lo stesso soggetto
 per lo stesso periodo AGGIORNA la riga, un periodo nuovo ne aggiunge una.
@@ -26,7 +31,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from archivio import servizi as archivio
-from decodifiche.models import TipoIdentificativo
+from decodifiche.models import ClasseDipendenti, ClasseFatturato, TipoIdentificativo
 from soggetti import servizi as anagrafica
 from soggetti.models import DatiPerPeriodo, Soggetto, periodo_valido
 
@@ -53,7 +58,7 @@ def _importo(testo):
     return importo
 
 
-def _una_riga(riga, tipi, fonte):
+def _una_riga(riga, tipi, classi, fonte):
     """Scrive una riga del file. Restituisce True se ha creato, False se ha aggiornato."""
     periodo = riga["periodo"]
     try:
@@ -65,12 +70,19 @@ def _una_riga(riga, tipi, fonte):
         raise RigaNonValida("manca l'identificativo (coe oppure piva)")
     if tipo is None:
         raise RigaNonValida(f"tipo di identificativo non presente nelle decodifiche per la colonna {colonna}")
-    dipendenti = None
-    if riga["dipendenti"]:
+    # Ogni colonna porta il valore oppure il codice di una classe delle decodifiche
+    dipendenti, classe_dipendenti = None, classi["dipendenti"].get(riga["dipendenti"].upper(), "")
+    if riga["dipendenti"] and not classe_dipendenti:
         if not riga["dipendenti"].isdigit():
-            raise RigaNonValida(f"dipendenti non è un numero intero: {riga['dipendenti']!r}")
+            raise RigaNonValida(
+                f"dipendenti non è un numero intero né il codice di una classe: {riga['dipendenti']!r}"
+            )
         dipendenti = int(riga["dipendenti"])
-    fatturato = _importo(riga["fatturato"]) if riga["fatturato"] else None
+    fatturato, classe_fatturato = None, classi["fatturato"].get(riga["fatturato"].upper(), "")
+    if riga["fatturato"] and not classe_fatturato:
+        if re.search(r"[A-Za-z]", riga["fatturato"].replace("EUR", "").replace("eur", "")):
+            raise RigaNonValida(f"fatturato non è un importo né il codice di una classe: {riga['fatturato']!r}")
+        fatturato = _importo(riga["fatturato"])
     try:
         fascicolo = archivio.acquisisci_azienda(tipo, riga[colonna], riga["denominazione"])
     except anagrafica.IdentificativoNonValido as problema:
@@ -80,7 +92,8 @@ def _una_riga(riga, tipi, fonte):
         soggetto_id=fascicolo.soggetto_id, periodo=periodo,
         defaults={
             "denominazione": riga["denominazione"][:255], "codice_attivita": riga["ateco"][:20],
-            "dipendenti": dipendenti, "fatturato": fatturato, "fonte": fonte[:120],
+            "dipendenti": dipendenti, "fatturato": fatturato,
+            "classe_dipendenti": classe_dipendenti, "classe_fatturato": classe_fatturato, "fonte": fonte[:120],
         },
     )
     return creata
@@ -99,6 +112,11 @@ def importa(testo, fonte=""):
     if "periodo" not in nomi or not ({"coe", "piva"} & set(nomi)):
         raise RigaNonValida("La prima riga deve nominare le colonne: servono 'periodo' e almeno una fra 'coe' e 'piva'.")
     tipi = {t.codice: t for t in TipoIdentificativo.objects.filter(codice__in=[t for _, t in TIPO_PER_COLONNA])}
+    # codice scritto in maiuscolo -> codice com'è nelle decodifiche
+    classi = {
+        "dipendenti": {c.upper(): c for c in ClasseDipendenti.objects.values_list("codice", flat=True)},
+        "fatturato": {c.upper(): c for c in ClasseFatturato.objects.values_list("codice", flat=True)},
+    }
     resoconto = {"create": 0, "aggiornate": 0, "rifiutate": []}
     for numero, grezza in enumerate(lettore, start=2):
         riga = {c: " ".join(str(grezza.get(nomi.get(c, "")) or "").split()) for c in COLONNE}
@@ -106,7 +124,7 @@ def importa(testo, fonte=""):
             continue
         try:
             with transaction.atomic():
-                creata = _una_riga(riga, tipi, fonte)
+                creata = _una_riga(riga, tipi, classi, fonte)
             resoconto["create" if creata else "aggiornate"] += 1
         except RigaNonValida as problema:
             resoconto["rifiutate"].append((numero, str(problema)))
