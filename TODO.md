@@ -94,6 +94,7 @@ Elenco unico delle cose da fare. Ogni passo si chiude con questo file aggiornato
   - [x] spazio degli indici: aziende in tre dimensioni, indice a regole e z-score robusto (`/indici/spazio/`, n. 89)
   - [ ] **prima esecuzione** dello spazio degli indici nel browser (il disegno è stato provato solo a secco)
   - [x] rapporti fra aziende nello spazio degli indici e strumento `spazio` della chat (DECISIONI.md n. 91)
+  - [x] classifica delle aziende più rischiose per criteri distinti: regole, scostamento, rapporti, GNN (n. 92)
   - [ ] importazione di documenti da CSV, per avere abbastanza rapporti da provare (oggi c'è un solo DDT)
   - [ ] **definire i quattro tipi di irregolarità**: che cosa sono, come si accertano, riferimento normativo
         (oggi sono solo nomi: DECISIONI.md n. 90); poi una tabella gestita dal Configuratore

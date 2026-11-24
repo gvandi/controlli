@@ -728,6 +728,11 @@ class DocumentoTest(ConFile):
         self.assertEqual(parametri, {"regola": "SENZA_DIPENDENTI"})
         self.assertIn("Nessuna regola corrisponde", spazio.racconta(anna, "inesistente")[0])
         self.assertIn("non ha il diritto", spazio.racconta(self.bruno)[0])
+        # nella classifica per criteri, chi ha rapporti con un'azienda segnalata compare nel terzo criterio
+        from indici import classifica
+        (collegata,) = classifica.criteri()["rapporti"]
+        self.assertEqual((collegata[0], collegata[1][0][:3], collegata[2]), (destinatario.pk, (mittente.pk, ["regole"], 1), 1234.56))
+        self.assertIn("- Notizie & Media Italia S.r.l.", classifica.racconta(anna).split("CRITERIO 3")[1])
         # lo strumento della chat aggiunge il collegamento alla pagina, con regola e azienda già scelte
         servizio_mcp._chiamata.sessione = types.SimpleNamespace(utente=anna)
         servizio_mcp._chiamata.indirizzo_pubblico = "https://controlli.example"

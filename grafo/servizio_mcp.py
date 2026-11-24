@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   servizio_mcp.py  -  app grafo, VERSIONE 26
+#   servizio_mcp.py  -  app grafo, VERSIONE 27
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: server
@@ -68,6 +68,13 @@
 #        dimensioni, con regola e azienda già scelte.
 #   [26] esegui_strumento() riceve l'indirizzo pubblico dell'applicativo, per i collegamenti
 #        alle pagine che non sono mappe.
+#   [27] Lo strumento classifica risponde per criteri distinti: 1) regole di rischio che
+#        scattano (tutte quelle attive, o quella indicata nel nuovo parametro regola), 2)
+#        scostamento dalle aziende simili, 3) rapporti con aziende segnalate, 4) punteggio
+#        dell'analisi di rete; in testa le aziende segnalate da più criteri.
+#   [27] Quando l'esecuzione in uso è l'indice a regole (dati reali), classifica non la presenta
+#        come un quarto criterio: dichiara che la GNN non è calcolata su quei dati. Senza
+#        sessione (stdio) classifica resta la sola analisi di rete.
 #
 # <<< NOVITA
 """
@@ -85,6 +92,9 @@ calcolatrice.py e qui viene solo aggiunto all'elenco. L'ottavo, "scheda", legge
 dall'archivio dei file caricati (app elaborazione) ciò che si sa di un'azienda,
 con la visibilità dell'utente della sessione. Il nono, "spazio", racconta lo
 spazio degli indici (app indici) e dà il collegamento alla sua pagina.
+Dalla versione 27 "classifica" è qui e non più solo in interrogazione.py: unisce
+ai punteggi dell'analisi di rete i criteri degli indici (regole, scostamento,
+rapporti con aziende segnalate), tenendoli distinti.
 
 Importa contratto.py, interrogazione.py, mappa.py, sessioni.py, calcolo_cartella.py,
 calcolatrice.py.
@@ -151,6 +161,59 @@ def mappa(societa: Union[int, str] = "") -> str:
     )
 
 
+ERRORI_DI_CLASSIFICA = ("Tipo di irregolarità non riconosciuto", "Popolazione non riconosciuta", "Il numero di aziende")
+
+
+def classifica(n: int = 3, tipo: str = "", popolazione: str = "non_ispezionate", regola: str = "") -> str:
+    """Elenca le aziende più rischiose, distinguendo il CRITERIO che ha portato a ciascuna. Da
+    usare per domande come "quali sono le aziende più rischiose" o "dove conviene dirigere i
+    controlli". I criteri sono indipendenti: 1) regole di rischio che scattano (tutte quelle
+    attive, se l'ispettore non ne indica una); 2) scostamento dalle aziende simili (z-score
+    robusto); 3) rapporti con aziende segnalate; 4) punteggio dell'analisi di rete (GNN). In testa
+    stanno le aziende segnalate da più criteri. Nella risposta all'ispettore i criteri vanno
+    tenuti distinti, dicendo per ogni azienda quale criterio l'ha segnalata.
+    n: quante aziende elencare per ogni criterio (da 1 a 50).
+    regola: lasciare vuoto per tutte le regole attive, oppure il codice o il nome di una regola.
+    tipo: riguarda solo il criterio 4; lasciare vuoto per qualsiasi irregolarità, oppure uno fra
+    triangolazione, falsa_fatturazione, fuori_oggetto_licenza, prodotti_diversi_dal_pubblicizzato.
+    popolazione: riguarda solo il criterio 4; non_ispezionate (predefinito), ispezionate oppure tutte."""
+    # Il criterio 4 legge l'archivio dell'analisi di rete; i suoi controlli sui parametri valgono per tutti
+    try:
+        rete = interrogazione.classifica(n, tipo, popolazione)
+    except contratto.ArchivioIncompatibile as errore:
+        rete = None
+        nota = f"non disponibile ({errore})"
+    if rete is not None and rete.startswith(ERRORI_DI_CLASSIFICA):
+        return rete
+    sessione = getattr(_chiamata, "sessione", None)
+    if sessione is None:
+        # Senza sapere chi chiede (trasporto stdio) resta la sola analisi di rete, come prima
+        return rete if rete is not None else f"Archivio non utilizzabile: {nota}"
+
+    if rete is not None and interrogazione.leggi_esecuzione()["versione_calcolo"] == contratto.VERSIONE_CALCOLO_REGOLE:
+        # Sui dati reali l'archivio contiene l'indice a regole: è il criterio 1, non un altro criterio
+        rete, nota = None, (
+            "non calcolato sui dati reali: la GNN lavora ancora sui dati simulati e ha bisogno di "
+            "irregolarità accertate per essere addestrata. I punteggi presenti nell'archivio dell'analisi "
+            "di rete sono quelli delle regole del criterio 1"
+        )
+    # Importato qui: l'app grafo resta utilizzabile anche senza l'app indici
+    from indici import classifica as classifica_degli_indici
+
+    try:
+        quante = max(1, min(contratto.MAX_AZIENDE_IN_CLASSIFICA, int(n)))
+    except (TypeError, ValueError):
+        quante = 3
+
+    parti = [
+        "AZIENDE PIÙ RISCHIOSE, PER CRITERIO. I criteri sono indipendenti e nessuno è un'irregolarità "
+        "accertata: per ogni azienda va detto quale criterio l'ha segnalata.",
+        classifica_degli_indici.racconta(sessione.utente, quante, regola),
+        "\nCRITERIO 4 - ANALISI DI RETE (GNN): " + (nota + "." if rete is None else "\n" + rete),
+    ]
+    return "\n".join(parti)
+
+
 def scheda(azienda: Union[int, str]) -> str:
     """Dice quali informazioni l'archivio conosce di un'azienda: le voci della sua scheda
     (denominazione, sede, amministratore, soci, dati di bilancio...) con il file da cui vengono,
@@ -203,7 +266,7 @@ def spazio(regola: str = "", azienda: Union[int, str] = "") -> str:
 
 # Tutti gli strumenti esposti alla chat, nell'ordine del contratto
 STRUMENTI = {
-    **interrogazione.STRUMENTI, "mappa": mappa, "calcola": calcolatrice.calcola, "scheda": scheda, "spazio": spazio,
+    **interrogazione.STRUMENTI, "classifica": classifica, "mappa": mappa, "calcola": calcolatrice.calcola, "scheda": scheda, "spazio": spazio,
 }
 
 
