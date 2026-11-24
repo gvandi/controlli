@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   views.py  -  app grafo, VERSIONE 30
+#   views.py  -  app grafo, VERSIONE 31
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: server
@@ -83,6 +83,9 @@
 #        quale utente si è collegati e che la mappa si apre con l'utente che ha autorizzato la
 #        chat, oppure che il file non c'è più e va richiesta di nuovo; il motivo preciso va nel
 #        registro del server.
+#   [31] Gli strumenti mappa e spazio dicono con quale utente va aperto il collegamento (quello
+#        che ha autorizzato la chat); la pagina di collegamento elenca le chat autorizzate con
+#        il proprio utente e permette di scollegarle.
 #
 # <<< NOVITA
 """
@@ -90,7 +93,8 @@ PAGINE E SERVIZIO HTTP dell'app grafo.
 
     /grafo/mcp/             servizio MCP per la chat (POST con accesso OAuth o token personale)
     /grafo/mappe/<n>/       mappa investigativa n, per chi ha fatto l'accesso
-    /grafo/collegamento/    l'analista crea e revoca i propri token
+    /grafo/collegamento/    l'analista vede e scollega le chat autorizzate con il suo utente,
+                            crea e revoca i propri token
     /grafo/cruscotto/       l'amministratore vede le versioni e cambia i parametri
 
 Qui non c'è logica di interrogazione: il protocollo sta in protocollo_mcp.py,
@@ -297,7 +301,11 @@ def collegamento(request):
             riga = TokenAccesso.objects.filter(pk=int(numero) if numero.isdigit() else 0, utente=request.user).first()
             if riga is not None:
                 sessioni.revoca_token(riga)
+        elif request.POST.get("azione") == "scollega" and request.POST.get("applicazione", "").isdigit():
+            # solo le proprie autorizzazioni: l'utente è sempre quello della richiesta
+            sessioni.scollega_chat(request.user, int(request.POST["applicazione"]))
     return render(request, "grafo/collegamento.html", {
+        "chat_autorizzate": sessioni.chat_autorizzate(request.user),
         "token_appena_creato": token_appena_creato,
         "token": TokenAccesso.objects.filter(utente=request.user).order_by("-creato_il"),
         "indirizzo_servizio": _indirizzo_pubblico(request) + reverse("grafo:mcp"),

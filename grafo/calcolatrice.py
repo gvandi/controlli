@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   calcolatrice.py  -  app grafo, VERSIONE 30
+#   calcolatrice.py  -  app grafo, VERSIONE 31
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: server
@@ -83,6 +83,9 @@
 #        quale utente si è collegati e che la mappa si apre con l'utente che ha autorizzato la
 #        chat, oppure che il file non c'è più e va richiesta di nuovo; il motivo preciso va nel
 #        registro del server.
+#   [31] Gli strumenti mappa e spazio dicono con quale utente va aperto il collegamento (quello
+#        che ha autorizzato la chat); la pagina di collegamento elenca le chat autorizzate con
+#        il proprio utente e permette di scollegarle.
 #
 # <<< NOVITA
 """

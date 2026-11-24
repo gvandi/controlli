@@ -30,6 +30,33 @@
 </div>
 
 <div class="scheda">
+  <h2>{% translate "Chat autorizzate con il tuo utente" %}</h2>
+  <p class="tenue">
+    {% blocktranslate with nome=request.user.get_username %}Queste chat lavorano a nome di <strong>{{ nome }}</strong>: le mappe e le pagine che producono si aprono solo con questo utente.{% endblocktranslate %}
+    {% translate "Dopo la prima autorizzazione la chat non chiede più chi sei: resta legata all'utente che l'ha autorizzata, anche se nel browser entri con un altro. Per cambiare utente, scollegala qui e poi ricollegala dalla chat mentre nel browser sei entrato con l'utente giusto." %}
+  </p>
+  {% if chat_autorizzate %}
+    <table>
+      <tr><th>{% translate "Chat" %}</th><th>{% translate "Autorizzata il" %}</th><th></th></tr>
+      {% for chat in chat_autorizzate %}
+        <tr>
+          <td>{{ chat.nome }}</td>
+          <td>{{ chat.dal|date:"Y-m-d H:i" }}</td>
+          <td>
+            <form method="post">{% csrf_token %}
+              <input type="hidden" name="azione" value="scollega"><input type="hidden" name="applicazione" value="{{ chat.applicazione }}">
+              <button type="submit" class="secondario">{% translate "Scollega" %}</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+    </table>
+  {% else %}
+    <p>{% translate "Nessuna chat è autorizzata con questo utente. Se la chat funziona lo stesso, sta lavorando a nome di un altro utente." %}</p>
+  {% endif %}
+</div>
+
+<div class="scheda">
   <h2>{% translate "Token personali (ripiego)" %}</h2>
   {% if token_personali_ammessi %}
     <p class="tenue">{% translate "Servono solo se la chat non riesce a usare l'accesso OAuth. In quel caso: accesso OAuth disattivato e intestazione" %} <code>Authorization: Bearer {% translate "IL-TUO-TOKEN" %}</code></p>

@@ -501,6 +501,13 @@ class SessioniTest(ConArchivio):
         self.assertIn("1. Società", self.chiama(connessione, "classifica", accesso)["content"][0]["text"])
         self.assertEqual(Richiesta.objects.get().sessione, sessione)
 
+        # l'utente vede che questa chat lavora a suo nome; il collega no
+        self.assertEqual([chat["nome"] for chat in sessioni.chat_autorizzate(self.analista)], ["Studio di prova"])
+        self.assertEqual(sessioni.chat_autorizzate(self.collega), [])
+        self.client.force_login(self.analista)
+        self.assertContains(self.client.get(reverse("grafo:collegamento")), "Studio di prova")
+        self.client.logout()
+
         # il token di un altro utente non può usare questa connessione
         altro = self.accesso_oauth(self.collega)
         self.assertEqual(self.invia({"jsonrpc": "2.0", "id": 2, "method": "ping"}, altro, connessione).status_code, 404)
@@ -510,6 +517,18 @@ class SessioniTest(ConArchivio):
         AccessToken.objects.all().update(expires=sessione.iniziata_il - datetime.timedelta(days=1))
         scaduto = self.invia({"jsonrpc": "2.0", "id": 3, "method": "ping"}, accesso, connessione)
         self.assertEqual(scaduto.status_code, 401)
+
+        # scollegare la chat: l'accesso non vale più e la sessione è chiusa; il collega resta collegato
+        nuovo = self.accesso_oauth(self.analista)
+        connessione, _ = self.collega_chat(nuovo)
+        self.client.force_login(self.analista)
+        for chat in sessioni.chat_autorizzate(self.analista):   # ogni accesso di prova ha registrato una chat
+            self.client.post(reverse("grafo:collegamento"), {"azione": "scollega", "applicazione": chat["applicazione"]})
+        self.client.logout()
+        self.assertEqual(sessioni.chat_autorizzate(self.analista), [])
+        self.assertEqual(self.invia({"jsonrpc": "2.0", "id": 4, "method": "ping"}, nuovo, connessione).status_code, 401)
+        self.assertFalse(Sessione.objects.filter(utente=self.analista, chiusa_il__isnull=True).exists())
+        self.assertEqual(len(sessioni.chat_autorizzate(self.collega)), 1)
         self.assertIn("resource_metadata=", scaduto["WWW-Authenticate"])
 
     def test_l_accesso_oauth_non_basta_senza_il_diritto_e_vale_solo_per_questo_servizio(self):
