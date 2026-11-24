@@ -50,6 +50,8 @@ DIRITTI = {
         ("grafo", "sessione", SOLO_LETTURA),
         ("grafo", "richiesta", SOLO_LETTURA),
         ("grafo", "mappaprodotta", SOLO_LETTURA),
+        # Lanciare elaborazioni e calcoli (lavori.lancia_lavori) e vederne l'esito: solo conteggi, non i dati
+        ("lavori", "lavoro", ("lancia", "view")),
     ],
     CARICATORE_DATI: [
         ("archivio", None, SOLO_LETTURA),

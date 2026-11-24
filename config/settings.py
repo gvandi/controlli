@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     "elaborazione",
     "grafo",
     "indici",
+    "lavori",
     "oauth2_provider",
 ]
 
@@ -196,3 +197,6 @@ if not DEBUG:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_SSL_REDIRECT = True
+
+# Lavori lanciati dall'interfaccia: dimensione massima del file CSV dell'anagrafica
+LAVORI_CSV_MASSIMO = int(os.environ.get("CONTROLLI_CSV_MASSIMO_MB", "5")) * 1024 * 1024

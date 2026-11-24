@@ -17,6 +17,8 @@ Per l'aiuto di un comando: `python manage.py NOME --help`.
 | Aggiornare ruoli e diritti (quando cambiano) | `python manage.py crea_ruoli` |
 | Eseguire le prove | `python manage.py test` oppure, per alcune app, `python manage.py test elaborazione archivio` |
 | Avviare l'applicativo | `python manage.py runserver` |
+| Avviare l'applicativo insieme al processo che esegue i lavori lanciati dall'interfaccia | `./avvia.sh` |
+| Avviare solo il processo dei lavori (per esempio su un'altra macchina) | `python manage.py esegui_lavori --tipi elabora_file` |
 
 ## Prima installazione
 
@@ -93,6 +95,13 @@ Aggiornare i dati delle aziende:
 python manage.py importa_anagrafica nuovo_file.csv --fonte "Camera di Commercio 2026"
 python manage.py calcola_indici
 ```
+
+## Lo stesso, dall'interfaccia
+
+L'Amministratore può lanciare dalla pagina iniziale (o da `/lavori/`) l'elaborazione dei file,
+l'importazione dell'anagrafica da CSV, il calcolo degli indici, il riallineamento delle denominazioni,
+la fotografia dei dati reali, il calcolo della GNN e delle spiegazioni. I pulsanti registrano la
+richiesta: la esegue il processo `esegui_lavori`, che deve essere acceso.
 
 ## Che cosa NON si fa con un comando
 
