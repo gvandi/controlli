@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   calcolo.py  -  app grafo, VERSIONE 23
+#   calcolo.py  -  app grafo, VERSIONE 24
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: calcolo
@@ -52,6 +52,13 @@
 #   [19] Un file di modello per ogni coppia calcolo/dati, nella cartella dati_grafo insieme ai
 #        file JSON in ingresso (calcolo_cartella.py).
 #   [19] Si avvia con python manage.py grafo_calcolo (--spiegazioni per la sola coda).
+#   [24] Nuovo modulo dati_reali.py e comando python manage.py grafo_dati_reali: fotografia dei
+#        dati presa dall'archivio dell'applicativo (un nodo per ogni soggetto dell'anagrafica
+#        mittente o destinatario di un documento confermato, un arco per documento), al posto
+#        dei dati simulati.
+#   [24] Anagrafica unica: il soggetto del grafo ricorda quello dell'anagrafica nel riferimento
+#        ANAG-<numero>; i documenti di caricamenti riservati a un'indagine non entrano nella
+#        fotografia; quelli senza data, importo o una delle due parti sono contati e riportati.
 #
 # <<< NOVITA
 """

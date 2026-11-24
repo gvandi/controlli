@@ -1,6 +1,6 @@
 # Registro delle novità
 
-Versione corrente: 23
+Versione corrente: 24
 
 Elenco completo delle novità rispetto alla versione 12 (ultimo file unico di partenza).
 È l'UNICO posto in cui le novità si scrivono a mano: `aggiorna_intestazioni.py` ricopia
@@ -70,6 +70,8 @@ Dalla 20 il numero di versione del codice è un intero.
 - [19] (calcolo) Le spiegazioni si salvano come documenti auto-descrittivi che nominano i soggetti con la chiave interna, non con l'indice del nodo (documento_spiegazione).
 - [19] (calcolo) Un file di modello per ogni coppia calcolo/dati, nella cartella dati_grafo insieme ai file JSON in ingresso (calcolo_cartella.py).
 - [19] (calcolo) Si avvia con python manage.py grafo_calcolo (--spiegazioni per la sola coda).
+- [24] (calcolo) Nuovo modulo dati_reali.py e comando python manage.py grafo_dati_reali: fotografia dei dati presa dall'archivio dell'applicativo (un nodo per ogni soggetto dell'anagrafica mittente o destinatario di un documento confermato, un arco per documento), al posto dei dati simulati.
+- [24] (calcolo) Anagrafica unica: il soggetto del grafo ricorda quello dell'anagrafica nel riferimento ANAG-<numero>; i documenti di caricamenti riservati a un'indagine non entrano nella fotografia; quelli senza data, importo o una delle due parti sono contati e riportati.
 
 ## interrogazione
 

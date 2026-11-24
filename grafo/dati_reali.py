@@ -1,0 +1,217 @@
+# >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
+#
+#   dati_reali.py  -  app grafo, VERSIONE 24
+#
+#   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
+#   Parte del registro: calcolo
+#
+#   [13] Etichette per TIPO di irregolarità: y passa da [N, 1] a [N, 4].
+#   [13] Solo 150 aziende su 500 sono "ispezionate" e hanno un'etichetta (grafo.ha_etichetta);
+#        le altre restano nel grafo ma fuori da train/val/test: non ispezionata != regolare.
+#   [13] Gli archi conservano il verso venditore -> acquirente; GAT e GNNExplainer usano
+#        l'edge_index simmetrico.
+#   [13] ComplianceGAT restituisce i LOGIT (tolto il sigmoid dal forward) con un'uscita per
+#        tipo; calcola_mappa_rischi() applica il sigmoid in inferenza.
+#   [13] La BCEWithLogitsLoss pesata viene usata davvero, con un pos_weight per ogni tipo.
+#   [13] Accuracy sostituita da PR-AUC, precision e recall per tipo (evaluate).
+#   [13] Soglie di decisione scelte sul validation set (scegli_soglie) al posto di 0.5 fisso.
+#   [13] GNNExplainer spiega un tipo di irregolarità alla volta (classe UscitaSingola), con
+#        return_type='raw' coerente con i logit.
+#   [14] GNNExplainer racchiuso nella funzione spiega_nodo(); dizionario_descrizioni.json
+#        caricato prima della spiegazione.
+#   [15] Ogni esecuzione viene registrata nel database con versione, data, soglie e metriche
+#        (salva_dati_simulati, salva_esecuzione); le spiegazioni vengono salvate in tabella
+#        (salva_spiegazione).
+#   [16] Diviso in calcolo.py (PyTorch) e scrittura.py (senza PyTorch, riceve liste Python): il
+#        cablaggio si può provare con un modello finto.
+#   [16] Il codice è organizzato in funzioni (costruisci_grafo_simulato, addestra,
+#        esegui_calcolo) invece che eseguito all'importazione.
+#   [16] Pesi del modello e grafo salvati su file (modello_grafo.pt) con la versione
+#        dell'esecuzione.
+#   [16] Spiegazioni calcolate subito per l'irregolarità accertata con punteggio più alto e per
+#        le prime 5 aziende non ispezionate della classifica.
+#   [16] Nuovo comando "spiegazioni" (elabora_richieste): calcola le spiegazioni in coda senza
+#        riaddestrare, e si rifiuta se modello su file e archivio sono di esecuzioni diverse.
+#   [16] apri_in_scrittura() controlla la versione dello schema e rifiuta gli archivi creati da
+#        versioni precedenti.
+#   [16] Non contiene più report, mappa né domande di esempio; non usa più il generatore casuale
+#        di numpy per date e importi (ora random.Random).
+#   [18] Il dizionario delle descrizioni viene caricato nel database
+#        (salva_dizionario_indicatori) a ogni calcolo.
+#   [18] Ogni spiegazione conserva 10 indicatori invece di 3, per rendere utile la ricerca per
+#        indicatore.
+#   [18] Il messaggio per uno schema diverso dice di eliminare il file e rieseguire il calcolo.
+#   [19] scrittura.py usa i modelli Django: registra_dati_simulati(), registra_esecuzione(),
+#        salva_spiegazione(), richieste_pendenti(), esecuzione_piu_recente(),
+#        nodi_dei_soggetti().
+#   [19] Nulla viene più cancellato a ogni avvio: dati nuovi aggiungono una fotografia, dati
+#        identici riusano quella esistente (impronta), e solo il ricalcolo della stessa coppia
+#        calcolo/dati la sostituisce.
+#   [19] Le spiegazioni si salvano come documenti auto-descrittivi che nominano i soggetti con
+#        la chiave interna, non con l'indice del nodo (documento_spiegazione).
+#   [19] Un file di modello per ogni coppia calcolo/dati, nella cartella dati_grafo insieme ai
+#        file JSON in ingresso (calcolo_cartella.py).
+#   [19] Si avvia con python manage.py grafo_calcolo (--spiegazioni per la sola coda).
+#   [24] Nuovo modulo dati_reali.py e comando python manage.py grafo_dati_reali: fotografia dei
+#        dati presa dall'archivio dell'applicativo (un nodo per ogni soggetto dell'anagrafica
+#        mittente o destinatario di un documento confermato, un arco per documento), al posto
+#        dei dati simulati.
+#   [24] Anagrafica unica: il soggetto del grafo ricorda quello dell'anagrafica nel riferimento
+#        ANAG-<numero>; i documenti di caricamenti riservati a un'indagine non entrano nella
+#        fotografia; quelli senza data, importo o una delle due parti sono contati e riportati.
+#
+# <<< NOVITA
+"""
+DATI REALI: la fotografia dei dati in ingresso presa dall'archivio dell'applicativo,
+al posto di quella simulata (DECISIONI.md, n. 85).
+
+    archivio (file caricati)  -->  elaborazione (documenti confermati)  -->  QUI  -->  grafo_versione_dati
+                                                                                       grafo_dati_soggetto
+                                                                                       grafo_relazione
+
+Che cosa entra nella fotografia:
+  - un NODO per ogni soggetto dell'anagrafica che è mittente o destinatario di un
+    documento confermato da una persona; il soggetto del grafo ricorda quello
+    dell'anagrafica nel campo riferimento ("ANAG-<numero>"): è l'anagrafica unica;
+  - un ARCO per ogni documento confermato che ha mittente, destinatario, data e
+    importo totale: mittente = venditore, destinatario = acquirente.
+
+Che cosa NON entra:
+  - i documenti che vengono da caricamenti riservati a un'indagine: il grafo lo
+    consulta chiunque usi la chat, e non deve rivelare chi è sotto esame (n. 17-19, 63);
+  - i documenti senza data o senza importo, o in cui manca una delle due parti:
+    vengono contati e riportati, così si sa che cosa completare nella revisione;
+  - il vettore: lo schema delle relazioni ha oggi solo venditore e acquirente.
+
+La fotografia non contiene punteggi: quelli li produce un calcolo. Finché nessun
+calcolo è stato eseguito su di lei, gli strumenti della chat continuano a usare
+l'ultima esecuzione disponibile.
+
+È l'unico modulo dell'app grafo che legge le altre app dell'applicativo.
+"""
+import collections
+
+from django.db import transaction
+from django.db.models import Max
+
+from elaborazione import models as elaborazione
+from elaborazione.models import Documento
+from soggetti import servizi as anagrafica
+
+from . import scrittura
+from .models import DatiSoggetto, Relazione, Soggetto, VersioneDati
+
+PREFISSO = "ANAG-"
+
+# Motivi per cui un documento confermato non diventa un arco
+SENZA_MITTENTE, SENZA_DESTINATARIO, STESSO_SOGGETTO = "senza mittente", "senza destinatario", "mittente e destinatario coincidono"
+SENZA_DATA, SENZA_IMPORTO = "senza data", "senza importo totale"
+
+
+def riferimento(soggetto_anagrafica):
+    """Come il soggetto del grafo ricorda quello dell'anagrafica."""
+    return f"{PREFISSO}{soggetto_anagrafica.pk}"
+
+
+def soggetto_dell_anagrafica(riferimento_del_grafo):
+    """Il numero del soggetto dell'anagrafica a cui corrisponde un soggetto del grafo, o None (dati simulati)."""
+    numero = riferimento_del_grafo[len(PREFISSO):] if riferimento_del_grafo.startswith(PREFISSO) else ""
+    return int(numero) if numero.isdigit() else None
+
+
+def archi_dall_archivio():
+    """
+    I documenti confermati e non riservati che possono diventare archi.
+    Restituisce (archi, esclusi): archi = [(mittente, destinatario, documento)] con i
+    soggetti dell'anagrafica, esclusi = {motivo: quanti}.
+    """
+    documenti = (
+        Documento.objects.utilizzabili()
+        .filter(file__fascicolo__faldone__riservato=False, file__fascicolo__riservato_a__isnull=True)
+        .prefetch_related("parti__soggetto").order_by("pk")
+    )
+    archi, esclusi = [], collections.Counter()
+    for documento in documenti:
+        per_ruolo = {}
+        for parte in documento.parti.all():
+            if not parte.ritirata and parte.soggetto_id:
+                per_ruolo.setdefault(parte.ruolo, parte.soggetto)
+        mittente, destinatario = per_ruolo.get(elaborazione.MITTENTE), per_ruolo.get(elaborazione.DESTINATARIO)
+        if mittente is None:
+            esclusi[SENZA_MITTENTE] += 1
+        elif destinatario is None:
+            esclusi[SENZA_DESTINATARIO] += 1
+        elif mittente.pk == destinatario.pk:
+            esclusi[STESSO_SOGGETTO] += 1
+        elif documento.data is None:
+            esclusi[SENZA_DATA] += 1
+        elif documento.totale is None:
+            esclusi[SENZA_IMPORTO] += 1
+        else:
+            archi.append((mittente, destinatario, documento))
+    return archi, dict(esclusi)
+
+
+def _identificativi(soggetto):
+    """(numero di iscrizione, identificativo fiscale) da mostrare: il COE se c'è, e il primo identificativo."""
+    righe = list(soggetto.identificativi.select_related("tipo").order_by("pk"))
+    coe = next((riga.valore_normalizzato for riga in righe if riga.tipo.codice == "COE"), "")
+    return coe, (str(righe[0]) if righe else "")
+
+
+@transaction.atomic
+def fotografa(descrizione="dati reali dall'archivio"):
+    """
+    Registra la fotografia dei dati reali e restituisce un resoconto:
+        {"versione_dati", "nuova": bool, "soggetti": n, "relazioni": n, "esclusi": {motivo: quanti}}
+    Se dall'ultima volta non è cambiato nulla NON crea una nuova fotografia (stessa
+    impronta). Senza nessun arco non crea nulla: "versione_dati" è None.
+    """
+    archi, esclusi = archi_dall_archivio()
+    resoconto = {"versione_dati": None, "nuova": False, "soggetti": 0, "relazioni": len(archi), "esclusi": esclusi}
+    if not archi:
+        return resoconto
+
+    nodi = {}
+    for mittente, destinatario, _ in archi:
+        nodi[mittente.pk], nodi[destinatario.pk] = mittente, destinatario
+    resoconto["soggetti"] = len(nodi)
+    schede = {
+        numero: (soggetto.denominazione or anagrafica.etichetta(soggetto), *_identificativi(soggetto))
+        for numero, soggetto in sorted(nodi.items())
+    }
+    righe = [
+        (mittente.pk, destinatario.pk, f"{documento.tipo} {documento.numero}".strip(), documento.data, documento.totale)
+        for mittente, destinatario, documento in archi
+    ]
+    impronta = scrittura._impronta("dati reali", schede, righe)
+    esistente = VersioneDati.objects.filter(impronta=impronta).first()
+    if esistente is not None:
+        resoconto["versione_dati"] = esistente
+        return resoconto
+
+    # I soggetti del grafo hanno una chiave stabile: si creano una volta sola
+    riferimenti = {numero: riferimento(soggetto) for numero, soggetto in nodi.items()}
+    gia_presenti = set(Soggetto.objects.filter(riferimento__in=riferimenti.values()).values_list("riferimento", flat=True))
+    Soggetto.objects.bulk_create([Soggetto(riferimento=r) for r in riferimenti.values() if r not in gia_presenti])
+    nel_grafo = dict(Soggetto.objects.filter(riferimento__in=riferimenti.values()).values_list("riferimento", "id"))
+    chiave = {numero: nel_grafo[riferimenti[numero]] for numero in nodi}
+
+    ultimo = VersioneDati.objects.aggregate(massimo=Max("numero"))["massimo"] or 0
+    versione_dati = VersioneDati.objects.create(numero=ultimo + 1, impronta=impronta, descrizione=descrizione[:255])
+    DatiSoggetto.objects.bulk_create([
+        DatiSoggetto(
+            versione_dati=versione_dati, soggetto_id=chiave[numero], nome=nome[:255],
+            nr_iscrizione=iscrizione[:80], id_fiscale=fiscale[:80], ispezionata=False,
+        )
+        for numero, (nome, iscrizione, fiscale) in schede.items()
+    ])
+    Relazione.objects.bulk_create([
+        Relazione(
+            versione_dati=versione_dati, venditore_id=chiave[mittente], acquirente_id=chiave[destinatario],
+            documento=(nome or "documento")[:80], data=data, importo=importo,
+        )
+        for mittente, destinatario, nome, data, importo in righe
+    ])
+    resoconto.update(versione_dati=versione_dati, nuova=True)
+    return resoconto

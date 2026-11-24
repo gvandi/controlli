@@ -798,6 +798,7 @@ class StrutturaTest(SimpleTestCase):
             "models.py": set(),
             "calcolo_cartella.py": set(),
             "scrittura.py": {"contratto", "models"},
+            "dati_reali.py": {"scrittura", "models"},
             "calcolo.py": {"contratto", "scrittura", "calcolo_cartella"},
             "interrogazione.py": {"contratto"},
             "mappa.py": {"contratto", "interrogazione"},

@@ -437,6 +437,18 @@ class CodaTest(ConFile):
         self.client.force_login(self.anna)
         fascicolo = self.client.get(reverse("archivio:fascicolo", args=[azienda.pk]))
         self.assertEqual({c.file for c in fascicolo.context["file_collegati"]}, {generale, riservato})
+        # un documento di un caricamento riservato non entra nella fotografia dei dati del grafo
+        from grafo import dati_reali
+        for file, numero in ((riservato, "1"), (generale, "2")):
+            documento = Documento.objects.create(
+                elaborazione=file.elaborazioni.first(), file=file, tipo="FATTURA", numero=numero,
+                data=datetime.date(2026, 1, 10), totale=decimal.Decimal("100"), confermato=True,
+            )
+            for ruolo, coe in ((models.MITTENTE, "12345"), (models.DESTINATARIO, "54321")):
+                altro, _ = anagrafica.trova_o_crea(self.coe, coe)
+                ParteDelDocumento.objects.create(documento=documento, ruolo=ruolo, soggetto=altro)
+        archi, esclusi = dati_reali.archi_dall_archivio()
+        self.assertEqual(([d.numero for _, _, d in archi], esclusi), (["2"], {}))
         # e così ciò che la chat può raccontare dell'azienda
         self.assertIn("Mario Rossi", coda.descrivi_azienda("12345", self.anna))
         self.assertNotIn("Mario Rossi", coda.descrivi_azienda("12345", self.bruno))
@@ -671,6 +683,23 @@ class DocumentoTest(ConFile):
         self.addCleanup(setattr, servizio_mcp._chiamata, "sessione", None)
         self.assertEqual(servizio_mcp.scheda(10000), racconto)
         self.assertIn("non ha il diritto", coda.descrivi_azienda("10000", self.carla))
+        # la fotografia dei dati reali per l'analisi di rete: due nodi e un arco, agganciati all'anagrafica
+        from grafo import dati_reali
+        from grafo import models as grafo
+        resoconto = dati_reali.fotografa()
+        self.assertEqual((resoconto["nuova"], resoconto["soggetti"], resoconto["relazioni"]), (True, 2, 1))
+        arco = grafo.Relazione.objects.get(versione_dati=resoconto["versione_dati"])
+        self.assertEqual(
+            (arco.venditore.riferimento, arco.acquirente.riferimento, arco.documento, arco.data, arco.importo),
+            (f"ANAG-{mittente.pk}", f"ANAG-{destinatario.pk}", "DDT 45/2026", datetime.date(2026, 11, 12), decimal.Decimal("1234.56")),
+        )
+        self.assertEqual(dati_reali.soggetto_dell_anagrafica(arco.venditore.riferimento), mittente.pk)
+        nodo = grafo.DatiSoggetto.objects.get(versione_dati=resoconto["versione_dati"], soggetto=arco.venditore)
+        self.assertEqual(nodo.nome, "Alfa S.r.l.")
+        self.assertIn("10000", nodo.nr_iscrizione)
+        # senza novità non nasce una seconda fotografia
+        self.assertFalse(dati_reali.fotografa()["nuova"])
+        self.assertEqual(grafo.VersioneDati.objects.count(), 1)
         # rivedere di nuovo non raddoppia le denominazioni
         self.client.post(indirizzo, dict(modulo, entita=list(EntitaEstratta.objects.filter(file=file).values_list("pk", flat=True))))
         self.assertEqual(EntitaEstratta.objects.filter(etichetta="DENOMINAZIONE").count(), 3)
