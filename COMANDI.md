@@ -108,7 +108,7 @@ richiesta, che viene eseguita dal processo `esegui_lavori` (deve essere acceso).
 | Passo | Dall'interfaccia | Da comando | Che cosa aggiorna |
 |---|---|---|---|
 | 1 | Caricare i file (lo fa l'ispettore) | - | I file in archivio |
-| 2 | Elabora i file in attesa | `python manage.py elabora_file` | Lo stato dei file; niente ancora nel grafo |
+| 2 | Elabora i file in attesa | `python manage.py elabora_coda` | Lo stato dei file; niente ancora nel grafo |
 | 3 | Rivedere e confermare i documenti (lo fa l'ispettore) | - | I documenti confermati |
 | 4 | Importa l'anagrafica da CSV | `python manage.py importa_anagrafica file.csv` | L'anagrafica per periodo |
 | 5 | Aggiorna il grafo e calcola gli indici | `python manage.py calcola_indici` | Ciò che leggono chat, mappa, classifica e spazio degli indici |
