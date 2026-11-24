@@ -8,7 +8,14 @@ e ogni soggetto ha una o più righe di identificativi, ciascuna con il suo tipo
 "12345") coincidono perché si confrontano dopo la normalizzazione.
 
 Qui non c'è nessuna informazione su indagini o controlli (n. 17).
+
+DATI PER PERIODO (n. 86): attività economica, dipendenti e fatturato di un soggetto
+in un periodo. La chiave è la coppia soggetto + periodo: lo stesso COE compare una
+volta per periodo. Il periodo è un anno ("2025") e potrà essere un mese ("2025-03").
+I dati arrivano da un file CSV (indici/importazione.py), non dai file caricati.
 """
+import re
+from django.core.exceptions import ValidationError
 from django.db import models
 
 
@@ -38,3 +45,36 @@ class IdentificativoSoggetto(models.Model):
 
     def __str__(self):
         return f"{self.tipo.codice} {self.valore_normalizzato}"
+
+
+PERIODO = re.compile(r"\d{4}(-(0[1-9]|1[0-2]))?")
+
+
+def periodo_valido(valore):
+    """Un anno ("2025") oppure anno e mese ("2025-03")."""
+    if not PERIODO.fullmatch(str(valore)):
+        raise ValidationError("Il periodo è un anno (2025) oppure anno e mese (2025-03).")
+
+
+class DatiPerPeriodo(models.Model):
+    """I dati di un soggetto in un periodo, come li dà l'anagrafica ufficiale."""
+
+    soggetto = models.ForeignKey(Soggetto, on_delete=models.CASCADE, related_name="dati_per_periodo")
+    periodo = models.CharField(max_length=7, validators=[periodo_valido])
+    # Come il soggetto è chiamato nella fonte, in quel periodo
+    denominazione = models.CharField(max_length=255, blank=True, default="")
+    # Codice dell'attività economica (ATECO), così come è nella fonte: "47.26"
+    codice_attivita = models.CharField(max_length=20, blank=True, default="")
+    # Vuoto = la fonte non lo dice: è un dato mancante, non zero
+    dipendenti = models.PositiveIntegerField(null=True, blank=True)
+    fatturato = models.DecimalField(max_digits=16, decimal_places=2, null=True, blank=True)
+    fonte = models.CharField(max_length=120, blank=True, default="")
+    importato_il = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["soggetto", "periodo"], name="dati_per_periodo_unici"),
+        ]
+
+    def __str__(self):
+        return f"{self.soggetto} - {self.periodo}"

@@ -87,8 +87,13 @@ Elenco unico delle cose da fare. Ogni passo si chiude con questo file aggiornato
   - [x] fotografia dei dati reali per l'analisi di rete: soggetti dell'anagrafica e rapporti dai
         documenti confermati (`grafo_dati_reali`, DECISIONI.md n. 85)
   - [ ] **prima esecuzione** di `grafo_dati_reali`
-  - [ ] un calcolo sui dati reali (indice a regole), perché gli strumenti della chat li usino
-  - [ ] dati dell'azienda per le regole: attività economica, dipendenti, fatturato per anno
+  - [x] dati dell'azienda per periodo, importati da CSV (`importa_anagrafica`, DECISIONI.md n. 86)
+  - [x] indice di rischio a regole come calcolo a sé sui dati reali (`calcola_indici`, n. 87)
+  - [ ] **prima esecuzione**: `migrate`, `crea_ruoli`, `carica_regole`, `importa_anagrafica`,
+        `calcola_indici`, `grafo_versioni`, poi gli strumenti della chat
+  - [ ] importazione dell'anagrafica dall'interfaccia (oggi solo da comando)
+  - [ ] CSV con COE e partita IVA insieme: oggi vale il COE, la partita IVA non viene aggiunta al soggetto
+  - [ ] regole su altri dati (forma giuridica, età dell'azienda, rapporti nel grafo)
   - [ ] tipo di relazione nello schema del grafo: vettore, persone e recapiti in comune
   - [ ] irregolarità accertate reali (etichette per l'addestramento)
   - [ ] cancellazione di un file: i dati già fotografati restano nelle fotografie precedenti

@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   calcolo.py  -  app grafo, VERSIONE 24
+#   calcolo.py  -  app grafo, VERSIONE 25
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: calcolo
@@ -59,6 +59,11 @@
 #   [24] Anagrafica unica: il soggetto del grafo ricorda quello dell'anagrafica nel riferimento
 #        ANAG-<numero>; i documenti di caricamenti riservati a un'indagine non entrano nella
 #        fotografia; quelli senza data, importo o una delle due parti sono contati e riportati.
+#   [25] registra_esecuzione() accetta la versione del calcolo: l'indice a regole (app indici)
+#        si registra come esecuzione a sé, calcolo 1.0+regole, con le regole scattate come
+#        spiegazione.
+#   [25] La fotografia dei dati reali comprende anche le aziende che hanno dati per periodo
+#        (soggetti.DatiPerPeriodo), pur senza documenti.
 #
 # <<< NOVITA
 """

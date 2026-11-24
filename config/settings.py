@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     "archivio",
     "elaborazione",
     "grafo",
+    "indici",
     "oauth2_provider",
 ]
 

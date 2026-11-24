@@ -1,6 +1,6 @@
 # Registro delle novità
 
-Versione corrente: 24
+Versione corrente: 25
 
 Elenco completo delle novità rispetto alla versione 12 (ultimo file unico di partenza).
 È l'UNICO posto in cui le novità si scrivono a mano: `aggiorna_intestazioni.py` ricopia
@@ -42,6 +42,7 @@ Dalla 20 il numero di versione del codice è un intero.
 - [21] (contratto) Nuove costanti ACCESSO_TOKEN, ACCESSO_OAUTH e AMBITO_OAUTH (l'ambito "grafo" richiesto dal servizio MCP).
 - [22] (contratto) Settimo strumento calcola in NOMI_STRUMENTI; STRUMENTI_SENZA_ARCHIVIO elenca gli strumenti che non leggono punteggi e dati.
 - [23] (contratto) Ottavo strumento scheda in NOMI_STRUMENTI e in STRUMENTI_SENZA_ARCHIVIO: legge l'archivio dei file caricati, non quello dell'analisi di rete.
+- [25] (contratto) Nuova costante VERSIONE_CALCOLO_REGOLE (1.0+regole): stessa forma dei risultati della GNN, etichetta distinta; i lettori che accettano 1.0 la accettano.
 
 ## calcolo
 
@@ -72,6 +73,8 @@ Dalla 20 il numero di versione del codice è un intero.
 - [19] (calcolo) Si avvia con python manage.py grafo_calcolo (--spiegazioni per la sola coda).
 - [24] (calcolo) Nuovo modulo dati_reali.py e comando python manage.py grafo_dati_reali: fotografia dei dati presa dall'archivio dell'applicativo (un nodo per ogni soggetto dell'anagrafica mittente o destinatario di un documento confermato, un arco per documento), al posto dei dati simulati.
 - [24] (calcolo) Anagrafica unica: il soggetto del grafo ricorda quello dell'anagrafica nel riferimento ANAG-<numero>; i documenti di caricamenti riservati a un'indagine non entrano nella fotografia; quelli senza data, importo o una delle due parti sono contati e riportati.
+- [25] (calcolo) registra_esecuzione() accetta la versione del calcolo: l'indice a regole (app indici) si registra come esecuzione a sé, calcolo 1.0+regole, con le regole scattate come spiegazione.
+- [25] (calcolo) La fotografia dei dati reali comprende anche le aziende che hanno dati per periodo (soggetti.DatiPerPeriodo), pur senza documenti.
 
 ## interrogazione
 
