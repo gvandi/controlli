@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   servizio_mcp.py  -  app grafo, VERSIONE 30
+#   servizio_mcp.py  -  app grafo, VERSIONE 31
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: server
@@ -83,6 +83,9 @@
 #        quale utente si è collegati e che la mappa si apre con l'utente che ha autorizzato la
 #        chat, oppure che il file non c'è più e va richiesta di nuovo; il motivo preciso va nel
 #        registro del server.
+#   [31] Gli strumenti mappa e spazio dicono con quale utente va aperto il collegamento (quello
+#        che ha autorizzato la chat); la pagina di collegamento elenca le chat autorizzate con
+#        il proprio utente e permette di scollegarle.
 #
 # <<< NOVITA
 """
@@ -123,6 +126,17 @@ _chiamata = threading.local()
 
 
 @interrogazione.in_esclusiva
+def _con_quale_utente(sessione):
+    """
+    La chat lavora a nome dell'utente che l'ha autorizzata, e le pagine che produce si aprono
+    solo con lui: lo si dice per nome, perché nel browser si può essere entrati con un altro.
+    """
+    return (
+        f"Per aprirla bisogna essere entrati nell'applicativo controlli con l'utente «{sessione.utente.get_username()}», "
+        "quello con cui questa chat è stata autorizzata: con un altro utente la pagina risponde che non è disponibile.\n"
+    )
+
+
 def mappa(societa: Union[int, str] = "") -> str:
     """Produce la mappa investigativa di una società: il grafo dei suoi rapporti a uno e due
     passi con il report sugli indicatori di rischio, in una pagina HTML. Da usare per domande
@@ -163,7 +177,7 @@ def mappa(societa: Union[int, str] = "") -> str:
     return (
         testo
         + f"Collegamento alla mappa: {_chiamata.indirizzo_mappa(riga.pk)}\n"
-        + "Per aprirla l'ispettore deve accedere all'applicativo controlli con il proprio utente.\n"
+        + _con_quale_utente(sessione)
         + f"Sessione n. {sessione.pk}, file {prodotta['nome_file']}.\n"
         + interrogazione.intestazione_dati()
     )
@@ -294,7 +308,7 @@ def spazio(regola: str = "", azienda: Union[int, str] = "") -> str:
     return (
         testo
         + f"\n\nCollegamento alla pagina in tre dimensioni: {indirizzo}\n"
-        + "Per aprirla l'ispettore deve accedere all'applicativo controlli con il proprio utente."
+        + _con_quale_utente(sessione).rstrip("\n")
     )
 
 

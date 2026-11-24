@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   sessioni.py  -  app grafo, VERSIONE 30
+#   sessioni.py  -  app grafo, VERSIONE 31
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: sessioni
@@ -26,6 +26,9 @@
 #        il nome con cui la chat si è registrata.
 #   [21] I token personali diventano un ripiego che l'amministratore può spegnere dal cruscotto
 #        (parametro token_personali_ammessi: si / no).
+#   [31] Nuove funzioni chat_autorizzate() e scollega_chat(): l'utente vede quali programmi di
+#        chat agiscono a suo nome con l'accesso OAuth e può revocarli; scollegare chiude le
+#        sessioni aperte, e la chat deve rifare l'accesso dal browser.
 #
 # <<< NOVITA
 """
@@ -169,6 +172,48 @@ def revoca_token(riga):
     Sessione.objects.filter(token=riga, chiusa_il__isnull=True).update(
         chiusa_il=adesso, motivo_chiusura=CHIUSA_PER_REVOCA
     )
+
+
+def chat_autorizzate(utente):
+    """
+    I programmi di chat che oggi possono agire a nome dell'utente con l'accesso OAuth:
+        [{"applicazione": numero, "nome": ..., "dal": data della prima autorizzazione ancora valida}]
+    Servono all'utente per sapere con quale utente la chat sta lavorando, e per scollegarla.
+    """
+    from oauth2_provider.models import get_access_token_model, get_refresh_token_model
+
+    trovate = {}
+    righe = list(get_refresh_token_model().objects.filter(user=utente, revoked__isnull=True).select_related("application"))
+    righe += list(get_access_token_model().objects.filter(user=utente).select_related("application"))
+    for riga in righe:
+        applicazione = riga.application
+        if applicazione is None:
+            continue
+        voce = trovate.setdefault(applicazione.pk, {
+            "applicazione": applicazione.pk, "nome": applicazione.name or applicazione.client_id, "dal": riga.created,
+        })
+        voce["dal"] = min(voce["dal"], riga.created)
+    return sorted(trovate.values(), key=lambda voce: voce["dal"])
+
+
+def scollega_chat(utente, applicazione):
+    """
+    Toglie a un programma di chat il permesso di agire a nome dell'utente: revoca i suoi
+    accessi OAuth e chiude le sessioni aperte. Alla richiesta successiva la chat riceve
+    401 e deve rifare l'accesso dal browser, con l'utente collegato in quel momento.
+    Restituisce quanti accessi ha tolto.
+    """
+    from oauth2_provider.models import get_access_token_model, get_refresh_token_model
+
+    tolti = 0
+    for rinnovo in get_refresh_token_model().objects.filter(user=utente, application_id=applicazione, revoked__isnull=True):
+        rinnovo.revoke()  # revoca anche l'accesso a cui è legato
+        tolti += 1
+    tolti += get_access_token_model().objects.filter(user=utente, application_id=applicazione).delete()[0]
+    Sessione.objects.filter(utente=utente, accesso=contratto.ACCESSO_OAUTH, chiusa_il__isnull=True).update(
+        chiusa_il=timezone.now(), motivo_chiusura=CHIUSA_PER_REVOCA
+    )
+    return tolti
 
 
 def token_personali_ammessi():

@@ -1,6 +1,6 @@
 # Registro delle novità
 
-Versione corrente: 30
+Versione corrente: 31
 
 Elenco completo delle novità rispetto alla versione 12 (ultimo file unico di partenza).
 È l'UNICO posto in cui le novità si scrivono a mano: `aggiorna_intestazioni.py` ricopia
@@ -148,6 +148,7 @@ Dalla 20 il numero di versione del codice è un intero.
 - [27] (server) Quando l'esecuzione in uso è l'indice a regole (dati reali), classifica non la presenta come un quarto criterio: dichiara che la GNN non è calcolata su quei dati. Senza sessione (stdio) classifica resta la sola analisi di rete.
 - [28] (server) Lo strumento indicatore, se riceve come termine solo parole che indicano lo spazio degli indici (indici, spazio, regole), passa la domanda allo strumento spazio; le descrizioni dei due strumenti dicono esplicitamente quando usare l'uno e quando l'altro.
 - [30] (server) La pagina di una mappa che non si può mostrare resta 404 ma spiega che cosa fare: con quale utente si è collegati e che la mappa si apre con l'utente che ha autorizzato la chat, oppure che il file non c'è più e va richiesta di nuovo; il motivo preciso va nel registro del server.
+- [31] (server) Gli strumenti mappa e spazio dicono con quale utente va aperto il collegamento (quello che ha autorizzato la chat); la pagina di collegamento elenca le chat autorizzate con il proprio utente e permette di scollegarle.
 
 ## mappa
 
@@ -178,3 +179,4 @@ Dalla 20 il numero di versione del codice è un intero.
 - [21] (sessioni) Le sessioni ricevono un'identità già verificata (Identita: utente, tipo di accesso, token o programma della chat) e non sanno più nulla di token: identita_da_token(), identita_oauth(), puo_usare_la_chat().
 - [21] (sessioni) Ogni sessione registra come è stato fatto l'accesso (token oppure oauth) e, per OAuth, il nome con cui la chat si è registrata.
 - [21] (sessioni) I token personali diventano un ripiego che l'amministratore può spegnere dal cruscotto (parametro token_personali_ammessi: si / no).
+- [31] (sessioni) Nuove funzioni chat_autorizzate() e scollega_chat(): l'utente vede quali programmi di chat agiscono a suo nome con l'accesso OAuth e può revocarli; scollegare chiude le sessioni aperte, e la chat deve rifare l'accesso dal browser.
