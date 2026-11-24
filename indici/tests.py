@@ -62,6 +62,31 @@ class IndiciTest(TestCase):
         with self.assertRaises(importazione.RigaNonValida):
             importazione.importa("nome;valore\nx;1\n")
 
+    def test_la_fonte_puo_dare_la_classe_al_posto_del_valore(self):
+        testo = (
+            "coe;periodo;ateco;dipendenti;fatturato\n"
+            "10000;2025;47.26;D0;F2\n"      # classi: la regola scatta come con i valori
+            "20000;2025;46.19;d0;f0\n"      # minuscole accettate; fatturato sotto 100.000
+            "30000;2025;47.11;0;F3\n"       # un valore e una classe insieme
+            "40000;2025;47.11;D99;F1\n"     # classe che non esiste
+            "50000;2025;47.11;D0;tanto\n"
+        )
+        resoconto = importazione.importa(testo)
+        self.assertEqual((resoconto["create"], [n for n, _ in resoconto["rifiutate"]]), (3, [5, 6]))
+        alfa = self.dato("10000")
+        self.assertEqual(
+            (alfa.dipendenti, alfa.classe_dipendenti, alfa.fatturato, alfa.classe_fatturato), (None, "D0", None, "F2")
+        )
+        regola = RegolaDiRischio.objects.get(codice="COMMERCIO_SENZA_DIPENDENTI")
+        attese = {"10000": True, "20000": False, "30000": True}
+        for coe, attesa in attese.items():
+            self.assertEqual(calcolo.scatta(regola, calcolo.descrivi(self.dato(coe))), attesa, coe)
+        self.assertEqual(calcolo.descrivi(self.dato("20000"))["classe_fatturato"], "F0")
+        # reimportare con il valore al posto della classe toglie la classe
+        importazione.importa("coe;periodo;dipendenti\n10000;2025;3\n")
+        alfa.refresh_from_db()
+        self.assertEqual((alfa.dipendenti, alfa.classe_dipendenti), (3, ""))
+
     def test_una_regola_scatta_solo_se_valgono_tutte_le_sue_condizioni(self):
         importazione.importa(CSV)
         regola = RegolaDiRischio.objects.get(codice="COMMERCIO_SENZA_DIPENDENTI")

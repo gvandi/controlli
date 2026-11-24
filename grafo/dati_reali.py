@@ -194,7 +194,10 @@ def fotografa(descrizione="dati reali dall'archivio"):
     # Anche i dati per periodo fanno parte dei dati in ingresso: se cambiano, la fotografia è un'altra
     per_periodo = list(
         DatiPerPeriodo.objects.filter(soggetto__in=list(nodi)).order_by("soggetto_id", "periodo")
-        .values_list("soggetto_id", "periodo", "codice_attivita", "dipendenti", "fatturato")
+        .values_list(
+            "soggetto_id", "periodo", "codice_attivita", "dipendenti", "fatturato",
+            "classe_dipendenti", "classe_fatturato",
+        )
     )
     impronta = scrittura._impronta("dati reali", schede, righe, per_periodo)
     esistente = VersioneDati.objects.filter(impronta=impronta).first()

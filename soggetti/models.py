@@ -68,6 +68,10 @@ class DatiPerPeriodo(models.Model):
     # Vuoto = la fonte non lo dice: è un dato mancante, non zero
     dipendenti = models.PositiveIntegerField(null=True, blank=True)
     fatturato = models.DecimalField(max_digits=16, decimal_places=2, null=True, blank=True)
+    # Quando la fonte dà la CLASSE statistica e non il valore (per esempio "D0", "F2"):
+    # codice della classe nelle decodifiche. Se c'è, vale lei; il valore resta vuoto.
+    classe_dipendenti = models.CharField(max_length=20, blank=True, default="")
+    classe_fatturato = models.CharField(max_length=20, blank=True, default="")
     fonte = models.CharField(max_length=120, blank=True, default="")
     importato_il = models.DateTimeField(auto_now=True)
 

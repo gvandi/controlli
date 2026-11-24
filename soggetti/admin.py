@@ -18,6 +18,6 @@ class SoggettoAdmin(admin.ModelAdmin):
 
 @admin.register(models.DatiPerPeriodo)
 class DatiPerPeriodoAdmin(admin.ModelAdmin):
-    list_display = ("soggetto", "periodo", "codice_attivita", "dipendenti", "fatturato", "fonte", "importato_il")
+    list_display = ("soggetto", "periodo", "codice_attivita", "dipendenti", "classe_dipendenti", "fatturato", "classe_fatturato", "fonte", "importato_il")
     list_filter = ("periodo",)
     search_fields = ("soggetto__denominazione", "soggetto__identificativi__valore_normalizzato", "codice_attivita")
