@@ -91,6 +91,9 @@ Elenco unico delle cose da fare. Ogni passo si chiude con questo file aggiornato
   - [x] indice di rischio a regole come calcolo a sé sui dati reali (`calcola_indici`, n. 87)
   - [ ] **prima esecuzione**: `migrate`, `crea_ruoli`, `carica_regole`, `importa_anagrafica`,
         `calcola_indici`, `grafo_versioni`, poi gli strumenti della chat
+  - [x] spazio degli indici: aziende in tre dimensioni, indice a regole e z-score robusto (`/indici/spazio/`, n. 89)
+  - [ ] **prima esecuzione** dello spazio degli indici nel browser (il disegno è stato provato solo a secco)
+  - [ ] lo spazio degli indici come strumento della chat (collegamento alla pagina, come per la mappa)
   - [ ] importazione dell'anagrafica dall'interfaccia (oggi solo da comando)
   - [ ] CSV con COE e partita IVA insieme: oggi vale il COE, la partita IVA non viene aggiunta al soggetto
   - [ ] regole su altri dati (forma giuridica, età dell'azienda, rapporti nel grafo)

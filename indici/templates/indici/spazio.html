@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+{% load i18n l10n %}
+{% comment %}
+  Lo spazio degli indici: le aziende come sfere in tre dimensioni (indici/spazio.py).
+  Il disegno è fatto qui, su una tela, senza librerie esterne: la pagina funziona anche
+  su una rete senza Internet e non manda nulla fuori (DECISIONI.md, n. 30 e 89).
+  I testi che vengono dai dati entrano nella pagina solo con textContent.
+{% endcomment %}
+{% block titolo %}{% translate "Spazio degli indici" %} - Controlli{% endblock %}
+{% block contenuto %}
+<style>
+  main { max-width: 84rem; }
+  .spazio { display: grid; grid-template-columns: minmax(0, 1fr) 22rem; gap: 1rem; align-items: start; }
+  @media (max-width: 60rem) { .spazio { grid-template-columns: 1fr; } }
+  #tela { width: 100%; height: 36rem; display: block; background: #fff; border: 1px solid var(--bordo); border-radius: 6px; cursor: grab; touch-action: none; }
+  #tela.trascina { cursor: grabbing; }
+  .comandi { display: flex; flex-wrap: wrap; gap: 1rem 1.5rem; align-items: center; margin: 0 0 0.75rem; }
+  .comandi label { display: inline; margin: 0; }
+  .comandi select, .comandi input[type=range] { font: inherit; vertical-align: middle; }
+  .legenda { list-style: none; padding: 0; margin: 0.5rem 0 0; }
+  .legenda li { margin: 0.2rem 0; }
+  .pallino { display: inline-block; width: 0.85rem; height: 0.85rem; border-radius: 50%; vertical-align: -0.1rem; margin-right: 0.4rem; }
+  .scelta { border-top: 1px solid var(--bordo); padding: 0.6rem 0; }
+  .scelta h3 { margin: 0; font-size: 1rem; }
+  .scelta p { margin: 0.15rem 0; }
+  #sospeso { position: fixed; pointer-events: none; background: #1c2430; color: #fff; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.85rem; display: none; z-index: 5; }
+</style>
+
+<p><a href="{% url 'home' %}">{% translate "Inizio" %}</a> &rsaquo; {% translate "Spazio degli indici" %}</p>
+<h1>{% translate "Spazio degli indici" %}</h1>
+
+<form method="get" class="comandi">
+  <label>{% translate "Tipo di irregolarità" %}
+    <select name="tipo" onchange="this.form.submit()">
+      {% for nome in tipi %}<option value="{{ nome }}"{% if nome == tipo %} selected{% endif %}>{{ nome }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>{% translate "Soglia dello z-score robusto" %}
+    <input type="range" id="soglia-z" min="1" max="6" step="0.1" value="{{ dati.soglia_z|unlocalize }}">
+    <strong id="valore-z"></strong>
+  </label>
+  <label><input type="checkbox" id="solo-evidenziate" style="width:auto"> {% translate "solo le aziende evidenziate" %}</label>
+  <noscript><button type="submit">{% translate "Mostra" %}</button></noscript>
+</form>
+
+{% if not aziende %}
+  <div class="scheda">
+    <p>{% translate "Nessuna azienda da mostrare: servono i dati per periodo (attività, dipendenti, fatturato)." %}</p>
+    <p class="tenue"><code>python manage.py importa_anagrafica file.csv</code></p>
+  </div>
+{% else %}
+<div class="spazio">
+  <div>
+    <canvas id="tela"></canvas>
+    <p class="tenue">
+      {% translate "Trascina per ruotare, rotella per avvicinare, clic su una sfera per selezionarla (un altro clic la toglie)." %}
+      {% blocktranslate with n=aziende %}Aziende mostrate: {{ n }}.{% endblocktranslate %}
+      {% if dati.esclusi %}{% blocktranslate with n=dati.esclusi %}Non collocate perché manca attività, dipendenti o fatturato: {{ n }}.{% endblocktranslate %}{% endif %}
+    </p>
+  </div>
+  <div>
+    <div class="scheda">
+      <h2>{% translate "Colori" %}</h2>
+      <ul class="legenda">
+        <li><span class="pallino" style="background:#d1495b"></span>{% translate "supera l'indice a regole" %}: <strong id="conta-1"></strong></li>
+        <li><span class="pallino" style="background:#2a7fb8"></span>{% translate "si discosta dalle aziende simili" %}: <strong id="conta-2"></strong></li>
+        <li><span class="pallino" style="background:#d1495b; box-shadow: 0 0 0 3px #2a7fb8"></span>{% translate "entrambe le cose" %}: <strong id="conta-3"></strong></li>
+        <li><span class="pallino" style="background:#b4bfcc"></span>{% translate "nessuna delle due" %}: <strong id="conta-0"></strong></li>
+      </ul>
+      <p class="tenue">
+        {% blocktranslate with soglia=dati.soglia %}Indice: punteggio delle regole di questo tipo da {{ soglia }} in su.{% endblocktranslate %}
+        {% if dati.regole %}{% translate "Regole attive:" %} {{ dati.regole|join:", " }}.{% else %}<span class="errore">{% translate "Nessuna regola attiva per questo tipo." %}</span>{% endif %}
+      </p>
+      <p class="tenue">{% translate "Scostamento: fatturato rispetto al personale, confrontato con le aziende della stessa attività (o con tutte, se sono poche). È un invito a guardare, non un'irregolarità." %}</p>
+    </div>
+    <div class="scheda">
+      <h2>{% translate "Aziende selezionate" %} <span class="tenue" id="quante-scelte"></span></h2>
+      <p><button type="button" class="secondario" id="svuota">{% translate "Togli la selezione" %}</button></p>
+      <div id="scelte"><p class="tenue">{% translate "Nessuna: fai clic su una sfera." %}</p></div>
+    </div>
+  </div>
+</div>
+<div id="sospeso"></div>
+{{ dati|json_script:"dati" }}
+<script>
+(function () {
+  "use strict";
+  var D = JSON.parse(document.getElementById("dati").textContent);
+  var tela = document.getElementById("tela"), c = tela.getContext("2d");
+  var ASSI = [D.assi.dipendenti, D.assi.fatturato, D.assi.attivita];
+  var NOMI = ["dipendenti", "fatturato", "attività"];
+  var COLORI = ["#b4bfcc", "#d1495b", "#2a7fb8", "#d1495b"];
+  var giro = -0.65, alzo = 0.4, zoom = 1, sogliaZ = D.soglia_z, soloEvidenziate = false;
+  var scelte = [], disegnati = [], L = 0, A = 0;
+
+  function posto(i, asse) { var n = ASSI[asse].length; return n > 1 ? i / (n - 1) - 0.5 : 0; }
+  // Più aziende hanno le stesse tre coordinate: un piccolo scarto fisso le rende distinguibili
+  function scarto(i, asse) { var s = Math.sin((i + 1) * (asse + 1) * 12.9898) * 43758.5453; return (s - Math.floor(s) - 0.5) * 0.05; }
+  var P = D.punti.map(function (p, i) {
+    return { p: p, x: posto(p.d, 0) + scarto(i, 0), y: posto(p.f, 1) + scarto(i, 1), z: posto(p.a, 2) + scarto(i, 2) };
+  });
+
+  function categoria(p) { return (p.sopra ? 1 : 0) + (Math.abs(p.z) >= sogliaZ ? 2 : 0); }
+
+  function proietta(x, y, z) {
+    var cg = Math.cos(giro), sg = Math.sin(giro), ca = Math.cos(alzo), sa = Math.sin(alzo);
+    var x1 = x * cg + z * sg, z1 = -x * sg + z * cg;
+    var y1 = y * ca - z1 * sa, z2 = y * sa + z1 * ca;
+    var k = Math.min(L, A) * 1.45 * zoom / (2.4 + z2);
+    return [L / 2 + x1 * k, A / 2 - y1 * k, z2, k];
+  }
+
+  function misura() {
+    var r = tela.getBoundingClientRect(), d = window.devicePixelRatio || 1;
+    L = r.width; A = r.height;
+    tela.width = Math.round(L * d); tela.height = Math.round(A * d);
+    c.setTransform(d, 0, 0, d, 0, 0);
+  }
+
+  function linea(a, b, colore, spessore) {
+    var u = proietta(a[0], a[1], a[2]), v = proietta(b[0], b[1], b[2]);
+    c.strokeStyle = colore; c.lineWidth = spessore;
+    c.beginPath(); c.moveTo(u[0], u[1]); c.lineTo(v[0], v[1]); c.stroke();
+  }
+
+  function assi() {
+    var m = -0.56, M = 0.56, i, j;
+    // il cubo, tenue
+    var spigoli = [[m,m,m,M,m,m],[m,M,m,M,M,m],[m,m,M,M,m,M],[m,M,M,M,M,M],[m,m,m,m,M,m],[M,m,m,M,M,m],[m,m,M,m,M,M],[M,m,M,M,M,M],[m,m,m,m,m,M],[M,m,m,M,m,M],[m,M,m,m,M,M],[M,M,m,M,M,M]];
+    for (i = 0; i < spigoli.length; i++) linea(spigoli[i].slice(0, 3), spigoli[i].slice(3), "#e3e7ec", 1);
+    // i tre assi, dallo stesso spigolo
+    linea([m,m,m], [M,m,m], "#5b6675", 1.5); linea([m,m,m], [m,M,m], "#5b6675", 1.5); linea([m,m,m], [m,m,M], "#5b6675", 1.5);
+    c.fillStyle = "#5b6675"; c.font = "11px system-ui, sans-serif"; c.textAlign = "center"; c.textBaseline = "middle";
+    for (j = 0; j < 3; j++) {
+      for (i = 0; i < ASSI[j].length; i++) {
+        var t = posto(i, j), q = j === 0 ? [t, m - 0.05, m] : j === 1 ? [m - 0.06, t, m] : [m - 0.06, m, t];
+        var s = proietta(q[0], q[1], q[2]);
+        c.fillText(ASSI[j][i].codice, s[0], s[1]);
+      }
+      var fine = j === 0 ? [M + 0.1, m, m] : j === 1 ? [m, M + 0.08, m] : [m, m, M + 0.1];
+      var f = proietta(fine[0], fine[1], fine[2]);
+      c.font = "bold 12px system-ui, sans-serif"; c.fillText(NOMI[j], f[0], f[1]); c.font = "11px system-ui, sans-serif";
+    }
+  }
+
+  function disegna() {
+    c.clearRect(0, 0, L, A);
+    assi();
+    disegnati = [];
+    var i, conta = [0, 0, 0, 0];
+    for (i = 0; i < P.length; i++) {
+      var cat = categoria(P[i].p); conta[cat]++;
+      if (soloEvidenziate && cat === 0 && scelte.indexOf(i) < 0) continue;
+      var s = proietta(P[i].x, P[i].y, P[i].z);
+      disegnati.push({ i: i, x: s[0], y: s[1], fondo: s[2], r: Math.max(2.5, 0.017 * s[3]), cat: cat });
+    }
+    disegnati.sort(function (a, b) { return b.fondo - a.fondo; });  // prima le più lontane
+    for (i = 0; i < disegnati.length; i++) {
+      var d = disegnati[i], scelta = scelte.indexOf(d.i) >= 0;
+      var sfumatura = c.createRadialGradient(d.x - d.r * 0.35, d.y - d.r * 0.35, d.r * 0.1, d.x, d.y, d.r);
+      sfumatura.addColorStop(0, "#ffffff"); sfumatura.addColorStop(0.35, COLORI[d.cat]); sfumatura.addColorStop(1, COLORI[d.cat]);
+      c.globalAlpha = d.cat === 0 && !scelta ? 0.6 : 1;
+      c.fillStyle = sfumatura; c.beginPath(); c.arc(d.x, d.y, d.r, 0, 6.2832); c.fill();
+      c.globalAlpha = 1;
+      if (d.cat === 3) { c.strokeStyle = "#2a7fb8"; c.lineWidth = Math.max(2, d.r * 0.4); c.beginPath(); c.arc(d.x, d.y, d.r + c.lineWidth / 2, 0, 6.2832); c.stroke(); }
+      if (scelta) { c.strokeStyle = "#1c2430"; c.lineWidth = 2; c.beginPath(); c.arc(d.x, d.y, d.r + (d.cat === 3 ? 6 : 3), 0, 6.2832); c.stroke(); }
+    }
+    for (i = 0; i < 4; i++) document.getElementById("conta-" + i).textContent = conta[i];
+    document.getElementById("valore-z").textContent = sogliaZ.toFixed(1);
+  }
+
+  function sotto(x, y) {
+    // la sfera più vicina all'osservatore fra quelle sotto il puntatore
+    var trovata = null, i;
+    for (i = 0; i < disegnati.length; i++) {
+      var d = disegnati[i], dx = d.x - x, dy = d.y - y;
+      if (dx * dx + dy * dy <= (d.r + 3) * (d.r + 3) && (trovata === null || d.fondo < trovata.fondo)) trovata = d;
+    }
+    return trovata;
+  }
+
+  function riga(contenitore, testo, classe) {
+    var p = document.createElement("p"); p.textContent = testo; if (classe) p.className = classe; contenitore.appendChild(p); return p;
+  }
+
+  function elenca() {
+    var dove = document.getElementById("scelte");
+    dove.textContent = "";
+    document.getElementById("quante-scelte").textContent = scelte.length ? "(" + scelte.length + ")" : "";
+    if (!scelte.length) { riga(dove, "Nessuna: fai clic su una sfera.", "tenue"); return; }
+    scelte.slice().reverse().forEach(function (i) {
+      var p = P[i].p, blocco = document.createElement("div"); blocco.className = "scelta";
+      var titolo = document.createElement("h3");
+      if (p.scheda) { var a = document.createElement("a"); a.href = p.scheda; a.textContent = p.nome; titolo.appendChild(a); }
+      else titolo.textContent = p.nome;
+      blocco.appendChild(titolo);
+      riga(blocco, (p.codice ? p.codice + " · " : "") + "periodo " + p.periodo, "tenue");
+      riga(blocco, "Attività " + p.ateco + " · " + ASSI[0][p.d].descrizione + " · " + ASSI[1][p.f].descrizione);
+      riga(blocco, "Indice: " + p.punteggio.toFixed(2) + (p.sopra ? " (sopra soglia)" : "") + (p.regole.length ? " · regole: " + p.regole.join(", ") : ""));
+      riga(blocco, "z-score robusto: " + p.z.toFixed(2) + (Math.abs(p.z) >= sogliaZ ? " (si discosta)" : "") + " · confronto con " + p.gruppo);
+      dove.appendChild(blocco);
+    });
+  }
+
+  // Trascinare ruota; un clic senza movimento seleziona
+  var giu = null, sospeso = document.getElementById("sospeso");
+  tela.addEventListener("pointerdown", function (e) { giu = { x: e.clientX, y: e.clientY, mosso: 0 }; tela.setPointerCapture(e.pointerId); tela.classList.add("trascina"); });
+  tela.addEventListener("pointermove", function (e) {
+    var r = tela.getBoundingClientRect();
+    if (giu) {
+      var dx = e.clientX - giu.x, dy = e.clientY - giu.y;
+      giu.mosso += Math.abs(dx) + Math.abs(dy); giu.x = e.clientX; giu.y = e.clientY;
+      giro += dx * 0.008; alzo = Math.max(-1.5, Math.min(1.5, alzo + dy * 0.008));
+      sospeso.style.display = "none"; disegna(); return;
+    }
+    var d = sotto(e.clientX - r.left, e.clientY - r.top);
+    if (d) { sospeso.textContent = P[d.i].p.nome; sospeso.style.left = (e.clientX + 12) + "px"; sospeso.style.top = (e.clientY + 12) + "px"; sospeso.style.display = "block"; }
+    else sospeso.style.display = "none";
+  });
+  tela.addEventListener("pointerup", function (e) {
+    var r = tela.getBoundingClientRect(), fermo = giu && giu.mosso < 5;
+    giu = null; tela.classList.remove("trascina");
+    if (!fermo) return;
+    var d = sotto(e.clientX - r.left, e.clientY - r.top);
+    if (!d) return;
+    var gia = scelte.indexOf(d.i);
+    if (gia >= 0) scelte.splice(gia, 1); else scelte.push(d.i);
+    elenca(); disegna();
+  });
+  tela.addEventListener("pointerleave", function () { sospeso.style.display = "none"; });
+  tela.addEventListener("wheel", function (e) { e.preventDefault(); zoom = Math.max(0.5, Math.min(4, zoom * (e.deltaY < 0 ? 1.1 : 0.9))); disegna(); }, { passive: false });
+  document.getElementById("soglia-z").addEventListener("input", function () { sogliaZ = parseFloat(this.value); elenca(); disegna(); });
+  document.getElementById("solo-evidenziate").addEventListener("change", function () { soloEvidenziate = this.checked; disegna(); });
+  document.getElementById("svuota").addEventListener("click", function () { scelte = []; elenca(); disegna(); });
+  window.addEventListener("resize", function () { misura(); disegna(); });
+  misura(); disegna();
+})();
+</script>
+{% endif %}
+{% endblock %}
