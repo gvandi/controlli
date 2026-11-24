@@ -84,8 +84,14 @@ Elenco unico delle cose da fare. Ogni passo si chiude con questo file aggiornato
         poi un DDT vero dalla coda (il prompt è alla versione 2 e chiede più cose al modello)
   - [ ] righe dei documenti (merci, servizi, quantità, prezzi)
   - [ ] aggiungere a mano un documento o una parte che il modello non ha visto
-  - [ ] collegare il calcolo dell'analisi di rete alle entità utilizzabili e ai documenti
-        confermati (Documento.objects.utilizzabili()), al posto dei dati simulati
+  - [x] fotografia dei dati reali per l'analisi di rete: soggetti dell'anagrafica e rapporti dai
+        documenti confermati (`grafo_dati_reali`, DECISIONI.md n. 85)
+  - [ ] **prima esecuzione** di `grafo_dati_reali`
+  - [ ] un calcolo sui dati reali (indice a regole), perché gli strumenti della chat li usino
+  - [ ] dati dell'azienda per le regole: attività economica, dipendenti, fatturato per anno
+  - [ ] tipo di relazione nello schema del grafo: vettore, persone e recapiti in comune
+  - [ ] irregolarità accertate reali (etichette per l'addestramento)
+  - [ ] cancellazione di un file: i dati già fotografati restano nelle fotografie precedenti
   - [ ] rielaborazione esplicita di un gruppo di file quando il modello migliora (mai automatica)
   - [x] cancellazione definitiva di un file e dei dati che ne derivano, con diritto apposito
         (ruolo "Responsabile dei dati"; DECISIONI.md, n. 77)

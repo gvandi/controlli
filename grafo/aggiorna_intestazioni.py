@@ -22,6 +22,7 @@ PARTE_DEL_FILE = {
     "contratto.py": "contratto",
     "calcolo.py": "calcolo",
     "scrittura.py": "calcolo",
+    "dati_reali.py": "calcolo",
     "interrogazione.py": "interrogazione",
     "server_mcp.py": "server",
     "protocollo_mcp.py": "server",

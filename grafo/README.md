@@ -30,6 +30,7 @@ calcolo.py + scrittura.py  -->  PostgreSQL  <--  interrogazione.py  <--  mappa.p
 | `models.py`, `migrations/` | contratto | Schema del database | - |
 | `calcolo.py` | calcolo | Grafo, addestramento, punteggi, GNNExplainer | torch, torch_geometric, scikit-learn |
 | `scrittura.py` | calcolo | Scrive nel database ciò che il calcolo produce | - |
+| `dati_reali.py` | calcolo | Fotografia dei dati reali dall'archivio (soggetti e rapporti dai documenti confermati) | - |
 | `interrogazione.py` | interrogazione | Query, testi di contesto, cinque strumenti | - |
 | `sessioni.py` | sessioni | Parametri dell'amministratore, token, sessioni, registro | - |
 | `protocollo_mcp.py` | server | Regole del protocollo MCP (JSON-RPC), senza Django | - |
