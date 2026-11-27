@@ -10,6 +10,8 @@ from django.contrib.auth.decorators import login_required, permission_required
 from django.shortcuts import render
 from django.urls import reverse
 
+from grafo import dati_reali
+
 from . import spazio as spazio_degli_indici
 from .models import RegolaDiRischio
 
@@ -31,4 +33,6 @@ def spazio(request):
     return render(request, "indici/spazio.html", {
         "dati": dati, "regola": scelta, "regole": regole,
         "aziende": len(dati["punti"]),
+        # i rapporti disegnati qui vengono dall'archivio di adesso; classifica e mappa da un calcolo: dirlo se divergono
+        "stato": dati_reali.stato_per_le_pagine(), "puo_lanciare": request.user.has_perm("lavori.lancia_lavori"),
     })

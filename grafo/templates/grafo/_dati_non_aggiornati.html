@@ -1,0 +1,25 @@
+{% load i18n %}
+{% comment %}
+  Avviso "dati non aggiornati": ciò che chat, mappa, classifica e spazio degli indici stanno usando non è
+  ciò che l'archivio darebbe ora. Vuole: stato (grafo.dati_reali.stato_dei_dati(), o None) e puo_lanciare.
+  Non mostra nulla se i dati sono aggiornati, se non c'è ancora nulla da calcolare, o se lo stato non è noto.
+{% endcomment %}
+{% if stato and not stato.vuoto and not stato.aggiornati %}
+<div class="dati-non-aggiornati" role="status" style="border: 1px solid #e6cf9c; background: #fdf6e3; border-radius: 4px; padding: 0.6rem 0.9rem; margin: 0 0 1rem;">
+  <p style="margin: 0 0 0.3rem"><strong>{% translate "I dati dell'analisi non sono aggiornati." %}</strong>
+    {% if stato.mai_calcolati %}
+      {% blocktranslate with s=stato.societa_ora r=stato.rapporti_ora %}L'archivio contiene {{ s }} società e {{ r }} rapporti fra società, ma su questi dati non è ancora stato fatto nessun calcolo: chat, mappa e classifica non li vedono.{% endblocktranslate %}
+    {% else %}
+      {% blocktranslate with s=stato.societa_ora r=stato.rapporti_ora si=stato.societa_in_uso ri=stato.rapporti_in_uso n=stato.numero_in_uso %}L'archivio ha ora {{ s }} società e {{ r }} rapporti; chat, mappa e classifica usano ancora i dati n. {{ n }}, con {{ si }} società e {{ ri }} rapporti. Anche a numeri uguali qualcosa è cambiato: un documento confermato, un nome, un dato dell'anagrafica.{% endblocktranslate %}
+    {% endif %}
+  </p>
+  <p style="margin: 0">
+    {% if puo_lanciare %}
+      <strong>{% translate "Che cosa fare:" %}</strong> {% translate "lancia «Aggiorna il grafo e calcola gli indici»." %}
+      <a href="{% url 'home' %}#aggiornamento">{% translate "Vai al passo 5" %}</a>
+    {% else %}
+      <strong>{% translate "Che cosa fare:" %}</strong> {% translate "nulla: l'aggiornamento lo lancia l'amministratore. Fino ad allora ciò che vedi qui può non comprendere gli ultimi documenti." %}
+    {% endif %}
+  </p>
+</div>
+{% endif %}

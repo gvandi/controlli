@@ -7,6 +7,9 @@ LA PAGINA INIZIALE, A SCHEDE (DECISIONI.md, n. 101).
     Aggiornamento dati    elaborazioni e calcoli, nell'ordine in cui vanno fatti (chi può lanciarli)
     Configurazione        decodifiche, catalogo, utenti, cruscotto (chi ne ha i diritti)
 
+"Da fare" ha in testa la ricerca "Che cosa vuoi fare?" (utenti/guida.py), i suggerimenti ricavati
+dallo stato dell'archivio e l'avviso quando i dati dell'analisi non sono aggiornati (n. 102).
+
 Una scheda compare solo a chi può usarne almeno una funzione. Ogni scheda ha un indirizzo
 (/#caricamento, /#societa ...): un collegamento porta direttamente lì.
 """
@@ -17,6 +20,8 @@ from django.urls import reverse
 from archivio import models as archivio
 from archivio.models import Fascicolo, FileCaricato
 from lavori import servizi as lavori
+
+from . import guida
 
 IN_ELENCO = 8
 
@@ -99,6 +104,15 @@ def home(request):
         "societa": _societa(cercata, utente) if cercata and puo_vedere_le_schede else None,
         "cercata": cercata,
     }
+    # L'avviso "dati non aggiornati", la ricerca "che cosa vuoi fare?" e i suggerimenti (n. 102)
+    from grafo import dati_reali
+
+    contesto["stato_dei_dati"] = dati_reali.stato_per_le_pagine() if puo_vedere_l_archivio else None
+    contesto["puo_lanciare"] = puo_lanciare
+    contesto["guida"] = guida.voci(utente)
+    contesto["suggerimenti"] = guida.suggerimenti(
+        utente, contesto["da_fare"], contesto["stato_dei_dati"], bool(lavori.tipi_serviti()) if puo_lanciare else True
+    )
     contesto["mostra_configurazione"] = contesto["puo_entrare_in_admin"] and (
         contesto["puo_configurare"] or contesto["puo_gestire_utenti"]
     ) or contesto["puo_amministrare_il_grafo"]

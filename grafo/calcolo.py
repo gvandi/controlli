@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   calcolo.py  -  app grafo, VERSIONE 37
+#   calcolo.py  -  app grafo, VERSIONE 38
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: calcolo
@@ -77,6 +77,11 @@
 #        confermati, con i ruoli proposti dal modello, segnati come non verificati; la
 #        descrizione della fotografia ricorda i criteri, il resoconto conta i rapporti non
 #        verificati, la diagnosi dice «può entrare, come NON VERIFICATO».
+#   [38] Nuova funzione stato_dei_dati() in dati_reali.py: dice se la fotografia in uso (la più
+#        recente con un calcolo) è quella che l'archivio darebbe ora, confrontando l'impronta
+#        dei dati, per ogni combinazione dei criteri sui documenti; le pagine la usano per
+#        l'avviso «dati non aggiornati». fotografa() e stato_dei_dati() leggono l'archivio con
+#        la stessa funzione _ingresso().
 #
 # <<< NOVITA
 """
