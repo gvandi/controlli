@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   contratto.py  -  app grafo, VERSIONE 36
+#   contratto.py  -  app grafo, VERSIONE 37
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: contratto
@@ -68,6 +68,9 @@
 #        prodottas», «Token accessos». Cambiano solo le etichette.
 #   [35] Un solo nome: le descrizioni delle popolazioni e i nomi dei modelli nelle pagine di
 #        amministrazione dicono «società» (migrazione 0005). Tabelle e campi non cambiano nome.
+#   [37] Nuova costante SEGNO_NON_VERIFICATO: in coda al nome del documento di una relazione
+#        dice che viene da un documento non ancora confermato da una persona. Lo schema non
+#        cambia.
 #
 # <<< NOVITA
 """
@@ -95,7 +98,7 @@ from packaging.version import InvalidVersion, Version
 # 1) PROGETTO: quale rilascio è installato. Solo provenienza: non blocca nulla.
 #    Dalla versione 20 è un numero intero (20, 21...): non essendo mai confrontato
 #    con un intervallo, un secondo numero non serviva.
-VERSIONE_CODICE = "36"
+VERSIONE_CODICE = "37"
 
 # 2) SCHEMA del database: decide se un lettore può aprire l'archivio.
 #    Secondo numero: modifiche che AGGIUNGONO (tabella, colonna facoltativa, indice).
@@ -253,6 +256,9 @@ PROTOCOLLI_MCP = ("2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05")
 
 # Limiti dei parametri degli strumenti
 MAX_AZIENDE_IN_CLASSIFICA = 50
+# Un rapporto che viene da un documento non ancora confermato da una persona lo ricorda così,
+# in coda al nome del documento (grafo_relazione.documento): lo scrive dati_reali, lo leggono tutti.
+SEGNO_NON_VERIFICATO = " (non verificato)"
 
 # Quanti indicatori (features) conserva ogni spiegazione, e quanti ne riporta il
 # testo dato alla chat. La ricerca per indicatore lavora su quelli conservati.

@@ -140,6 +140,7 @@ def soggetto(request, numero):
         "etichetta": anagrafica.etichetta(fascicolo.soggetto),
         "scheda": scheda,
         "documenti": coda.documenti_del_soggetto(fascicolo.soggetto, request.user),
+        "altre": coda.altre_informazioni(fascicolo.soggetto, request.user),
         "note": sum(1 for riga in scheda if not riga["mancante"]),
         "mancanti": sum(1 for riga in scheda if riga["mancante"]),
     })

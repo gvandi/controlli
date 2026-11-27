@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   mappa.py  -  app grafo, VERSIONE 36
+#   mappa.py  -  app grafo, VERSIONE 37
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: mappa
@@ -27,6 +27,8 @@
 #        mappa porta nel nome anche il numero di sessione, così analisti diversi non si
 #        sovrascrivono.
 #   [35] Il report e la legenda della mappa dicono «società» al posto di soggetto.
+#   [37] Nella mappa un rapporto senza nessun documento verificato è tratteggiato; la legenda lo
+#        spiega.
 #
 # <<< NOVITA
 """
@@ -212,7 +214,8 @@ def scrivi_mappa(report_html, bolla, nome_file):
     titolo_mappa = (
         "<b>Mappa Investigativa delle Triangolazioni</b><br>"
         "Legenda: Centro Rosso: Target | Giallo: 1-Hop (Transito) | Verde: 2-Hop (Destinatari)<br>"
-        "Bordo Nero Spesso: Società con irregolarità accertate"
+        "Bordo Nero Spesso: Società con irregolarità accertate | "
+        "Linea tratteggiata: rapporto da documenti non ancora verificati"
     )
 
     for nodo in G_bolla.nodes():
@@ -250,8 +253,11 @@ def scrivi_mappa(report_html, bolla, nome_file):
 
     for a, b in G_bolla.edges():
         # Il tooltip dell'arco riporta il verso commerciale e i documenti
+        documenti = interrogazione.documenti_relazione(a, b)
+        # tratteggiato: nessun documento fra i due è stato confermato da una persona (il verso può essere sbagliato)
         net.add_edge(
             source=int(a), to=int(b), color="gray", opacity=0.4,
+            dashes=bool(documenti) and documenti["non_verificati"] == documenti["numero"],
             title=f"{interrogazione.verso_relazione(a, b)} ({interrogazione.descrivi_documenti(a, b)})",
         )
 

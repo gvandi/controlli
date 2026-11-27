@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   dati_reali.py  -  app grafo, VERSIONE 36
+#   dati_reali.py  -  app grafo, VERSIONE 37
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: calcolo
@@ -72,6 +72,11 @@
 #        calcola gli indici» (prima «Calcola gli indici»): è il passo che fotografa i rapporti,
 #        applica le regole e mette il risultato in uso.
 #   [35] I testi della diagnosi e dei comandi dicono «società» al posto di azienda e soggetto.
+#   [37] La fotografia dei dati reali accetta i criteri di ammissione
+#        (elaborazione/ammissione.py): con quelli larghi entrano anche i documenti non
+#        confermati, con i ruoli proposti dal modello, segnati come non verificati; la
+#        descrizione della fotografia ricorda i criteri, il resoconto conta i rapporti non
+#        verificati, la diagnosi dice «può entrare, come NON VERIFICATO».
 #
 # <<< NOVITA
 """
@@ -108,13 +113,14 @@ import collections
 from django.db import transaction
 from django.db.models import Max
 
+from elaborazione import ammissione
 from elaborazione import models as elaborazione
 from elaborazione.models import Documento
 from soggetti import servizi as anagrafica
 from soggetti.models import DatiPerPeriodo
 from soggetti.models import Soggetto as SoggettoAnagrafica
 
-from . import scrittura
+from . import contratto, scrittura
 from .models import DatiSoggetto, Relazione, Soggetto, VersioneDati
 
 PREFISSO = "ANAG-"
@@ -122,6 +128,15 @@ PREFISSO = "ANAG-"
 # Motivi per cui un documento confermato non diventa un arco
 SENZA_MITTENTE, SENZA_DESTINATARIO, STESSO_SOGGETTO = "senza mittente", "senza destinatario", "mittente e destinatario coincidono"
 SENZA_DATA, SENZA_IMPORTO = "senza data", "senza importo totale"
+# Come un rapporto ricorda di venire da un documento che nessuno ha ancora confermato: sta in
+# coda al nome del documento, così lo mostrano senza modifiche chat, mappa e ogni altro lettore.
+NON_VERIFICATO = contratto.SEGNO_NON_VERIFICATO
+
+
+def nome_del_documento(documento):
+    """Il nome con cui un documento entra nella fotografia: "fattura 12", con il segno se non è confermato."""
+    nome = f"{documento.tipo} {documento.numero}".strip() or "documento"
+    return nome[:80] if documento.confermato else nome[:80 - len(NON_VERIFICATO)] + NON_VERIFICATO
 
 
 def riferimento(soggetto_anagrafica):
@@ -137,7 +152,7 @@ def soggetto_dell_anagrafica(riferimento_del_grafo):
 
 def come_arco(documento):
     """
-    Un documento confermato visto come arco: (mittente, destinatario, None), oppure
+    Un documento visto come arco (confermato o no: per uno non confermato valgono i ruoli proposti): (mittente, destinatario, None), oppure
     (None, None, motivo) se non può diventarlo. È il solo punto in cui lo si decide:
     lo usano la fotografia dei dati e la diagnosi.
     """
@@ -159,14 +174,15 @@ def come_arco(documento):
     return mittente, destinatario, None
 
 
-def archi_dall_archivio():
+def archi_dall_archivio(criteri=None):
     """
-    I documenti confermati e non riservati che possono diventare archi.
+    I documenti ammessi dai criteri (elaborazione/ammissione.py; None = quelli predefiniti) e non
+    riservati che possono diventare archi. Con i criteri severi sono i soli documenti confermati.
     Restituisce (archi, esclusi): archi = [(mittente, destinatario, documento)] con i
-    soggetti dell'anagrafica, esclusi = {motivo: quanti}.
+    soggetti dell'anagrafica, esclusi = {motivo: quanti}. documento.confermato dice se è verificato.
     """
     documenti = (
-        Documento.objects.utilizzabili()
+        ammissione.documenti(criteri)
         .filter(file__fascicolo__faldone__riservato=False, file__fascicolo__riservato_a__isnull=True)
         .prefetch_related("parti__soggetto").order_by("pk")
     )
@@ -195,7 +211,7 @@ def diagnosi(soggetto_anagrafica):
     """
     from archivio.models import CollegamentoFile
 
-    from . import contratto, interrogazione
+    from . import interrogazione
 
     righe = [f"Società: {anagrafica.etichetta(soggetto_anagrafica)} (società n. {soggetto_anagrafica.pk} dell'anagrafica)"]
 
@@ -205,6 +221,7 @@ def diagnosi(soggetto_anagrafica):
         .select_related("file__fascicolo__faldone").order_by("file_id")
     )
     file_visti, pronti = {}, 0
+    ammessi = set(ammissione.documenti().values_list("pk", flat=True))   # con i criteri predefiniti
     for collegamento in collegati:
         file_visti[collegamento.file_id] = collegamento.file
     righe.append(f"\n1. File che la riguardano: {len(file_visti)}")
@@ -226,13 +243,15 @@ def diagnosi(soggetto_anagrafica):
                          f"totale {documento.totale if documento.totale is not None else '?'}; parti: {parti or 'nessuna'}")
             if documento.ritirato:
                 esito = "NON entra: è stato scartato"
-            elif not documento.confermato:
-                esito = "NON entra: non è ancora confermato (aprire «Testo ed entità estratte» e chiudere la revisione)"
+            elif documento.pk not in ammessi:
+                esito = ("NON entra: non è confermato, e i criteri in vigore non ammettono i documenti non confermati "
+                         "(o le letture incomplete): confermarlo, oppure cambiare i criteri al lancio del calcolo")
             elif riservato:
                 esito = "NON entra: viene da un caricamento riservato a un'indagine"
             else:
                 _, _, motivo = come_arco(documento)
-                esito = f"NON entra: {motivo} (correggerlo nella revisione)" if motivo else "può entrare nel grafo"
+                esito = f"NON entra: {motivo} (correggerlo nella revisione)" if motivo else (
+                    "può entrare nel grafo" if documento.confermato else "può entrare nel grafo, come NON VERIFICATO")
                 pronti += motivo is None
             righe.append(f"       -> {esito}")
 
@@ -293,15 +312,23 @@ def _identificativi(soggetto):
 
 
 @transaction.atomic
-def fotografa(descrizione="dati reali dall'archivio"):
+def fotografa(descrizione="dati reali dall'archivio", criteri=None):
     """
     Registra la fotografia dei dati reali e restituisce un resoconto:
-        {"versione_dati", "nuova": bool, "soggetti": n, "relazioni": n, "esclusi": {motivo: quanti}}
+        {"versione_dati", "nuova": bool, "soggetti": n, "relazioni": n, "non_verificate": n,
+         "criteri": Criteri, "esclusi": {motivo: quanti}}
+    criteri dice che cosa è ammesso oltre ai documenti confermati (None = quelli predefiniti):
+    la scelta è scritta nella descrizione della fotografia, e ogni rapporto non verificato lo dice nel nome.
     Se dall'ultima volta non è cambiato nulla NON crea una nuova fotografia (stessa
     impronta). Senza nessun soggetto non crea nulla: "versione_dati" è None.
     """
-    archi, esclusi = archi_dall_archivio()
-    resoconto = {"versione_dati": None, "nuova": False, "soggetti": 0, "relazioni": len(archi), "esclusi": esclusi}
+    criteri = criteri or ammissione.predefiniti()
+    archi, esclusi = archi_dall_archivio(criteri)
+    resoconto = {
+        "versione_dati": None, "nuova": False, "soggetti": 0, "relazioni": len(archi), "esclusi": esclusi,
+        "non_verificate": sum(1 for _, _, documento in archi if not documento.confermato), "criteri": criteri,
+    }
+    descrizione = f"{descrizione}; {ammissione.descrivi(criteri, solo_documenti=True)}"
     nodi = {s.pk: s for s in SoggettoAnagrafica.objects.filter(dati_per_periodo__isnull=False).distinct()}
     for mittente, destinatario, _ in archi:
         nodi[mittente.pk], nodi[destinatario.pk] = mittente, destinatario
@@ -313,7 +340,7 @@ def fotografa(descrizione="dati reali dall'archivio"):
         for numero, soggetto in sorted(nodi.items())
     }
     righe = [
-        (mittente.pk, destinatario.pk, f"{documento.tipo} {documento.numero}".strip(), documento.data, documento.totale)
+        (mittente.pk, destinatario.pk, nome_del_documento(documento), documento.data, documento.totale)
         for mittente, destinatario, documento in archi
     ]
     # Anche i dati per periodo fanno parte dei dati in ingresso: se cambiano, la fotografia è un'altra

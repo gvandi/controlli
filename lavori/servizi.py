@@ -8,6 +8,8 @@ NOVITÀ
         Ogni voce dice a che cosa serve, che cosa le serve prima e che cosa aggiorna.
         "Calcola gli indici" si chiama ora "Aggiorna il grafo e calcola gli indici", perché
         è ciò che fa. Il tipo resta "calcola_indici": lo storico non cambia.
+    [4] "Aggiorna il grafo e calcola gli indici" e "Fotografa i dati reali" hanno le caselle dei criteri
+        di ammissione (elaborazione/ammissione.py): che cosa entra oltre ai documenti confermati.
     [3] Un lavoro fallito dice prima che cosa è successo e che cosa fare, poi il dettaglio tecnico.
     [1] Prima versione: coda nel database, processo esegui_lavori.
 
@@ -68,12 +70,16 @@ def _calcola_indici(lavoro):
     from grafo import contratto
     from indici import calcolo
 
-    r = calcolo.esegui()
+    from elaborazione import ammissione
+
+    r = calcolo.esegui(criteri=ammissione.da_parametri(lavoro.parametri.get("ammette")))
     if r["esecuzione"] is None:
-        return "Nessun dato reale: importare l'anagrafica o confermare almeno un documento."
+        return "Nessun dato reale: importare l'anagrafica o caricare almeno un documento."
     return (
         f"Calcolo {contratto.VERSIONE_CALCOLO_REGOLE} / dati n. {r['versione_dati'].numero}: {r['aziende']} società, "
         f"{r['segnalate']} sopra soglia, {r['senza_dati']} senza dati per periodo, {r['regole']} regole attive."
+        f"\nRapporti fra società: {r['relazioni']}, di cui non verificati: {r['non_verificate']}."
+        f"\nDati ammessi: {ammissione.descrivi(r['criteri'], solo_documenti=True)}."
     )
 
 
@@ -84,13 +90,17 @@ def _allinea_denominazioni(lavoro):
 
 
 def _dati_reali(lavoro):
+    from elaborazione import ammissione
     from grafo import dati_reali
 
-    r = dati_reali.fotografa()
+    r = dati_reali.fotografa(criteri=ammissione.da_parametri(lavoro.parametri.get("ammette")))
     if r["versione_dati"] is None:
-        return "Nessuna società con dati per periodo e nessun documento confermato utilizzabile: nessuna fotografia."
+        return "Nessuna società con dati per periodo e nessun documento utilizzabile: nessuna fotografia."
     stato = "Nuova fotografia" if r["nuova"] else "Nessuna novità: resta la fotografia"
-    testo = f"{stato} dati n. {r['versione_dati'].numero}: {r['soggetti']} società, {r['relazioni']} relazioni."
+    testo = (
+        f"{stato} dati n. {r['versione_dati'].numero}: {r['soggetti']} società, {r['relazioni']} relazioni, "
+        f"di cui non verificate: {r['non_verificate']}. Dati ammessi: {ammissione.descrivi(r['criteri'], solo_documenti=True)}."
+    )
     if r["nuova"]:
         testo += f"\nChat e mappa non la usano ancora: lanciare «{TIPI['calcola_indici'].titolo}»."
     for motivo, quanti in sorted(r["esclusi"].items()):
@@ -175,6 +185,9 @@ _CONFERMARE = (
     "confermato, con mittente, destinatario, data e totale, diventa un rapporto nel grafo.",
     "Lo fa l'ispettore, dalla pagina «Testo ed entità estratte» del file.",
 )
+
+# I lavori che fotografano i dati reali: nella pagina hanno le caselle dei criteri di ammissione
+CON_CRITERI = ("calcola_indici", "dati_reali")
 
 # LA SEQUENZA: (gruppo, titolo, nota, voci). Una voce è il nome di un tipo oppure un passo manuale.
 PERCORSO = (
@@ -291,6 +304,14 @@ def per_le_pagine():
     ultimi = {}
     for lavoro in Lavoro.objects.select_related("richiesto_da").order_by("-richiesto_il", "-pk")[:200]:
         ultimi.setdefault(lavoro.tipo, lavoro)
+    from elaborazione import ammissione
+
+    scelti = ammissione.predefiniti()
+    # le caselle dei soli criteri che cambiano il grafo: [(codice, titolo, spiegazione, spuntata)]
+    criteri = [
+        (codice, titolo_criterio, spiegazione, getattr(scelti, codice))
+        for codice, (titolo_criterio, spiegazione) in ammissione.CRITERI.items() if not codice.startswith("entita")
+    ]
     gruppi = []
     for codice, titolo, nota, elenco in PERCORSO:
         voci = []
@@ -303,6 +324,7 @@ def per_le_pagine():
             voci.append({
                 "tipo": voce, "titolo": tipo.titolo, "spiegazione": tipo.spiegazione, "serve": tipo.serve,
                 "aggiorna": tipo.aggiorna, "passo": passo, "ultimo": ultimo,
+                "criteri": criteri if voce in CON_CRITERI else None,
                 "aperto": ultimo is not None and ultimo.stato in APERTI, "servito": voce in serviti,
             })
         gruppi.append({"codice": codice, "titolo": titolo, "nota": nota, "voci": voci})

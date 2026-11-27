@@ -4,6 +4,7 @@ I valori che cambiano tra un'installazione e l'altra (chiave segreta, database)
 si leggono dall'ambiente o dal file .env nella cartella del progetto.
 """
 import os
+import sys
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -197,6 +198,21 @@ if not DEBUG:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_SSL_REDIRECT = True
+
+# Che cosa entra nei calcoli e nella descrizione di una società oltre a ciò che una persona ha
+# confermato (elaborazione/ammissione.py, DECISIONI.md n. 100). In fase di prova tutto è ammesso;
+# un criterio a False torna alla regola severa. L'amministratore può cambiarli a ogni calcolo.
+CALCOLO_AMMETTE = {
+    "documenti_non_confermati": True,
+    "letture_incomplete": True,
+    "entita_non_verificate": True,
+    "entita_da_rivedere": True,
+    "entita_fuori_catalogo": True,
+}
+# Le prove partono dalla regola severa (solo dati verificati), che è quella di cui verificano
+# ogni passaggio; i criteri larghi hanno prove proprie, che li accendono uno per uno.
+if "test" in sys.argv[1:2]:
+    CALCOLO_AMMETTE = {criterio: False for criterio in CALCOLO_AMMETTE}
 
 # Lavori lanciati dall'interfaccia: dimensione massima del file CSV dell'anagrafica
 LAVORI_CSV_MASSIMO = int(os.environ.get("CONTROLLI_CSV_MASSIMO_MB", "5")) * 1024 * 1024

@@ -149,7 +149,9 @@
         c.strokeStyle = "rgba(224, 138, 0, 0.85)";
         c.lineWidth = 1 + 7 * Math.sqrt(IMPORTO_MASSIMO > 0 ? r.importo / IMPORTO_MASSIMO : 0);
         c.lineCap = "round";
-        c.beginPath(); c.moveTo(u[0], u[1]); c.lineTo(v[0], v[1]); c.stroke();
+        // tratteggiata: nessun documento del rapporto è stato confermato da una persona
+        c.setLineDash(r.da_verificare && r.da_verificare === r.quanti ? [8, 7] : []);
+        c.beginPath(); c.moveTo(u[0], u[1]); c.lineTo(v[0], v[1]); c.stroke(); c.setLineDash([]);
       });
     });
   }
@@ -276,7 +278,7 @@
       suoi.forEach(function (r) {
         var numero = r.da === p.n ? r.a : r.da, posto = POSTO[numero];
         var nome = posto !== undefined ? P[posto].p.nome : (D.fuori[numero] || "società") + " (non collocata)";
-        riga(blocco, (r.da === p.n ? "→ vende a " : "← compra da ") + nome + ": " + r.quanti + (r.quanti === 1 ? " documento, " : " documenti, ") + euro(r.importo), "tenue");
+        riga(blocco, (r.da === p.n ? "→ vende a " : "← compra da ") + nome + ": " + r.quanti + (r.quanti === 1 ? " documento" : " documenti") + (r.da_verificare ? " (" + r.da_verificare + " non verificati)" : "") + ", " + euro(r.importo), "tenue");
       });
       dove.appendChild(blocco);
     });

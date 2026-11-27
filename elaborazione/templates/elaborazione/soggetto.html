@@ -6,6 +6,7 @@
   table { border-collapse: collapse; width: 100%; }
   th, td { text-align: left; padding: 0.35rem 0.6rem 0.35rem 0; border-bottom: 1px solid var(--bordo); vertical-align: top; }
   .percorso { font-family: monospace; }
+  .da-verificare { font-size: 0.8rem; color: #8a5a00; background: #fdf6e3; border: 1px solid #e6cf9c; border-radius: 3px; padding: 0 0.3rem; white-space: nowrap; }
 </style>
 <p>
   <a href="{% url 'archivio:faldone' fascicolo.faldone.codice %}">{{ fascicolo.faldone.nome }}</a> &rsaquo;
@@ -23,7 +24,7 @@
       {% for e in riga.valori %}
         <tr>
           <td>{% if forloop.first %}<strong>{{ riga.voce.descrizione }}</strong>{% elif riga.voce.cambia_nel_tempo and not riga.voce.multipla %}<span class="tenue">{% translate "(valore precedente)" %}</span>{% endif %}</td>
-          <td title="{{ e.citazione }}">{{ e.valore }}</td>
+          <td title="{{ e.citazione }}">{{ e.valore }}{% if e.non_verificata %} <span class="da-verificare">{% translate "non verificato" %}</span>{% endif %}</td>
           <td>{{ e.periodo|default:"-" }}</td>
           <td>{{ e.estratta_il|date:"Y-m-d" }}</td>
           <td class="percorso"><a href="{% url 'elaborazione:file' e.file_id %}">{{ e.file.percorso_originale }}</a>{% if e.pagina %}, {% translate "pag." %} {{ e.pagina }}{% endif %}</td>
@@ -37,7 +38,7 @@
 
 <div class="scheda">
   <h2>{% translate "Documenti in cui compare" %}</h2>
-  <p class="tenue">{% translate "Solo i documenti i cui ruoli sono stati confermati da una persona. Un DDT o una fattura descrivono un rapporto fra società: date, importi e righe restano nel documento e non diventano voci della scheda." %}</p>
+  <p class="tenue">{% translate "Un DDT o una fattura descrivono un rapporto fra società: date, importi e righe restano nel documento e non diventano voci della scheda. «Non verificato»: i ruoli sono quelli proposti dal modello e nessuno li ha ancora confermati; mittente e destinatario potrebbero essere scambiati." %}</p>
   <table>
     <tr><th>{% translate "Documento" %}</th><th>{% translate "Data" %}</th><th>{% translate "Totale" %}</th><th>{% translate "Ruolo" %}</th><th>{% translate "Altre parti" %}</th><th>{% translate "Dal file" %}</th></tr>
     {% for riga in documenti %}
@@ -45,13 +46,32 @@
         <td><strong>{{ riga.documento.tipo|default:"-" }}</strong> {{ riga.documento.numero }}</td>
         <td>{{ riga.documento.data|date:"Y-m-d"|default:"-" }}</td>
         <td>{{ riga.documento.totale|default:"-" }}</td>
-        <td>{{ riga.ruolo }}</td>
+        <td>{{ riga.ruolo }}{% if not riga.verificato %} <span class="da-verificare">{% translate "non verificato" %}</span>{% endif %}</td>
         <td>{% for altra in riga.altre %}{{ altra.ruolo }}: {{ altra.denominazione }}{% if altra.identificativo %} <span class="tenue">({{ altra.identificativo }})</span>{% endif %}{% if not forloop.last %}<br>{% endif %}{% endfor %}</td>
         <td class="percorso"><a href="{% url 'elaborazione:file' riga.documento.file_id %}">{{ riga.documento.file.percorso_originale }}</a></td>
       </tr>
     {% empty %}
-      <tr><td colspan="6" class="tenue">{% translate "Nessun documento confermato." %}</td></tr>
+      <tr><td colspan="6" class="tenue">{% translate "Nessun documento." %}</td></tr>
     {% endfor %}
   </table>
 </div>
+
+{% if altre %}
+<div class="scheda">
+  <h2>{% translate "Altre informazioni lette nei file" %}</h2>
+  <p class="tenue">{% translate "Date, importi, nomi e altro che il modello ha letto e che non corrispondono a una voce del catalogo. Se un'etichetta ricorre e serve, il Configuratore può riconoscerla come voce dalla pagina «Entità fuori catalogo»." %}</p>
+  <table>
+    <tr><th>{% translate "Etichetta" %}</th><th>{% translate "Valore" %}</th><th>{% translate "Periodo" %}</th><th>{% translate "Acquisito il" %}</th><th>{% translate "Dal file" %}</th></tr>
+    {% for e in altre %}
+      <tr>
+        <td>{{ e.etichetta }}</td>
+        <td title="{{ e.citazione }}">{{ e.valore }}{% if e.non_verificata %} <span class="da-verificare">{% translate "non verificato" %}</span>{% endif %}</td>
+        <td>{{ e.periodo|default:"-" }}</td>
+        <td>{{ e.estratta_il|date:"Y-m-d" }}</td>
+        <td class="percorso"><a href="{% url 'elaborazione:file' e.file_id %}">{{ e.file.percorso_originale }}</a>{% if e.pagina %}, {% translate "pag." %} {{ e.pagina }}{% endif %}</td>
+      </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
 {% endblock %}

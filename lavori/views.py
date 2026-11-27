@@ -50,6 +50,16 @@ def richiedi(request):
             messages.error(request, "Il numero massimo di file deve essere un intero positivo.")
             return redirect(ritorno)
         parametri["massimo"] = int(request.POST["massimo"])
+    if tipo in servizi.CON_CRITERI and request.POST.get("criteri_mostrati"):
+        # le caselle erano nella pagina: una non spuntata vale "no". Le entità seguono l'impostazione.
+        from elaborazione import ammissione
+
+        scelti = ammissione.come_parametri(ammissione.predefiniti())
+        for codice in ammissione.CRITERI:
+            if not codice.startswith("entita"):
+                scelti[codice] = request.POST.get(f"ammette_{codice}") == "si"
+        scelti["letture_incomplete"] = scelti["letture_incomplete"] and scelti["documenti_non_confermati"]
+        parametri["ammette"] = scelti
     if tipo == "importa_anagrafica":
         caricato = request.FILES.get("file")
         if caricato is None:

@@ -354,6 +354,23 @@ class CodaTest(ConFile):
         scheda = {riga["voce"].codice: riga for riga in coda.scheda_del_soggetto(soggetto, self.anna)}
         self.assertEqual([e.valore for e in scheda["AMMINISTRATORE"]["valori"]], ["Anna Bianchi", "Mario Rossi"])
         self.assertEqual([e.periodo for e in scheda["RICAVI"]["valori"]], ["2023"])  # il 2024 aspetta la revisione
+        # con i criteri larghi (quelli della fase di prova) entra anche ciò che aspetta, ed è segnato;
+        # e compaiono le informazioni fuori catalogo
+        from elaborazione import ammissione
+
+        EntitaEstratta.objects.create(file=primo, etichetta="data di consegna", valore="12/03/2024", soggetto=soggetto)
+        self.assertEqual(coda.altre_informazioni(soggetto, self.anna), [])
+        with override_settings(CALCOLO_AMMETTE=dict.fromkeys(ammissione.CRITERI, True)):
+            larga = {riga["voce"].codice: riga for riga in coda.scheda_del_soggetto(soggetto, self.anna)}
+            self.assertEqual(sorted(e.periodo for e in larga["RICAVI"]["valori"]), ["2023", "2024", "2024"])
+            self.assertEqual(sum(e.non_verificata for e in larga["RICAVI"]["valori"]), 2)
+            altre = coda.altre_informazioni(soggetto, self.anna)
+            self.assertEqual([(e.etichetta, e.non_verificata) for e in altre], [("data di consegna", True)])
+            racconto = coda.descrivi_azienda("12345", self.anna)
+            self.assertIn("Altre informazioni lette nei file", racconto)
+            self.assertIn("- data di consegna: 12/03/2024 (NON VERIFICATO)", racconto)
+        with override_settings(CALCOLO_AMMETTE=dict(dict.fromkeys(ammissione.CRITERI, True), entita_fuori_catalogo=False)):
+            self.assertEqual(coda.altre_informazioni(soggetto, self.anna), [])
         self.assertTrue(scheda["UTILE"]["mancante"])  # non ancora arrivato: mancante, non zero
 
         # il revisore scarta il valore sbagliato e conferma l'altro: i file tornano elaborati
@@ -704,7 +721,7 @@ class DocumentoTest(ConFile):
                        "non è utilizzabile"):   # nessun calcolo ancora: chat e mappa non hanno nulla da usare
             self.assertIn(atteso, diagnosi)
         Documento.objects.filter(file=file).update(confermato=False)
-        self.assertIn("NON entra: non è ancora confermato", "\n".join(dati_reali.diagnosi(mittente)))
+        self.assertIn("NON entra: non è confermato", "\n".join(dati_reali.diagnosi(mittente)))
         Documento.objects.filter(file=file).update(confermato=True, totale=None)
         self.assertIn("NON entra: senza importo totale", "\n".join(dati_reali.diagnosi(mittente)))
         Documento.objects.filter(file=file).update(totale=decimal.Decimal("1234.56"))
@@ -724,7 +741,7 @@ class DocumentoTest(ConFile):
             "coe;piva;periodo;ateco;dipendenti;fatturato\n10000;;2025;47.26;D0;F3\n;01234567890;2025;63.91;D2;F2\n"
         )
         elenco, _ = spazio.rapporti()
-        self.assertEqual(elenco, [{"da": mittente.pk, "a": destinatario.pk, "quanti": 1, "importo": 1234.56}])
+        self.assertEqual(elenco, [{"da": mittente.pk, "a": destinatario.pk, "quanti": 1, "da_verificare": 0, "importo": 1234.56}])
         dati = spazio.costruisci(RegolaDiRischio.objects.get())
         self.assertEqual((len(dati["punti"]), dati["rapporti"], dati["fuori"]), (2, elenco, {}))
         diritti(self.anna, "indici.view_regoladirischio")
@@ -760,6 +777,44 @@ class DocumentoTest(ConFile):
         self.assertEqual(EntitaEstratta.objects.filter(etichetta="DENOMINAZIONE").count(), 3)
 
     @override_settings(ELABORAZIONE_MODELLO_NOME="modello-di-prova")
+    @override_settings(ELABORAZIONE_MODELLO_NOME="modello-di-prova")
+    def test_con_i_criteri_larghi_un_documento_non_confermato_entra_ed_e_segnato(self):
+        from elaborazione import ammissione
+        from grafo import dati_reali
+        from grafo import models as grafo
+
+        file = self.elabora_il_ddt()
+        # criteri severi (quelli da cui partono le prove): nessun rapporto finché una persona non conferma
+        self.assertEqual(dati_reali.archi_dall_archivio()[0], [])
+        self.assertEqual(dati_reali.archi_dall_archivio(ammissione.SOLO_VERIFICATI)[0], [])
+        larghi = ammissione.da_parametri({"documenti_non_confermati": True, "letture_incomplete": True})
+        self.assertEqual(len(dati_reali.archi_dall_archivio(larghi)[0]), 1)
+        resoconto = dati_reali.fotografa(criteri=larghi)
+        self.assertEqual((resoconto["nuova"], resoconto["relazioni"], resoconto["non_verificate"]), (True, 1, 1))
+        # il rapporto ricorda di non essere verificato, e la fotografia con quali criteri è nata
+        arco = grafo.Relazione.objects.get(versione_dati=resoconto["versione_dati"])
+        self.assertIn("45/2026", arco.documento)
+        self.assertTrue(arco.documento.endswith(" (non verificato)"), arco.documento)
+        self.assertIn("documenti non ancora confermati", resoconto["versione_dati"].descrizione)
+        self.assertNotIn("entità", resoconto["versione_dati"].descrizione)
+        # la scheda e la chat lo mostrano segnato, con il ruolo proposto dal modello (qui sbagliato: è il rischio)
+        alfa = anagrafica.trova(self.coe, "10000")
+        self.assertEqual(coda.documenti_del_soggetto(alfa, self.anna), [])
+        with override_settings(CALCOLO_AMMETTE=dict.fromkeys(ammissione.CRITERI, True)):
+            riga = coda.documenti_del_soggetto(alfa, self.anna)[0]
+            self.assertEqual((riga["verificato"], riga["ruolo"]), (False, models.DESTINATARIO))
+            self.assertIn("NON VERIFICATO", coda.descrivi_azienda("COE 10000", self.anna))
+            self.assertIn("come NON VERIFICATO", "\n".join(dati_reali.diagnosi(alfa)))
+        # un file con un avviso di lettura entra solo se lo si chiede; un documento scartato mai
+        FileCaricato.objects.filter(pk=file.pk).update(stato=archivio.FILE_DA_RIVEDERE, ultimo_errore="Pagina 1: avviso.")
+        self.assertEqual(dati_reali.archi_dall_archivio(ammissione.da_parametri({"documenti_non_confermati": True}))[0], [])
+        self.assertEqual(len(dati_reali.archi_dall_archivio(larghi)[0]), 1)
+        Documento.objects.filter(file=file).update(ritirato=True)
+        self.assertEqual(dati_reali.archi_dall_archivio(larghi)[0], [])
+        # i criteri si descrivono in parole, e senza nessuno acceso vale la regola di prima
+        self.assertEqual(ammissione.descrivi(ammissione.SOLO_VERIFICATI), "solo dati verificati")
+        self.assertEqual(ammissione.predefiniti(), ammissione.SOLO_VERIFICATI)
+
     def test_documento_e_citazione_non_allungano_la_risposta_sulle_entita(self):
         file = self.carica(DDT + "\nAmministratore: Mario Rossi.", nome="ddt.txt")
         modello = ModelloFinto([entita_json(("AMMINISTRATORE", "Mario Rossi"))], documento=DDT_DAL_MODELLO)

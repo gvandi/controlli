@@ -732,19 +732,24 @@ def _denominazioni_dal_documento(file, documento):
 
 def documenti_del_soggetto(soggetto, utente):
     """
-    I documenti confermati in cui il soggetto ha un ruolo, fra i file che l'utente può
-    vedere, il più recente per primo: [{"documento", "ruolo", "altre": [parti]}].
+    I documenti ammessi (elaborazione/ammissione.py) in cui il soggetto ha un ruolo, fra i file
+    che l'utente può vedere, il più recente per primo:
+        [{"documento", "ruolo", "verificato": bool, "altre": [parti]}]
+    Con i criteri severi sono i soli documenti confermati.
     """
+    from . import ammissione
+
     visibili = Fascicolo.objects.visibili_a(utente)
     sue = (
         ParteDelDocumento.objects.filter(
-            soggetto=soggetto, ritirata=False, documento__in=Documento.objects.utilizzabili(),
+            soggetto=soggetto, ritirata=False, documento__in=ammissione.documenti(),
             documento__file__fascicolo__in=visibili,
         ).select_related("documento__file").order_by("-documento__data", "-documento__pk")
     )
     return [
         {
-            "documento": parte.documento, "ruolo": parte.ruolo,
+            "documento": parte.documento, "ruolo": parte.ruolo or parte.ruolo_proposto,
+            "verificato": parte.documento.confermato,
             "altre": [
                 altra for altra in parte.documento.parti.filter(ritirata=False).select_related("soggetto").order_by("pk")
                 if altra.pk != parte.pk
@@ -804,23 +809,52 @@ def ripristina(file, numeri):
 # =====================================================================
 def scheda_del_soggetto(soggetto, utente):
     """
-    Ciò che si sa oggi di un soggetto, voce per voce, dalle entità utilizzabili dei
-    file che l'utente può vedere. Restituisce un elenco, una riga per voce del catalogo:
+    Ciò che si sa oggi di un soggetto, voce per voce, dalle entità ammesse (elaborazione/ammissione.py)
+    dei file che l'utente può vedere. Restituisce un elenco, una riga per voce del catalogo:
         {"voce", "valori": [entità, la più recente per prima], "mancante": bool}
-    Una voce senza valori è "mancante": non ancora arrivata, non zero.
+    Una voce senza valori è "mancante": non ancora arrivata, non zero. Ogni entità ha in più
+    l'attributo non_verificata: vero se nessuno l'ha confermata e il controllo non la garantisce.
+    Le entità fuori catalogo non hanno una voce: le dà altre_informazioni().
     """
+    from . import ammissione
+
     visibili = Fascicolo.objects.visibili_a(utente)
     note = collections.defaultdict(list)
     entita = (
-        EntitaEstratta.objects.utilizzabili().filter(soggetto=soggetto, file__fascicolo__in=visibili)
+        ammissione.entita().filter(soggetto=soggetto, voce__isnull=False, file__fascicolo__in=visibili)
         .select_related("voce", "file").order_by("-estratta_il", "-pk")
     )
     for riga in entita:
+        riga.non_verificata = not ammissione.verificato(riga)
         note[riga.voce_id].append(riga)
     return [
         {"voce": voce, "valori": note.get(voce.pk, []), "mancante": voce.pk not in note}
         for voce in voci_valide()
     ]
+
+
+MASSIMO_ALTRE_INFORMAZIONI = 200
+
+
+def altre_informazioni(soggetto, utente):
+    """
+    Le entità FUORI CATALOGO ammesse per un soggetto (date, importi, nomi e altro che il modello
+    ha letto e che nessuna voce del catalogo riconosce), fra i file che l'utente può vedere, la
+    più recente per prima. Vuoto se il criterio entita_fuori_catalogo è spento. Ognuna ha
+    l'attributo non_verificata.
+    """
+    from . import ammissione
+
+    if not ammissione.predefiniti().entita_fuori_catalogo:
+        return []
+    righe = list(
+        ammissione.entita().filter(
+            soggetto=soggetto, voce__isnull=True, file__fascicolo__in=Fascicolo.objects.visibili_a(utente)
+        ).select_related("file").order_by("-estratta_il", "-pk")[:MASSIMO_ALTRE_INFORMAZIONI]
+    )
+    for riga in righe:
+        riga.non_verificata = not ammissione.verificato(riga)
+    return righe
 
 
 # =====================================================================
@@ -883,7 +917,7 @@ def descrivi_azienda(cercata, utente):
             periodo = f" (periodo {entita.periodo})" if entita.periodo else ""
             pagina = f", pag. {entita.pagina}" if entita.pagina else ""
             righe.append(
-                f"- {riga['voce'].descrizione}: {entita.valore}{periodo} "
+                f"- {riga['voce'].descrizione}: {entita.valore}{periodo}{' (NON VERIFICATO)' if entita.non_verificata else ''} "
                 f"[dal file {entita.file.percorso_originale}{pagina}, acquisito il {entita.estratta_il:%Y-%m-%d}]"
             )
     mancanti = [riga["voce"].descrizione for riga in scheda if riga["mancante"]]
@@ -891,7 +925,17 @@ def descrivi_azienda(cercata, utente):
         righe.append(f"\nVoci non ancora arrivate ({len(mancanti)}): " + "; ".join(mancanti) + ".")
         righe.append("Una voce non arrivata è un dato mancante, non un valore zero.")
 
-    righe.append(f"\nDocumenti confermati in cui compare ({len(documenti)}):" if documenti else "\nNessun documento confermato.")
+    altre = altre_informazioni(soggetto, utente)
+    if altre:
+        righe.append(f"\nAltre informazioni lette nei file, fuori dal catalogo delle voci ({len(altre)}):")
+        for entita in altre[:40]:
+            righe.append(
+                f"- {entita.etichetta}: {entita.valore}{' (NON VERIFICATO)' if entita.non_verificata else ''} "
+                f"[dal file {entita.file.percorso_originale}]"
+            )
+        if len(altre) > 40:
+            righe.append(f"... e altre {len(altre) - 40}: sono tutte nella scheda della società.")
+    righe.append(f"\nDocumenti in cui compare ({len(documenti)}):" if documenti else "\nNessun documento.")
     for riga in documenti:
         documento = riga["documento"]
         dati = [f"{documento.tipo or 'documento'} n. {documento.numero or '-'}"]
@@ -903,6 +947,8 @@ def descrivi_azienda(cercata, utente):
             f"{altra.ruolo}: {altra.denominazione}" + (f" ({altra.identificativo})" if altra.identificativo else "")
             for altra in riga["altre"]
         )
+        if not riga["verificato"]:
+            dati.append("(NON VERIFICATO: ruoli proposti dal modello, non confermati da una persona)")
         righe.append(f"- {' '.join(dati)}; ruolo della società: {riga['ruolo']}" + (f"; altre parti: {altre}" if altre else ""))
     righe.append(
         "\nFonte: file caricati nell'archivio ed elaborati. Questi dati non vengono dall'analisi di rete "

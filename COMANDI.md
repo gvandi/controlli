@@ -117,6 +117,12 @@ I passi 1-3 portano i rapporti fra società, il passo 4 i dati per le regole: so
 passo 5 li usa entrambi. **Il passo 5 va rilanciato ogni volta che si conferma un documento o si
 importa un'anagrafica**: finché non lo si fa, chat e mappa mostrano la situazione precedente.
 
+**Che cosa entra oltre ai documenti confermati.** Accanto al passo 5 ci sono due caselle: "documenti non
+ancora confermati" e "anche da file con lettura incompleta". In fase di prova sono spuntate (impostazione
+`CALCOLO_AMMETTE` in `config/settings.py`); i rapporti che ne vengono sono segnati "(non verificato)" e
+tratteggiati in mappa e nello spazio degli indici. Da comando: `python manage.py calcola_indici --solo-verificati`
+usa i soli documenti confermati.
+
 **Rete simulata (prototipo)**: "Calcola la GNN (dati simulati)" (`grafo_calcolo`) e "Calcola le
 spiegazioni in coda". Lavorano su una rete inventata dal programma: non leggono né i file caricati
 né l'anagrafica, e non cambiano ciò che si vede delle società vere.

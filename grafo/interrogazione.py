@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   interrogazione.py  -  app grafo, VERSIONE 36
+#   interrogazione.py  -  app grafo, VERSIONE 37
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: interrogazione
@@ -81,6 +81,8 @@
 #        della società, perché sui dati reali il numero che l'ispettore conosce è il COE.
 #   [35] Le risposte dicono «società» al posto di azienda e soggetto; le domande con «azienda»,
 #        «soggetto» o «impresa» sono capite come prima.
+#   [37] documenti_relazione() conta i documenti non verificati di un rapporto e
+#        descrivi_documenti() lo dice («NON VERIFICATO», «di cui N non verificati»).
 #
 # <<< NOVITA
 """
@@ -444,7 +446,8 @@ def verso_relazione(a, b, descrivi=str):
 def documenti_relazione(soggetto_a, soggetto_b):
     """
     Riepilogo dei documenti scambiati fra due soggetti (in entrambi i versi):
-    numero, importo totale e documento più recente. None se non ce ne sono.
+    numero, quanti vengono da documenti non ancora confermati, importo totale e documento più
+    recente. None se non ce ne sono.
     """
     filtro = (
         "versione_dati_id = %(d)s AND ((venditore_id = %(a)s AND acquirente_id = %(b)s) "
@@ -452,8 +455,10 @@ def documenti_relazione(soggetto_a, soggetto_b):
     )
     parametri = _chiavi(a=int(soggetto_a), b=int(soggetto_b))
     riepilogo = _righe(
-        f"SELECT COUNT(*) AS numero, SUM(importo) AS totale FROM grafo_relazione WHERE {filtro}",
-        parametri,
+        "SELECT COUNT(*) AS numero, SUM(importo) AS totale, "
+        "COALESCE(SUM(CASE WHEN documento LIKE %(segno)s THEN 1 ELSE 0 END), 0) AS non_verificati "
+        f"FROM grafo_relazione WHERE {filtro}",
+        dict(parametri, segno="%" + contratto.SEGNO_NON_VERIFICATO),
     )[0]
     if not riepilogo["numero"]:
         return None
@@ -463,6 +468,7 @@ def documenti_relazione(soggetto_a, soggetto_b):
     )[0]
     return {
         "numero": riepilogo["numero"],
+        "non_verificati": int(riepilogo["non_verificati"]),
         "totale": float(riepilogo["totale"]),
         "ultimo_documento": ultimo["documento"],
         "ultima_data": str(ultimo["data"]),
@@ -835,6 +841,10 @@ def descrivi_documenti(nodo_a, nodo_b):
     if riepilogo is None:
         return "nessun documento"
     etichetta = "documento" if riepilogo["numero"] == 1 else "documenti"
+    if riepilogo["non_verificati"] == riepilogo["numero"]:
+        etichetta += " NON VERIFICATO" if riepilogo["numero"] == 1 else " NON VERIFICATI"
+    elif riepilogo["non_verificati"]:
+        etichetta += f" (di cui {riepilogo['non_verificati']} non verificati)"
     return (
         f"{riepilogo['numero']} {etichetta}, totale {riepilogo['totale']:.2f} euro, "
         f"ultimo {riepilogo['ultimo_documento']} del {riepilogo['ultima_data']}"

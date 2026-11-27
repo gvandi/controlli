@@ -22,7 +22,9 @@ Quelle che il modello trova e che non corrispondono a nessuna voce si raccolgono
 lo stesso, con voce vuota: restano consultabili e si possono promuovere in seguito
 senza rileggere il file (coda.promuovi).
 
-COSA ENTRA NEL CALCOLO. Solo le entità di EntitaEstratta.objects.utilizzabili():
+COSA ENTRA NEL CALCOLO. Dalla decisione n. 100 lo decidono i criteri di elaborazione/ammissione.py,
+che in fase di prova ammettono anche ciò che nessuno ha confermato (segnato come non verificato).
+Con i criteri severi vale ciò che segue. Solo le entità di EntitaEstratta.objects.utilizzabili():
 significative, verificate nel testo OPPURE confermate da una persona, attribuite a
 un soggetto, non in attesa di revisione e non ritirate (DECISIONI.md, n. 79). Un file caricato che non c'entra nulla attraversa tutto
 il percorso e non produce nessuna entità utilizzabile.

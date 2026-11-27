@@ -1,6 +1,6 @@
 # Registro delle novità
 
-Versione corrente: 36
+Versione corrente: 37
 
 Elenco completo delle novità rispetto alla versione 12 (ultimo file unico di partenza).
 È l'UNICO posto in cui le novità si scrivono a mano: `aggiorna_intestazioni.py` ricopia
@@ -46,6 +46,7 @@ Dalla 20 il numero di versione del codice è un intero.
 - [26] (contratto) Nono strumento spazio in NOMI_STRUMENTI e in STRUMENTI_SENZA_ARCHIVIO: legge l'app indici, non l'archivio dell'analisi di rete.
 - [34] (contratto) Ogni modello dichiara il suo nome in italiano, singolare e plurale (migrazione 0004): nelle pagine di amministrazione non compaiono più «Sessiones», «Richiestas», «Mappa prodottas», «Token accessos». Cambiano solo le etichette.
 - [35] (contratto) Un solo nome: le descrizioni delle popolazioni e i nomi dei modelli nelle pagine di amministrazione dicono «società» (migrazione 0005). Tabelle e campi non cambiano nome.
+- [37] (contratto) Nuova costante SEGNO_NON_VERIFICATO: in coda al nome del documento di una relazione dice che viene da un documento non ancora confermato da una persona. Lo schema non cambia.
 
 ## calcolo
 
@@ -81,6 +82,7 @@ Dalla 20 il numero di versione del codice è un intero.
 - [32] (calcolo) Nuova funzione diagnosi() in dati_reali.py e comando python manage.py grafo_diagnosi AZIENDA: per ogni file che riguarda un'azienda segue il documento fino alla mappa (elaborato, riconosciuto, confermato, completo, non riservato, fotografato, calcolato, in uso) e dice dove si ferma e che cosa fare.
 - [33] (calcolo) La diagnosi chiama il lavoro da lanciare con il suo nuovo nome, «Aggiorna il grafo e calcola gli indici» (prima «Calcola gli indici»): è il passo che fotografa i rapporti, applica le regole e mette il risultato in uso.
 - [35] (calcolo) I testi della diagnosi e dei comandi dicono «società» al posto di azienda e soggetto.
+- [37] (calcolo) La fotografia dei dati reali accetta i criteri di ammissione (elaborazione/ammissione.py): con quelli larghi entrano anche i documenti non confermati, con i ruoli proposti dal modello, segnati come non verificati; la descrizione della fotografia ricorda i criteri, il resoconto conta i rapporti non verificati, la diagnosi dice «può entrare, come NON VERIFICATO».
 
 ## interrogazione
 
@@ -121,6 +123,7 @@ Dalla 20 il numero di versione del codice è un intero.
 - [28] (interrogazione) Con una fotografia dei dati senza indicatori (dati reali) contesto_indicatore() spiega che gli indicatori appartengono al calcolo della GNN e rimanda agli strumenti spazio e classifica, invece di chiedere di copiare un file.
 - [29] (interrogazione) risolvi_societa() riconosce un codice comunque scritto: COE10000, COE 10000, C.O.E. SM 10000 e 10000 sono la stessa società; il codice viene cercato prima del numero interno della società, perché sui dati reali il numero che l'ispettore conosce è il COE.
 - [35] (interrogazione) Le risposte dicono «società» al posto di azienda e soggetto; le domande con «azienda», «soggetto» o «impresa» sono capite come prima.
+- [37] (interrogazione) documenti_relazione() conta i documenti non verificati di un rapporto e descrivi_documenti() lo dice («NON VERIFICATO», «di cui N non verificati»).
 
 ## server
 
@@ -175,6 +178,7 @@ Dalla 20 il numero di versione del codice è un intero.
 - [19] (mappa) Si può scegliere il soggetto: python manage.py grafo_mappa --soggetto "nome o numero".
 - [20] (mappa) Nuova produci(): restituisce percorso, nome del file e soggetto; chiesta dalla chat, la mappa porta nel nome anche il numero di sessione, così analisti diversi non si sovrascrivono.
 - [35] (mappa) Il report e la legenda della mappa dicono «società» al posto di soggetto.
+- [37] (mappa) Nella mappa un rapporto senza nessun documento verificato è tratteggiato; la legenda lo spiega.
 
 ## sessioni
 
