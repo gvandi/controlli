@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   dati_reali.py  -  app grafo, VERSIONE 37
+#   dati_reali.py  -  app grafo, VERSIONE 38
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: calcolo
@@ -77,6 +77,11 @@
 #        confermati, con i ruoli proposti dal modello, segnati come non verificati; la
 #        descrizione della fotografia ricorda i criteri, il resoconto conta i rapporti non
 #        verificati, la diagnosi dice «può entrare, come NON VERIFICATO».
+#   [38] Nuova funzione stato_dei_dati() in dati_reali.py: dice se la fotografia in uso (la più
+#        recente con un calcolo) è quella che l'archivio darebbe ora, confrontando l'impronta
+#        dei dati, per ogni combinazione dei criteri sui documenti; le pagine la usano per
+#        l'avviso «dati non aggiornati». fotografa() e stato_dei_dati() leggono l'archivio con
+#        la stessa funzione _ingresso().
 #
 # <<< NOVITA
 """
@@ -311,6 +316,99 @@ def _identificativi(soggetto):
     return coe, (str(righe[0]) if righe else "")
 
 
+def _ingresso(criteri):
+    """
+    Ciò che l'archivio darebbe ORA a una fotografia, senza scrivere nulla:
+        {"archi", "esclusi", "nodi": {numero: soggetto}, "schede", "righe", "impronta"}
+    Lo usano fotografa(), che lo registra, e stato_dei_dati(), che lo confronta con ciò che è in uso.
+    Senza nessuna società "impronta" è None.
+    """
+    archi, esclusi = archi_dall_archivio(criteri)
+    nodi = {s.pk: s for s in SoggettoAnagrafica.objects.filter(dati_per_periodo__isnull=False).distinct()}
+    for mittente, destinatario, _ in archi:
+        nodi[mittente.pk], nodi[destinatario.pk] = mittente, destinatario
+    ingresso = {"archi": archi, "esclusi": esclusi, "nodi": nodi, "schede": {}, "righe": [], "impronta": None}
+    if not nodi:
+        return ingresso
+    ingresso["schede"] = {
+        numero: (soggetto.denominazione or anagrafica.etichetta(soggetto), *_identificativi(soggetto))
+        for numero, soggetto in sorted(nodi.items())
+    }
+    ingresso["righe"] = [
+        (mittente.pk, destinatario.pk, nome_del_documento(documento), documento.data, documento.totale)
+        for mittente, destinatario, documento in archi
+    ]
+    # Anche i dati per periodo fanno parte dei dati in ingresso: se cambiano, la fotografia è un'altra
+    per_periodo = list(
+        DatiPerPeriodo.objects.filter(soggetto__in=list(nodi)).order_by("soggetto_id", "periodo")
+        .values_list(
+            "soggetto_id", "periodo", "codice_attivita", "dipendenti", "fatturato",
+            "classe_dipendenti", "classe_fatturato",
+        )
+    )
+    ingresso["impronta"] = scrittura._impronta("dati reali", ingresso["schede"], ingresso["righe"], per_periodo)
+    return ingresso
+
+
+def stato_dei_dati():
+    """
+    I dati che chat, mappa e classifica stanno usando sono quelli che l'archivio darebbe ora?
+        {"aggiornati": bool, "vuoto": bool, "mai_calcolati": bool, "numero_in_uso": n o None,
+         "societa_ora", "societa_in_uso", "rapporti_ora", "rapporti_in_uso"}
+    "In uso" è la fotografia più recente su cui esiste un calcolo. Il confronto è esatto (stessa
+    impronta dei dati), e vale per qualunque combinazione dei criteri sui documenti: se
+    l'amministratore ha calcolato con criteri diversi da quelli predefiniti, i dati sono aggiornati
+    lo stesso. Non scrive nulla. "vuoto": l'archivio non ha ancora dati reali da calcolare.
+    """
+    from .models import Esecuzione
+
+    predefiniti = ammissione.predefiniti()
+    ora = _ingresso(predefiniti)
+    stato = {
+        "aggiornati": True, "vuoto": not ora["nodi"], "mai_calcolati": False, "numero_in_uso": None,
+        "societa_ora": len(ora["nodi"]), "rapporti_ora": len(ora["archi"]), "societa_in_uso": 0, "rapporti_in_uso": 0,
+    }
+    if stato["vuoto"]:
+        return stato
+    in_uso = (
+        VersioneDati.objects.filter(pk__in=Esecuzione.objects.values("versione_dati")).order_by("-numero").first()
+    )
+    if in_uso is None or not in_uso.descrizione.startswith("dati reali"):
+        stato.update(aggiornati=False, mai_calcolati=True)
+        return stato
+    stato.update(
+        numero_in_uso=in_uso.numero,
+        societa_in_uso=DatiSoggetto.objects.filter(versione_dati=in_uso).count(),
+        rapporti_in_uso=Relazione.objects.filter(versione_dati=in_uso).count(),
+    )
+    if ora["impronta"] == in_uso.impronta:
+        return stato
+    # criteri diversi da quelli predefiniti, scelti al lancio del calcolo
+    altri = (
+        ammissione.SOLO_VERIFICATI,
+        predefiniti._replace(documenti_non_confermati=True, letture_incomplete=False),
+        predefiniti._replace(documenti_non_confermati=True, letture_incomplete=True),
+    )
+    stato["aggiornati"] = any(
+        criteri != predefiniti and _ingresso(criteri)["impronta"] == in_uso.impronta for criteri in altri
+    )
+    return stato
+
+
+def stato_per_le_pagine():
+    """
+    stato_dei_dati() per le pagine: None se non si riesce a calcolarlo. Un avviso che non si
+    può calcolare non deve impedire di aprire una pagina; l'errore va nel registro.
+    """
+    import logging
+
+    try:
+        return stato_dei_dati()
+    except Exception:
+        logging.getLogger(__name__).exception("Stato dei dati non calcolabile")
+        return None
+
+
 @transaction.atomic
 def fotografa(descrizione="dati reali dall'archivio", criteri=None):
     """
@@ -323,35 +421,15 @@ def fotografa(descrizione="dati reali dall'archivio", criteri=None):
     impronta). Senza nessun soggetto non crea nulla: "versione_dati" è None.
     """
     criteri = criteri or ammissione.predefiniti()
-    archi, esclusi = archi_dall_archivio(criteri)
+    ingresso = _ingresso(criteri)
+    archi, nodi, schede, righe, impronta = (ingresso[k] for k in ("archi", "nodi", "schede", "righe", "impronta"))
     resoconto = {
-        "versione_dati": None, "nuova": False, "soggetti": 0, "relazioni": len(archi), "esclusi": esclusi,
+        "versione_dati": None, "nuova": False, "soggetti": len(nodi), "relazioni": len(archi), "esclusi": ingresso["esclusi"],
         "non_verificate": sum(1 for _, _, documento in archi if not documento.confermato), "criteri": criteri,
     }
     descrizione = f"{descrizione}; {ammissione.descrivi(criteri, solo_documenti=True)}"
-    nodi = {s.pk: s for s in SoggettoAnagrafica.objects.filter(dati_per_periodo__isnull=False).distinct()}
-    for mittente, destinatario, _ in archi:
-        nodi[mittente.pk], nodi[destinatario.pk] = mittente, destinatario
     if not nodi:
         return resoconto
-    resoconto["soggetti"] = len(nodi)
-    schede = {
-        numero: (soggetto.denominazione or anagrafica.etichetta(soggetto), *_identificativi(soggetto))
-        for numero, soggetto in sorted(nodi.items())
-    }
-    righe = [
-        (mittente.pk, destinatario.pk, nome_del_documento(documento), documento.data, documento.totale)
-        for mittente, destinatario, documento in archi
-    ]
-    # Anche i dati per periodo fanno parte dei dati in ingresso: se cambiano, la fotografia è un'altra
-    per_periodo = list(
-        DatiPerPeriodo.objects.filter(soggetto__in=list(nodi)).order_by("soggetto_id", "periodo")
-        .values_list(
-            "soggetto_id", "periodo", "codice_attivita", "dipendenti", "fatturato",
-            "classe_dipendenti", "classe_fatturato",
-        )
-    )
-    impronta = scrittura._impronta("dati reali", schede, righe, per_periodo)
     esistente = VersioneDati.objects.filter(impronta=impronta).first()
     if esistente is not None:
         resoconto["versione_dati"] = esistente

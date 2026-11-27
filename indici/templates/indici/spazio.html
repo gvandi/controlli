@@ -29,6 +29,7 @@
 
 <p><a href="{% url 'home' %}">{% translate "Inizio" %}</a> &rsaquo; {% translate "Spazio degli indici" %}</p>
 <h1>{% translate "Spazio degli indici" %}</h1>
+{% include "grafo/_dati_non_aggiornati.html" %}
 
 <form method="get" class="comandi" id="comandi">
   <label>{% translate "Regola" %}

@@ -1,6 +1,6 @@
 # Registro delle novità
 
-Versione corrente: 37
+Versione corrente: 38
 
 Elenco completo delle novità rispetto alla versione 12 (ultimo file unico di partenza).
 È l'UNICO posto in cui le novità si scrivono a mano: `aggiorna_intestazioni.py` ricopia
@@ -83,6 +83,7 @@ Dalla 20 il numero di versione del codice è un intero.
 - [33] (calcolo) La diagnosi chiama il lavoro da lanciare con il suo nuovo nome, «Aggiorna il grafo e calcola gli indici» (prima «Calcola gli indici»): è il passo che fotografa i rapporti, applica le regole e mette il risultato in uso.
 - [35] (calcolo) I testi della diagnosi e dei comandi dicono «società» al posto di azienda e soggetto.
 - [37] (calcolo) La fotografia dei dati reali accetta i criteri di ammissione (elaborazione/ammissione.py): con quelli larghi entrano anche i documenti non confermati, con i ruoli proposti dal modello, segnati come non verificati; la descrizione della fotografia ricorda i criteri, il resoconto conta i rapporti non verificati, la diagnosi dice «può entrare, come NON VERIFICATO».
+- [38] (calcolo) Nuova funzione stato_dei_dati() in dati_reali.py: dice se la fotografia in uso (la più recente con un calcolo) è quella che l'archivio darebbe ora, confrontando l'impronta dei dati, per ogni combinazione dei criteri sui documenti; le pagine la usano per l'avviso «dati non aggiornati». fotografa() e stato_dei_dati() leggono l'archivio con la stessa funzione _ingresso().
 
 ## interrogazione
 

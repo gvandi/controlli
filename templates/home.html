@@ -9,6 +9,7 @@
 {% endcomment %}
 <style>
   main { max-width: 84rem; }
+  [hidden] { display: none !important; }   /* vale anche per i bottoni, che hanno un display proprio */
   .schede { display: flex; flex-wrap: wrap; gap: 0.25rem; border-bottom: 2px solid var(--bordo); margin: 1rem 0 1.25rem; }
   .schede[hidden] { display: none; }
   .schede button { background: transparent; color: var(--testo); border-radius: 6px 6px 0 0; padding: 0.55rem 1rem; border: 1px solid transparent; border-bottom: 0; margin-bottom: -2px; }
@@ -48,6 +49,40 @@
 {# ------------------------------------------------------------------ DA FARE #}
 <section class="pannello" id="scheda-da-fare" role="tabpanel" aria-labelledby="bottone-da-fare" tabindex="0">
   <h2>{% translate "Da fare" %}</h2>
+  {% include "grafo/_dati_non_aggiornati.html" with stato=stato_dei_dati %}
+
+  {% if suggerimenti %}
+  <div class="scheda suggerimenti">
+    <h2>{% translate "Da dove cominciare" %}</h2>
+    <ul class="elenco-breve">
+      {% for voce in suggerimenti %}
+        <li>{{ voce.testo }}{% if voce.indirizzo %} <a href="{{ voce.indirizzo }}"{% if voce.indirizzo|slice:":1" == "#" %} data-apri-scheda="{{ voce.indirizzo|slice:"1:" }}"{% endif %}>{{ voce.azione }}</a>{% endif %}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {% if guida %}
+  <div class="scheda">
+    <h2><label for="che-cosa" style="margin:0">{% translate "Che cosa vuoi fare?" %}</label></h2>
+    <form method="get" action="{% url 'home' %}" id="cerca-azione" role="search">
+      <input type="text" id="che-cosa" name="societa" autocomplete="off" placeholder="{% translate 'per esempio: caricare una fattura, mappa di rete, oppure un COE' %}" style="width:min(34rem,100%)" aria-controls="azioni" aria-describedby="aiuto-ricerca">
+      <button type="submit" id="cerca-come-societa" hidden>{% translate "Cerca come società" %}</button>
+    </form>
+    <p class="tenue" id="aiuto-ricerca">{% translate "Scrivi con parole tue: l'elenco si restringe mentre scrivi. Un COE, una partita IVA o un nome cercano la società." %}</p>
+    <p id="nessuna-azione" class="tenue" hidden>{% translate "Nessuna funzione corrisponde. Se è il nome o il codice di una società, premi Invio per cercarla." %}</p>
+    <ul class="elenco-breve" id="azioni">
+      {% for voce in guida %}
+        <li data-parole="{{ voce.titolo }} {{ voce.testo }} {{ voce.parole }}">
+          <a href="{{ voce.indirizzo }}"{% if voce.scheda %} data-apri-scheda="{{ voce.scheda }}"{% endif %}><strong>{{ voce.titolo }}</strong></a><br>
+          <span class="tenue">{{ voce.testo }}</span>
+        </li>
+      {% endfor %}
+    </ul>
+    <p id="mostra-tutte" hidden><button type="button" class="secondario">{% translate "Mostra tutte le funzioni" %}</button></p>
+  </div>
+  {% endif %}
+
   {% if not da_fare %}
     <div class="scheda"><p class="tenue">{% translate "Non hai i diritti per consultare l'archivio: qui non c'è nulla che ti aspetti." %}</p></div>
   {% else %}
@@ -122,6 +157,7 @@
 {# -------------------------------------------------------- SOCIETÀ E ANALISI #}
 <section class="pannello" id="scheda-societa" role="tabpanel" aria-labelledby="bottone-societa" tabindex="0">
   <h2>{% translate "Società e analisi" %}</h2>
+  {% include "grafo/_dati_non_aggiornati.html" with stato=stato_dei_dati %}
   <div class="scheda">
     <h2>{% translate "Cerca una società" %}</h2>
     {% if puo_vedere_le_schede %}
@@ -228,6 +264,7 @@
 {% if lavori or puo_vedere_i_lavori %}
 <section class="pannello" id="scheda-aggiornamento" role="tabpanel" aria-labelledby="bottone-aggiornamento" tabindex="0">
   <h2>{% translate "Aggiornamento dati" %}</h2>
+  {% include "grafo/_dati_non_aggiornati.html" with stato=stato_dei_dati %}
   <div class="scheda">
     <h2>{% translate "Elaborazioni e calcoli" %}</h2>
     <p class="tenue">{% translate "Ciò che trasforma i file caricati e l'anagrafica in quello che si vede nella scheda «Società e analisi», nell'ordine in cui va fatto." %}</p>
@@ -307,6 +344,53 @@
     function dallIndirizzo() { return window.location.hash.replace("#", ""); }
     apri(dallIndirizzo() || pagina.getAttribute("data-iniziale"), false);
     window.addEventListener("hashchange", function () { apri(dallIndirizzo(), false); });
+    // un collegamento a un'altra scheda della stessa pagina la apre e porta in cima
+    pagina.addEventListener("click", function (evento) {
+      var voce = evento.target.closest ? evento.target.closest("[data-apri-scheda]") : null;
+      if (!voce) return;
+      evento.preventDefault();
+      apri(voce.getAttribute("data-apri-scheda"), true);
+      elenco.scrollIntoView();
+      var cerca = voce.getAttribute("data-apri-scheda") === "societa" ? document.getElementById("societa") : null;
+      if (cerca) cerca.focus();
+    });
+
+    // "Che cosa vuoi fare?": l'elenco delle funzioni si restringe mentre si scrive. Senza parole ne
+    // mostra poche; se nulla corrisponde, Invio cerca il testo come società.
+    var campo = document.getElementById("che-cosa");
+    if (!campo) return;
+    var voci = Array.prototype.slice.call(document.querySelectorAll("#azioni li"));
+    var nessuna = document.getElementById("nessuna-azione"), tutte = document.getElementById("mostra-tutte");
+    var comeSocieta = document.getElementById("cerca-come-societa"), POCHE = 5, aperte = false;
+    function piana(testo) {   // minuscole senza accenti: "società" trova "societa"
+      return testo.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    }
+    voci.forEach(function (voce) { voce.parole = piana(voce.getAttribute("data-parole")); });
+    function filtra() {
+      var parole = piana(campo.value).split(/[^a-z0-9]+/).filter(function (p) { return p.length > 1; });
+      var trovate = 0;
+      voci.forEach(function (voce, posto) {
+        // ogni parola scritta deve comparire; basta l'inizio di una parola ("caric" trova "caricare")
+        var tutteLe = parole.every(function (p) { var c = voce.parole.indexOf(p.length > 4 ? p.slice(0, p.length - 1) : p) >= 0; return c; });
+        var mostra = parole.length ? tutteLe : (aperte || posto < POCHE);
+        voce.hidden = !mostra;
+        if (mostra) trovate++;
+      });
+      var codice = /^[\s\d.a-z]*\d{3,}[\s\d]*$/i.test(campo.value);   // somiglia a un COE o a una partita IVA
+      nessuna.hidden = !(parole.length && !trovate) && !codice;
+      comeSocieta.hidden = !campo.value.trim();
+      tutte.hidden = parole.length > 0 || aperte || voci.length <= POCHE;
+    }
+    campo.addEventListener("input", filtra);
+    tutte.querySelector("button").addEventListener("click", function () { aperte = true; filtra(); });
+    document.getElementById("cerca-azione").addEventListener("submit", function (evento) {
+      // Invio con una sola funzione trovata la apre; altrimenti il testo va cercato come società
+      var visibili = voci.filter(function (voce) { return !voce.hidden; });
+      var parole = campo.value.trim();
+      if (!parole) { evento.preventDefault(); return; }
+      if (visibili.length === 1 && !/\d{3,}/.test(parole)) { evento.preventDefault(); visibili[0].querySelector("a").click(); }
+    });
+    filtra();
   })();
 </script>
 {% endblock %}

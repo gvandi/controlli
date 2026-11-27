@@ -56,6 +56,12 @@ DDT_DAL_MODELLO = {
 }
 
 
+def ammissione_criteri():
+    from elaborazione import ammissione
+
+    return ammissione.CRITERI
+
+
 class ModelloFinto:
     """Al posto del server del modello: restituisce le risposte preparate, nell'ordine, e ricorda le richieste."""
 
@@ -812,6 +818,9 @@ class DocumentoTest(ConFile):
         Documento.objects.filter(file=file).update(ritirato=True)
         self.assertEqual(dati_reali.archi_dall_archivio(larghi)[0], [])
         # i criteri si descrivono in parole, e senza nessuno acceso vale la regola di prima
+        Documento.objects.filter(file=file).update(ritirato=False)
+        self._dati_non_aggiornati(larghi)
+
         self.assertEqual(ammissione.descrivi(ammissione.SOLO_VERIFICATI), "solo dati verificati")
         self.assertEqual(ammissione.predefiniti(), ammissione.SOLO_VERIFICATI)
 
@@ -833,10 +842,41 @@ class DocumentoTest(ConFile):
         alfa = anagrafica.trova(self.coe, "10000")
         self.assertEqual(pagina.context["societa"]["soggetto"], alfa)
         self.assertContains(pagina, reverse("elaborazione:soggetto", args=[pagina.context["societa"]["fascicolo"].pk]))
+        # "Che cosa vuoi fare?": le sole funzioni che l'utente può usare; e il suggerimento di cominciare dal file
+        titoli = [voce["titolo"] for voce in pagina.context["guida"]]
+        self.assertIn("Caricare fatture, DDT o altri documenti", titoli)
+        self.assertNotIn("Importare l'anagrafica delle società da CSV", titoli)   # è dell'amministratore
+        self.assertContains(pagina, 'id="che-cosa"')
+        self.assertIn("C'è un file da rivedere", pagina.context["suggerimenti"][0]["testo"])
+        self.assertEqual(pagina.context["suggerimenti"][0]["indirizzo"], reverse("elaborazione:file", args=[file.pk]))
         # una ricerca senza esito lo dice, e chi non vede un'indagine non ne vede i file fra le cose da fare
         self.assertContains(self.client.get(reverse("home"), {"societa": "99999"}), "Nessuna società nota")
         self.client.force_login(self.lettore)
         self.assertEqual(self.client.get(reverse("home")).status_code, 200)
+
+    def _dati_non_aggiornati(self, larghi):
+        """L'avviso: ciò che è in uso non è ciò che l'archivio darebbe ora (qui c'è una fotografia senza calcolo)."""
+        from grafo import dati_reali
+        from indici import calcolo
+
+        stato = dati_reali.stato_dei_dati()
+        self.assertEqual((stato["vuoto"], stato["aggiornati"]), (True, True))     # criteri severi: nulla da calcolare
+        with override_settings(CALCOLO_AMMETTE=dict.fromkeys(ammissione_criteri(), True)):
+            stato = dati_reali.stato_dei_dati()
+            self.assertEqual((stato["vuoto"], stato["aggiornati"], stato["mai_calcolati"], stato["rapporti_ora"]), (False, False, True, 1))
+            self.client.force_login(self.anna)
+            pagina = self.client.get(reverse("home"))
+            self.assertContains(pagina, "I dati dell'analisi non sono aggiornati.")
+            self.assertContains(pagina, "lo lancia l'amministratore")           # l'ispettore non può lanciarlo
+            # fatto il calcolo, anche con criteri scelti al lancio, l'avviso sparisce
+            calcolo.esegui(criteri=larghi)
+            stato = dati_reali.stato_dei_dati()
+            self.assertEqual((stato["aggiornati"], stato["mai_calcolati"], stato["rapporti_in_uso"]), (True, False, 1))
+            self.assertNotContains(self.client.get(reverse("home")), "non sono aggiornati")
+            # un documento in più (qui: tolto) e i dati tornano indietro rispetto all'archivio
+            Documento.objects.all().update(ritirato=True)
+            self.assertFalse(dati_reali.stato_dei_dati()["aggiornati"])
+            Documento.objects.all().update(ritirato=False)
 
     def test_documento_e_citazione_non_allungano_la_risposta_sulle_entita(self):
         file = self.carica(DDT + "\nAmministratore: Mario Rossi.", nome="ddt.txt")
