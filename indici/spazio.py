@@ -53,7 +53,7 @@ from .models import RegolaDiRischio
 
 SOGLIA_Z = 2.5
 MINIMO_GRUPPO = 8
-TUTTE = "tutte le aziende"
+TUTTE = "tutte le società"
 
 
 def z_robusti(valori):
@@ -231,7 +231,7 @@ def _segni(punto, soglia_z):
     if punto["scatta"]:
         segni.append("la regola scatta")
     if abs(punto["z"]) >= soglia_z:
-        segni.append(f"si discosta dalle aziende simili (z {punto['z']:+.2f})")
+        segni.append(f"si discosta dalle società simili (z {punto['z']:+.2f})")
     return ", ".join(segni) or "nessuna segnalazione"
 
 
@@ -278,7 +278,7 @@ def racconta(utente, regola="", azienda=""):
             righe.append(
                 f"z-score robusto del fatturato rispetto al personale: {punto['z']:+.2f} "
                 f"(confronto con {punto['gruppo']}; soglia {soglia_z}): "
-                + ("si discosta dalle aziende simili." if abs(punto["z"]) >= soglia_z else "nella norma.")
+                + ("si discosta dalle società simili." if abs(punto["z"]) >= soglia_z else "nella norma.")
             )
         suoi = [r for r in dati["rapporti"] if soggetto.pk in (r["da"], r["a"])]
         righe.append(f"\nRapporti dai documenti confermati ({len(suoi)}):" if suoi else "\nNessun rapporto dai documenti confermati.")
@@ -288,16 +288,16 @@ def racconta(utente, regola="", azienda=""):
             if altra in punti:
                 chi = f"{punti[altra]['nome']} ({_segni(punti[altra], soglia_z)})"
             else:
-                chi = f"{dati['fuori'].get(str(altra), 'azienda')} (non collocata nello spazio)"
+                chi = f"{dati['fuori'].get(str(altra), 'società')} (non collocata nello spazio)"
             righe.append(f"- {verso} {chi}: {rapporto['quanti']} documenti, importo totale {rapporto['importo']:.2f}")
     else:
         scattano = [p for p in dati["punti"] if p["scatta"]]
         discoste = [p for p in dati["punti"] if abs(p["z"]) >= soglia_z]
         entrambe = [p for p in scattano if abs(p["z"]) >= soglia_z]
         righe.append(
-            f"\nAziende collocate: {len(dati['punti'])} (non collocate per dati mancanti: {dati['esclusi']}). "
-            f"La regola scatta per {len(scattano)}; si discostano dalle aziende simili {len(discoste)} "
-            f"(soglia z {soglia_z}); entrambe le cose {len(entrambe)}. Rapporti fra aziende: {len(dati['rapporti'])}."
+            f"\nSocietà collocate: {len(dati['punti'])} (non collocate per dati mancanti: {dati['esclusi']}). "
+            f"La regola scatta per {len(scattano)}; si discostano dalle società simili {len(discoste)} "
+            f"(soglia z {soglia_z}); entrambe le cose {len(entrambe)}. Rapporti fra società: {len(dati['rapporti'])}."
         )
         for titolo, elenco in (("La regola scatta e si discostano", entrambe),
                                ("La regola scatta", [p for p in scattano if p not in entrambe]),

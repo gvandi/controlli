@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load i18n l10n %}
 {% comment %}
-  Lo spazio degli indici: le aziende come sfere in tre dimensioni (indici/spazio.py).
+  Lo spazio degli indici: le società come sfere in tre dimensioni (indici/spazio.py).
   Il disegno è fatto qui, su una tela, senza librerie esterne: la pagina funziona anche
   su una rete senza Internet e non manda nulla fuori (DECISIONI.md, n. 30 e 89).
   I testi che vengono dai dati entrano nella pagina solo con textContent.
@@ -40,7 +40,7 @@
     <input type="range" id="soglia-z" min="1" max="6" step="0.1" value="{{ dati.soglia_z|unlocalize }}">
     <strong id="valore-z"></strong>
   </label>
-  <label><input type="checkbox" id="solo-evidenziate" style="width:auto"> {% translate "solo le aziende evidenziate" %}</label>
+  <label><input type="checkbox" id="solo-evidenziate" style="width:auto"> {% translate "solo le società evidenziate" %}</label>
   <label>{% translate "Cerca un COE" %}
     <input type="text" id="cerca-coe" inputmode="numeric" autocomplete="off" placeholder="10000" style="width: 7rem">
   </label>
@@ -51,7 +51,7 @@
 
 {% if not aziende %}
   <div class="scheda">
-    <p>{% translate "Nessuna azienda da mostrare: servono i dati per periodo (attività, dipendenti, fatturato)." %}</p>
+    <p>{% translate "Nessuna società da mostrare: servono i dati per periodo (attività, dipendenti, fatturato)." %}</p>
     <p class="tenue"><code>python manage.py importa_anagrafica file.csv</code></p>
   </div>
 {% else %}
@@ -60,8 +60,8 @@
     <canvas id="tela"></canvas>
     <p class="tenue">
       {% translate "Trascina per ruotare, rotella per avvicinare, clic su una sfera per selezionarla (un altro clic la toglie)." %}
-      {% translate "Di un'azienda selezionata compaiono i rapporti: una linea verso ogni azienda con cui ha documenti confermati, tanto più spessa quanto più alto è l'importo." %}
-      {% blocktranslate with n=aziende %}Aziende mostrate: {{ n }}.{% endblocktranslate %}
+      {% translate "Di una società selezionata compaiono i rapporti: una linea verso ogni società con cui ha documenti confermati, tanto più spessa quanto più alto è l'importo." %}
+      {% blocktranslate with n=aziende %}Società mostrate: {{ n }}.{% endblocktranslate %}
       {% if dati.esclusi %}{% blocktranslate with n=dati.esclusi %}Non collocate perché manca attività, dipendenti o fatturato: {{ n }}.{% endblocktranslate %}{% endif %}
     </p>
   </div>
@@ -70,12 +70,12 @@
       <h2>{% translate "Colori" %}</h2>
       <ul class="legenda">
         <li><span class="pallino" style="background:#d1495b"></span>{% translate "la regola scatta" %}: <strong id="conta-1"></strong></li>
-        <li><span class="pallino" style="background:#2a7fb8"></span>{% translate "si discosta dalle aziende simili" %}: <strong id="conta-2"></strong></li>
+        <li><span class="pallino" style="background:#2a7fb8"></span>{% translate "si discosta dalle società simili" %}: <strong id="conta-2"></strong></li>
         <li><span class="pallino" style="background:#d1495b; box-shadow: 0 0 0 3px #2a7fb8"></span>{% translate "entrambe le cose" %}: <strong id="conta-3"></strong></li>
         <li><span class="pallino" style="background:#b4bfcc"></span>{% translate "nessuna delle due" %}: <strong id="conta-0"></strong></li>
         <li><span class="tratto"></span>{% translate "rapporto dai documenti confermati (dati del grafo)" %}: <strong id="conta-rapporti"></strong></li>
-        <li><span class="pallino" style="background:#fff; box-shadow: 0 0 0 3px #e08a00"></span>{% translate "azienda collegata a una selezionata" %}</li>
-        <li><span class="pallino" style="background:#fff; box-shadow: 0 0 0 2px #1c2430"></span>{% translate "azienda selezionata o cercata" %}</li>
+        <li><span class="pallino" style="background:#fff; box-shadow: 0 0 0 3px #e08a00"></span>{% translate "società collegata a una selezionata" %}</li>
+        <li><span class="pallino" style="background:#fff; box-shadow: 0 0 0 2px #1c2430"></span>{% translate "società selezionata o cercata" %}</li>
       </ul>
       <p class="tenue" id="nota-rapporti"></p>
       {% if regola %}
@@ -90,10 +90,10 @@
       {% else %}
         <p class="errore">{% translate "Nessuna regola definita: i punti mostrano solo lo scostamento." %}</p>
       {% endif %}
-      <p class="tenue">{% translate "Scostamento: fatturato rispetto al personale, confrontato con le aziende della stessa attività (o con tutte, se sono poche). È un invito a guardare, non un'irregolarità." %}</p>
+      <p class="tenue">{% translate "Scostamento: fatturato rispetto al personale, confrontato con le società della stessa attività (o con tutte, se sono poche). È un invito a guardare, non un'irregolarità." %}</p>
     </div>
     <div class="scheda">
-      <h2>{% translate "Aziende selezionate" %} <span class="tenue" id="quante-scelte"></span></h2>
+      <h2>{% translate "Società selezionate" %} <span class="tenue" id="quante-scelte"></span></h2>
       <p><button type="button" class="secondario" id="svuota">{% translate "Togli la selezione" %}</button></p>
       <div id="scelte"><p class="tenue">{% translate "Nessuna: fai clic su una sfera." %}</p></div>
     </div>
@@ -115,26 +115,26 @@
   var scelte = [], disegnati = [], L = 0, A = 0, cercata = -1;
 
   function posto(i, asse) { var n = ASSI[asse].length; return n > 1 ? i / (n - 1) - 0.5 : 0; }
-  // Più aziende hanno le stesse tre coordinate: un piccolo scarto fisso le rende distinguibili
+  // Più società hanno le stesse tre coordinate: un piccolo scarto fisso le rende distinguibili
   function scarto(i, asse) { var s = Math.sin((i + 1) * (asse + 1) * 12.9898) * 43758.5453; return (s - Math.floor(s) - 0.5) * 0.05; }
   var P = D.punti.map(function (p, i) {
     return { p: p, x: posto(p.d, 0) + scarto(i, 0), y: posto(p.f, 1) + scarto(i, 1), z: posto(p.a, 2) + scarto(i, 2) };
   });
-  // I rapporti dai documenti confermati: dove sta ogni azienda, e l'importo più alto per lo spessore
+  // I rapporti dai documenti confermati: dove sta ogni società, e l'importo più alto per lo spessore
   var POSTO = {}, IMPORTO_MASSIMO = 0;
   P.forEach(function (q, i) { POSTO[q.p.n] = i; });
   D.rapporti.forEach(function (r) { if (r.importo > IMPORTO_MASSIMO) IMPORTO_MASSIMO = r.importo; });
-  // Quanti rapporti ci sono, e quanti si possono disegnare (entrambe le aziende hanno una sfera)
+  // Quanti rapporti ci sono, e quanti si possono disegnare (entrambe le società hanno una sfera)
   var DISEGNABILI = D.rapporti.filter(function (r) { return POSTO[r.da] !== undefined && POSTO[r.a] !== undefined; }).length;
   document.getElementById("conta-rapporti").textContent = D.rapporti.length;
   document.getElementById("nota-rapporti").textContent = !D.rapporti.length
-    ? "Nei dati non c'è ancora nessun rapporto: le linee compaiono quando esistono documenti confermati fra le aziende."
-    : "Le linee compaiono selezionando un'azienda. Rapporti fra due aziende che hanno entrambe una sfera: " + DISEGNABILI + " su " + D.rapporti.length
-      + (DISEGNABILI < D.rapporti.length ? ". Gli altri riguardano aziende senza dati per periodo: sono nell'elenco dell'azienda selezionata, senza linea." : ".");
+    ? "Nei dati non c'è ancora nessun rapporto: le linee compaiono quando esistono documenti confermati fra le società."
+    : "Le linee compaiono selezionando una società. Rapporti fra due società che hanno entrambe una sfera: " + DISEGNABILI + " su " + D.rapporti.length
+      + (DISEGNABILI < D.rapporti.length ? ". Gli altri riguardano società senza dati per periodo: sono nell'elenco della società selezionata, senza linea." : ".");
 
   function rapportiDi(n) { return D.rapporti.filter(function (r) { return r.da === n || r.a === n; }); }
   function euro(x) { return x.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-  // le aziende collegate a una selezionata si vedono sempre, anche con "solo le evidenziate"
+  // le società collegate a una selezionata si vedono sempre, anche con "solo le evidenziate"
   function collegataAUnaScelta(i) {
     var n = P[i].p.n;
     return scelte.some(function (j) { var m = P[j].p.n; return D.rapporti.some(function (r) { return (r.da === m && r.a === n) || (r.a === m && r.da === n); }); });
@@ -144,7 +144,7 @@
     scelte.forEach(function (i) {
       rapportiDi(P[i].p.n).forEach(function (r) {
         var altra = POSTO[r.da === P[i].p.n ? r.a : r.da];
-        if (altra === undefined) return;   // l'altra azienda non è collocata: è solo nell'elenco
+        if (altra === undefined) return;   // l'altra società non è collocata: è solo nell'elenco
         var u = proietta(P[i].x, P[i].y, P[i].z), v = proietta(P[altra].x, P[altra].y, P[altra].z);
         c.strokeStyle = "rgba(224, 138, 0, 0.85)";
         c.lineWidth = 1 + 7 * Math.sqrt(IMPORTO_MASSIMO > 0 ? r.importo / IMPORTO_MASSIMO : 0);
@@ -224,7 +224,7 @@
       if (scelta) { c.strokeStyle = "#1c2430"; c.lineWidth = 2; c.beginPath(); c.arc(d.x, d.y, d.r + (d.cat === 3 ? 6 : 3), 0, 6.2832); c.stroke(); }
       else if (collegataAUnaScelta(d.i)) { c.strokeStyle = "#e08a00"; c.lineWidth = 3; c.beginPath(); c.arc(d.x, d.y, d.r + (d.cat === 3 ? 7 : 4), 0, 6.2832); c.stroke(); }
       if (d.i === cercata) {
-        // l'azienda cercata si riconosce anche in mezzo alle altre: un cerchio largo e il suo nome
+        // la società cercata si riconosce anche in mezzo alle altre: un cerchio largo e il suo nome
         c.strokeStyle = "#1c2430"; c.lineWidth = 1.5; c.setLineDash([4, 3]);
         c.beginPath(); c.arc(d.x, d.y, d.r + 14, 0, 6.2832); c.stroke(); c.setLineDash([]);
         nomeDaScrivere = d;
@@ -275,7 +275,7 @@
       if (suoi.length) riga(blocco, "Rapporti dai documenti confermati:");
       suoi.forEach(function (r) {
         var numero = r.da === p.n ? r.a : r.da, posto = POSTO[numero];
-        var nome = posto !== undefined ? P[posto].p.nome : (D.fuori[numero] || "azienda") + " (non collocata)";
+        var nome = posto !== undefined ? P[posto].p.nome : (D.fuori[numero] || "società") + " (non collocata)";
         riga(blocco, (r.da === p.n ? "→ vende a " : "← compra da ") + nome + ": " + r.quanti + (r.quanti === 1 ? " documento, " : " documenti, ") + euro(r.importo), "tenue");
       });
       dove.appendChild(blocco);
@@ -324,8 +324,8 @@
     var trovate = uguali.length ? uguali : simili;
     if (trovate.length !== 1) {
       cercata = -1;
-      esito.textContent = trovate.length ? trovate.length + " aziende cominciano per " + cifre + ": scrivi il COE completo."
-        : "Nessuna sfera per il COE " + cifre + ": l'azienda non esiste o non ha dati per periodo.";
+      esito.textContent = trovate.length ? trovate.length + " società cominciano per " + cifre + ": scrivi il COE completo."
+        : "Nessuna sfera per il COE " + cifre + ": la società non esiste o non ha dati per periodo.";
       disegna(); return;
     }
     cercata = trovate[0];

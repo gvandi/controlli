@@ -43,16 +43,16 @@ ALLA_CANCELLAZIONE = []
 # Come chiamare, nella pagina, le righe che spariscono
 NOMI = {
     "archivio.FileCaricato": "file",
-    "archivio.SoggettoDichiarato": "soggetti dichiarati sul file",
-    "archivio.CollegamentoFile": "collegamenti ai fascicoli delle aziende",
+    "archivio.SoggettoDichiarato": "società dichiarate sul file",
+    "archivio.CollegamentoFile": "collegamenti ai fascicoli delle società",
     "elaborazione.Elaborazione": "elaborazioni",
     "elaborazione.TestoPagina": "pagine di testo",
     "elaborazione.EntitaEstratta": "entità estratte",
     "elaborazione.Documento": "documenti riconosciuti",
     "elaborazione.ParteDelDocumento": "parti dei documenti (mittente, destinatario, vettore)",
-    "archivio.Fascicolo": "fascicoli di azienda rimasti vuoti",
-    "soggetti.Soggetto": "soggetti che esistevano solo per questo file",
-    "soggetti.IdentificativoSoggetto": "identificativi di quei soggetti",
+    "archivio.Fascicolo": "fascicoli di società rimasti vuoti",
+    "soggetti.Soggetto": "società che esistevano solo per questo file",
+    "soggetti.IdentificativoSoggetto": "identificativi di quelle società",
 }
 
 

@@ -52,11 +52,11 @@
 </div>
 
 <div class="scheda">
-  <h2>{% translate "Soggetti (COE)" %}</h2>
+  <h2>{% translate "Società (COE)" %}</h2>
   {% if soggetti_ereditati %}
-    <p class="tenue">{% translate "Questo file usa i soggetti del caricamento. Se ne aggiungi uno qui, il file avrà i propri e non erediterà più quelli." %}</p>
+    <p class="tenue">{% translate "Questo file usa le società del caricamento. Se ne aggiungi una qui, il file avrà le proprie e non erediterà più quelle." %}</p>
   {% else %}
-    <p class="tenue">{% translate "Questo file ha soggetti propri: non eredita quelli del caricamento." %}</p>
+    <p class="tenue">{% translate "Questo file ha società proprie: non eredita quelle del caricamento." %}</p>
   {% endif %}
   {% if soggetti_ereditati %}
     {% include "archivio/_soggetti_dichiarati.html" with modificabili=False %}

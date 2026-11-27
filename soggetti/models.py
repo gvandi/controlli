@@ -27,11 +27,11 @@ class Soggetto(models.Model):
     creato_il = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        verbose_name = "soggetto"
-        verbose_name_plural = "soggetti"
+        verbose_name = "società"
+        verbose_name_plural = "società"
 
     def __str__(self):
-        return self.denominazione or f"Soggetto n. {self.pk}"
+        return self.denominazione or f"Società n. {self.pk}"
 
 
 class IdentificativoSoggetto(models.Model):

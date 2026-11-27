@@ -20,7 +20,7 @@
 <p>
   {% translate "Stato del file:" %} <strong>{{ file.stato }}</strong> &middot;
   {% blocktranslate count n=entita|length %}{{ n }} entità raccolta{% plural %}{{ n }} entità raccolte{% endblocktranslate %},
-  {% blocktranslate with n=utilizzabili %}{{ n }} utilizzabili per descrivere un soggetto{% endblocktranslate %}
+  {% blocktranslate with n=utilizzabili %}{{ n }} utilizzabili per descrivere una società{% endblocktranslate %}
   {% if in_attesa %}&middot; <span class="avviso">{% blocktranslate with n=in_attesa %}{{ n }} da rivedere{% endblocktranslate %}</span>{% endif %}
 </p>
 {% if file.ultimo_errore %}<p class="errore">{{ file.ultimo_errore }}</p>{% endif %}
@@ -49,7 +49,7 @@
       </tr>
     </table>
     <table>
-      <tr><th>{% translate "Ruolo" %}</th><th>{% translate "Nome nel documento" %}</th><th>{% translate "Identificativo letto" %}</th><th>{% translate "Soggetto" %}</th></tr>
+      <tr><th>{% translate "Ruolo" %}</th><th>{% translate "Nome nel documento" %}</th><th>{% translate "Identificativo letto" %}</th><th>{% translate "Società" %}</th></tr>
       {% for parte in parti %}
         <tr>
           <td>
@@ -72,11 +72,11 @@
         <tr><td colspan="4" class="tenue">{% translate "Il modello non ha indicato nessuna parte." %}</td></tr>
       {% endfor %}
     </table>
-    <p class="tenue">{% translate "Si può scegliere solo fra i soggetti che il file nomina o che sono stati dichiarati al caricamento. Le modifiche valgono quando chiudi la revisione, in fondo all'elenco delle entità." %}</p>
+    <p class="tenue">{% translate "Si può scegliere solo fra le società che il file nomina o che sono state dichiarate al caricamento. Le modifiche valgono quando chiudi la revisione, in fondo all'elenco delle entità." %}</p>
   {% else %}
     <p>{{ documento.tipo|default:"-" }} n. {{ documento.numero|default:"-" }} &middot; {{ documento.data|date:"Y-m-d"|default:"-" }} &middot; {{ documento.totale|default:"-" }}</p>
     <table>
-      <tr><th>{% translate "Ruolo" %}</th><th>{% translate "Nome nel documento" %}</th><th>{% translate "Soggetto" %}</th></tr>
+      <tr><th>{% translate "Ruolo" %}</th><th>{% translate "Nome nel documento" %}</th><th>{% translate "Società" %}</th></tr>
       {% for parte in parti %}{% if not parte.ritirata %}
         <tr><td>{{ parte.ruolo|default:parte.ruolo_proposto }}</td><td>{{ parte.denominazione }}</td><td>{{ parte.soggetto|default:"-" }}</td></tr>
       {% endif %}{% endfor %}
@@ -88,12 +88,12 @@
 <div class="scheda">
   <h2>{% translate "Entità" %}</h2>
   <p class="tenue">{% translate "La colonna Fonte dice chi ha letto il valore: «regola» è un'espressione fissa del programma (identificativi, date, importi), «modello» è il modello linguistico." %}</p>
-  <p class="tenue">{% translate "Un'entità entra nella descrizione di un soggetto solo se è significativa (ha una voce del catalogo), si ritrova nel testo oppure è stata confermata da una persona, è attribuita a un soggetto e non è in attesa di revisione." %}</p>
+  <p class="tenue">{% translate "Un'entità entra nella descrizione di una società solo se è significativa (ha una voce del catalogo), si ritrova nel testo oppure è stata confermata da una persona, è attribuita a una società e non è in attesa di revisione." %}</p>
     <table>
       <tr>
         {% if puo_rivedere %}<th></th>{% endif %}
         <th>{% translate "Pag." %}</th><th>{% translate "Voce / etichetta" %}</th><th>{% translate "Valore" %}</th>
-        <th>{% translate "Evento" %}</th><th>{% translate "Soggetto" %}</th><th>{% translate "Fonte" %}</th><th>{% translate "Controlli" %}</th>
+        <th>{% translate "Evento" %}</th><th>{% translate "Società" %}</th><th>{% translate "Fonte" %}</th><th>{% translate "Controlli" %}</th>
       </tr>
       {% for e in entita %}
         <tr{% if e.ritirata %} class="ritirata"{% endif %}>

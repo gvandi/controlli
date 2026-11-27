@@ -11,10 +11,10 @@ from indici import allineamento
 
 
 class Command(BaseCommand):
-    help = "Riallinea le denominazioni delle aziende: anagrafica ufficiale, poi documenti confermati."
+    help = "Riallinea le denominazioni delle società: anagrafica ufficiale, poi documenti confermati."
 
     def handle(self, *args, **opzioni):
         cambiati = allineamento.esegui()
         for soggetto, prima, dopo in cambiati:
-            self.stdout.write(f"  soggetto {soggetto.pk}: «{prima or '(vuota)'}» -> «{dopo or '(vuota)'}»")
+            self.stdout.write(f"  società {soggetto.pk}: «{prima or '(vuota)'}» -> «{dopo or '(vuota)'}»")
         self.stdout.write(f"Denominazioni cambiate: {len(cambiati)}")

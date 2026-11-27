@@ -12,7 +12,7 @@ from indici import importazione
 
 
 class Command(BaseCommand):
-    help = "Importa da un file CSV attività, dipendenti e fatturato delle aziende, per periodo."
+    help = "Importa da un file CSV attività, dipendenti e fatturato delle società, per periodo."
 
     def add_arguments(self, parser):
         parser.add_argument("percorso")

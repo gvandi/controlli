@@ -1,6 +1,6 @@
 # Registro delle novità
 
-Versione corrente: 34
+Versione corrente: 35
 
 Elenco completo delle novità rispetto alla versione 12 (ultimo file unico di partenza).
 È l'UNICO posto in cui le novità si scrivono a mano: `aggiorna_intestazioni.py` ricopia
@@ -45,6 +45,7 @@ Dalla 20 il numero di versione del codice è un intero.
 - [25] (contratto) Nuova costante VERSIONE_CALCOLO_REGOLE (1.0+regole): stessa forma dei risultati della GNN, etichetta distinta; i lettori che accettano 1.0 la accettano.
 - [26] (contratto) Nono strumento spazio in NOMI_STRUMENTI e in STRUMENTI_SENZA_ARCHIVIO: legge l'app indici, non l'archivio dell'analisi di rete.
 - [34] (contratto) Ogni modello dichiara il suo nome in italiano, singolare e plurale (migrazione 0004): nelle pagine di amministrazione non compaiono più «Sessiones», «Richiestas», «Mappa prodottas», «Token accessos». Cambiano solo le etichette.
+- [35] (contratto) Un solo nome: le descrizioni delle popolazioni e i nomi dei modelli nelle pagine di amministrazione dicono «società» (migrazione 0005). Tabelle e campi non cambiano nome.
 
 ## calcolo
 
@@ -79,6 +80,7 @@ Dalla 20 il numero di versione del codice è un intero.
 - [25] (calcolo) La fotografia dei dati reali comprende anche le aziende che hanno dati per periodo (soggetti.DatiPerPeriodo), pur senza documenti.
 - [32] (calcolo) Nuova funzione diagnosi() in dati_reali.py e comando python manage.py grafo_diagnosi AZIENDA: per ogni file che riguarda un'azienda segue il documento fino alla mappa (elaborato, riconosciuto, confermato, completo, non riservato, fotografato, calcolato, in uso) e dice dove si ferma e che cosa fare.
 - [33] (calcolo) La diagnosi chiama il lavoro da lanciare con il suo nuovo nome, «Aggiorna il grafo e calcola gli indici» (prima «Calcola gli indici»): è il passo che fotografa i rapporti, applica le regole e mette il risultato in uso.
+- [35] (calcolo) I testi della diagnosi e dei comandi dicono «società» al posto di azienda e soggetto.
 
 ## interrogazione
 
@@ -118,6 +120,7 @@ Dalla 20 il numero di versione del codice è un intero.
 - [20] (interrogazione) in_esclusiva diventa un nome pubblico: lo usa lo strumento mappa.
 - [28] (interrogazione) Con una fotografia dei dati senza indicatori (dati reali) contesto_indicatore() spiega che gli indicatori appartengono al calcolo della GNN e rimanda agli strumenti spazio e classifica, invece di chiedere di copiare un file.
 - [29] (interrogazione) risolvi_societa() riconosce un codice comunque scritto: COE10000, COE 10000, C.O.E. SM 10000 e 10000 sono la stessa società; il codice viene cercato prima del numero interno della società, perché sui dati reali il numero che l'ispettore conosce è il COE.
+- [35] (interrogazione) Le risposte dicono «società» al posto di azienda e soggetto; le domande con «azienda», «soggetto» o «impresa» sono capite come prima.
 
 ## server
 
@@ -152,6 +155,7 @@ Dalla 20 il numero di versione del codice è un intero.
 - [28] (server) Lo strumento indicatore, se riceve come termine solo parole che indicano lo spazio degli indici (indici, spazio, regole), passa la domanda allo strumento spazio; le descrizioni dei due strumenti dicono esplicitamente quando usare l'uno e quando l'altro.
 - [30] (server) La pagina di una mappa che non si può mostrare resta 404 ma spiega che cosa fare: con quale utente si è collegati e che la mappa si apre con l'utente che ha autorizzato la chat, oppure che il file non c'è più e va richiesta di nuovo; il motivo preciso va nel registro del server.
 - [31] (server) Gli strumenti mappa e spazio dicono con quale utente va aperto il collegamento (quello che ha autorizzato la chat); la pagina di collegamento elenca le chat autorizzate con il proprio utente e permette di scollegarle.
+- [35] (server) Le risposte degli strumenti e il prompt di sistema dicono «società».
 
 ## mappa
 
@@ -169,6 +173,7 @@ Dalla 20 il numero di versione del codice è un intero.
 - [19] (mappa) Il file della mappa porta nel nome soggetto e coppia calcolo/dati e viene scritto in dati_grafo: mappe diverse non si sovrascrivono.
 - [19] (mappa) Si può scegliere il soggetto: python manage.py grafo_mappa --soggetto "nome o numero".
 - [20] (mappa) Nuova produci(): restituisce percorso, nome del file e soggetto; chiesta dalla chat, la mappa porta nel nome anche il numero di sessione, così analisti diversi non si sovrascrivono.
+- [35] (mappa) Il report e la legenda della mappa dicono «società» al posto di soggetto.
 
 ## sessioni
 

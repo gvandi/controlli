@@ -1,6 +1,6 @@
 # App grafo - versione 22
 
-Analisi di rete del progetto controlli UAE: una GNN assegna a ogni azienda un punteggio di
+Analisi di rete del progetto controlli UAE: una GNN assegna a ogni società un punteggio di
 rischio per tipo di irregolarità; i risultati si interrogano da una chat.
 
 **Stato: prototipo su dati simulati.** Dalla versione 19 è un'app Django dell'applicativo e
@@ -51,7 +51,7 @@ python manage.py migrate                          crea o aggiorna le tabelle
 python manage.py grafo_calcolo                    calcolo completo (richiede PyTorch)
 python manage.py grafo_calcolo --spiegazioni      calcola le spiegazioni in coda
 python manage.py grafo_versioni                   versioni, esecuzioni presenti e quale è in uso
-python manage.py grafo_consulta "Quali sono le 3 aziende più rischiose?"
+python manage.py grafo_consulta "Quali sono le 3 società più rischiose?"
 python manage.py grafo_mappa --soggetto "Rossi Costruzioni"
 python manage.py grafo_token UTENTE               crea un token per la chat (mostrato una volta)
 python manage.py grafo_server_mcp                 server stdio, solo per prove su un computer

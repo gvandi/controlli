@@ -346,7 +346,7 @@ def dichiara_soggetto(su, utente, tipo, valore):
         soggetto, _ = anagrafica.trova_o_crea(tipo, valore)
         esistenti = dichiarati(su)
         if esistenti.filter(soggetto=soggetto).exists():
-            raise NonAmmesso("Questo soggetto è già indicato.")
+            raise NonAmmesso("Questa società è già indicata.")
         return SoggettoDichiarato.objects.create(
             fascicolo=None if isinstance(su, FileCaricato) else su,
             file=su if isinstance(su, FileCaricato) else None,

@@ -4,7 +4,7 @@ from grafo import interrogazione, mappa
 
 
 class Command(BaseCommand):
-    help = "Scrive il report e la mappa investigativa di un soggetto (richiede networkx e pyvis)."
+    help = "Scrive il report e la mappa investigativa di una società (richiede networkx e pyvis)."
 
     def add_arguments(self, parser):
         parser.add_argument("--soggetto", help="Nome, numero di iscrizione o numero della società.")

@@ -2,7 +2,7 @@
 applicativo controlli per UAE
 
 Applicazione web multiutente per l'analisi AML delle transazioni commerciali:
-confronta ogni azienda con le aziende che svolgono la stessa attività e segnala
+confronta ogni società con le società che svolgono la stessa attività e segnala
 quelle che se ne discostano.
 
 Stato: **passo 1, scheletro** (accesso, utenti, ruoli, tabelle di decodifica).

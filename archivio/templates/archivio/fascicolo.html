@@ -59,8 +59,8 @@
 </div>
 
 <div class="scheda">
-  <h2>{% translate "Soggetti dell'indagine" %}</h2>
-  <p class="tenue">{% translate "Questo elenco si vede solo da qui: dal fascicolo dell'azienda non si risale all'indagine." %}</p>
+  <h2>{% translate "Società dell'indagine" %}</h2>
+  <p class="tenue">{% translate "Questo elenco si vede solo da qui: dal fascicolo della società non si risale all'indagine." %}</p>
   <table>
     {% for s in soggetti %}
       <tr>
@@ -74,7 +74,7 @@
         </td>
       </tr>
     {% empty %}
-      <tr><td colspan="3" class="tenue">{% translate "Nessun soggetto." %}</td></tr>
+      <tr><td colspan="3" class="tenue">{% translate "Nessuna società." %}</td></tr>
     {% endfor %}
   </table>
   <form method="post">
@@ -88,7 +88,7 @@
     <input type="text" id="valore" name="valore" maxlength="60" required>
     <label for="nota">{% translate "Nota" %}</label>
     <input type="text" id="nota" name="nota" maxlength="255">
-    <p><button type="submit">{% translate "Aggiungi il soggetto" %}</button></p>
+    <p><button type="submit">{% translate "Aggiungi la società" %}</button></p>
   </form>
 </div>
 {% elif identificativi %}
@@ -99,10 +99,10 @@
       <tr><td>{{ i.tipo.descrizione }}</td><td>{{ i.valore_normalizzato }}</td></tr>
     {% endfor %}
   </table>
-  <p><a class="bottone" href="{% url 'elaborazione:soggetto' fascicolo.pk %}">{% translate "Scheda: ciò che si sa di questo soggetto" %}</a></p>
+  <p><a class="bottone" href="{% url 'elaborazione:soggetto' fascicolo.pk %}">{% translate "Scheda: ciò che si sa di questa società" %}</a></p>
 </div>
 <div class="scheda">
-  <h2>{% translate "File che riguardano questa azienda" %}</h2>
+  <h2>{% translate "File che riguardano questa società" %}</h2>
   <p class="tenue">{% translate "I file restano nel caricamento in cui sono arrivati. Vedi solo quelli dei caricamenti a te visibili." %}</p>
   <table>
     {% for c in file_collegati %}
@@ -113,7 +113,7 @@
         <td class="tenue">{{ c.file.fascicolo.titolo }}</td>
       </tr>
     {% empty %}
-      <tr><td class="tenue">{% translate "Nessun file elaborato per questa azienda." %}</td></tr>
+      <tr><td class="tenue">{% translate "Nessun file elaborato per questa società." %}</td></tr>
     {% endfor %}
   </table>
 </div>

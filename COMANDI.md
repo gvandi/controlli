@@ -43,13 +43,13 @@ Serve il modello locale avviato in Unsloth Studio e la chiave nella variabile
 `UNSLOTH_STUDIO_AUTH_TOKEN` (o nel file `.env`). Senza modello i file di testo passano
 dalle sole regole e restano da elaborare; le scansioni aspettano.
 
-## Anagrafica delle aziende e indice a regole
+## Anagrafica delle società e indice a regole
 
 | Che cosa voglio fare | Comando |
 |---|---|
 | Importare attività, dipendenti e fatturato per periodo da un CSV | `python manage.py importa_anagrafica percorso/file.csv --fonte "da dove viene"` |
 | Calcolare l'indice di rischio a regole sui dati reali | `python manage.py calcola_indici` |
-| Rimettere in ordine i nomi delle aziende (prevale l'anagrafica ufficiale) | `python manage.py allinea_denominazioni` |
+| Rimettere in ordine i nomi delle società (prevale l'anagrafica ufficiale) | `python manage.py allinea_denominazioni` |
 
 `calcola_indici` aggiorna da solo la fotografia dei dati reali: dopo, la chat usa i dati reali.
 Un file di esempio con dati inventati è in `indici/esempio_anagrafica.csv`.
@@ -60,7 +60,7 @@ Un file di esempio con dati inventati è in `indici/esempio_anagrafica.csv`.
 |---|---|
 | Vedere versioni di codice, schema e calcolo, e quale coppia calcolo/dati è in uso | `python manage.py grafo_versioni` |
 | Prendere la fotografia dei dati reali senza calcolare nulla | `python manage.py grafo_dati_reali` |
-| Capire perché un'azienda non ha rapporti nella mappa o nella chat | `python manage.py grafo_diagnosi 10276` |
+| Capire perché una società non ha rapporti nella mappa o nella chat | `python manage.py grafo_diagnosi 10276` |
 | Addestrare la GNN e calcolare i punteggi (oggi sui dati simulati) | `python manage.py grafo_calcolo` |
 | Calcolare le spiegazioni richieste dalla chat e rimaste in coda | `python manage.py grafo_calcolo --spiegazioni` |
 | Fare una domanda senza la chat (prova degli strumenti) | `python manage.py grafo_consulta "quali sono le aziende più rischiose?"` |
@@ -86,11 +86,11 @@ Provare un documento dall'inizio alla fine:
 python manage.py runserver            # in un terminale; caricare e confermare il file dall'interfaccia
 python manage.py elabora_coda --massimo 1     # in un altro terminale
 # dall'interfaccia: "Testo ed entità estratte", controllare ruoli ed entità, chiudere la revisione
-python manage.py calcola_indici       # porta documenti e aziende nell'analisi di rete
+python manage.py calcola_indici       # porta documenti e società nell'analisi di rete
 python manage.py grafo_versioni       # controlla quale coppia calcolo/dati è in uso
 ```
 
-Aggiornare i dati delle aziende:
+Aggiornare i dati delle società:
 
 ```
 python manage.py importa_anagrafica nuovo_file.csv --fonte "Camera di Commercio 2026"
@@ -113,13 +113,13 @@ richiesta, che viene eseguita dal processo `esegui_lavori` (deve essere acceso).
 | 4 | Importa l'anagrafica da CSV | `python manage.py importa_anagrafica file.csv` | L'anagrafica per periodo |
 | 5 | Aggiorna il grafo e calcola gli indici | `python manage.py calcola_indici` | Ciò che leggono chat, mappa, classifica e spazio degli indici |
 
-I passi 1-3 portano i rapporti fra aziende, il passo 4 i dati per le regole: sono indipendenti, e il
+I passi 1-3 portano i rapporti fra società, il passo 4 i dati per le regole: sono indipendenti, e il
 passo 5 li usa entrambi. **Il passo 5 va rilanciato ogni volta che si conferma un documento o si
 importa un'anagrafica**: finché non lo si fa, chat e mappa mostrano la situazione precedente.
 
 **Rete simulata (prototipo)**: "Calcola la GNN (dati simulati)" (`grafo_calcolo`) e "Calcola le
 spiegazioni in coda". Lavorano su una rete inventata dal programma: non leggono né i file caricati
-né l'anagrafica, e non cambiano ciò che si vede delle aziende vere.
+né l'anagrafica, e non cambiano ciò che si vede delle società vere.
 
 **Strumenti di servizio**, fuori sequenza: "Riallinea le denominazioni" (`allinea_denominazioni`) e
 "Fotografa i dati reali senza calcolare" (`grafo_dati_reali`), che è la sola prima parte del passo 5
@@ -130,4 +130,4 @@ e serve per un controllo: la sua fotografia non è usata da chat e mappa finché
 - Caricare file, rivedere entità e ruoli, cancellare un file: dall'interfaccia (`/archivio/`).
 - Modificare regole di rischio, catalogo delle entità, decodifiche, utenti e ruoli: dall'amministrazione (`/admin/`).
 - Parametri e restrizioni dell'analisi di rete: dal cruscotto (`/grafo/cruscotto/`).
-- Vedere le aziende in tre dimensioni, con indice a regole e scostamenti: dalla pagina `/indici/spazio/`.
+- Vedere le società in tre dimensioni, con indice a regole e scostamenti: dalla pagina `/indici/spazio/`.

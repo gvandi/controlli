@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   servizio_mcp.py  -  app grafo, VERSIONE 34
+#   servizio_mcp.py  -  app grafo, VERSIONE 35
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: server
@@ -86,6 +86,7 @@
 #   [31] Gli strumenti mappa e spazio dicono con quale utente va aperto il collegamento (quello
 #        che ha autorizzato la chat); la pagina di collegamento elenca le chat autorizzate con
 #        il proprio utente e permette di scollegarle.
+#   [35] Le risposte degli strumenti e il prompt di sistema dicono «società».
 #
 # <<< NOVITA
 """
@@ -206,7 +207,7 @@ def indicatore(termine: str, societa: Union[int, str] = "") -> str:
     return interrogazione.indicatore(termine, societa)
 
 
-ERRORI_DI_CLASSIFICA = ("Tipo di irregolarità non riconosciuto", "Popolazione non riconosciuta", "Il numero di aziende")
+ERRORI_DI_CLASSIFICA = ("Tipo di irregolarità non riconosciuto", "Popolazione non riconosciuta", "Il numero di società")
 
 
 def classifica(n: int = 3, tipo: str = "", popolazione: str = "non_ispezionate", regola: str = "") -> str:
@@ -251,8 +252,8 @@ def classifica(n: int = 3, tipo: str = "", popolazione: str = "non_ispezionate",
         quante = 3
 
     parti = [
-        "AZIENDE PIÙ RISCHIOSE, PER CRITERIO. I criteri sono indipendenti e nessuno è un'irregolarità "
-        "accertata: per ogni azienda va detto quale criterio l'ha segnalata.",
+        "SOCIETÀ PIÙ RISCHIOSE, PER CRITERIO. I criteri sono indipendenti e nessuno è un'irregolarità "
+        "accertata: per ogni società va detto quale criterio l'ha segnalata.",
         classifica_degli_indici.racconta(sessione.utente, quante, regola),
         "\nCRITERIO 4 - ANALISI DI RETE (GNN): " + (nota + "." if rete is None else "\n" + rete),
     ]
@@ -271,7 +272,7 @@ def scheda(azienda: Union[int, str]) -> str:
     sessione = getattr(_chiamata, "sessione", None)
     if sessione is None:
         # Senza sapere chi chiede non si può decidere che cosa può vedere
-        return "La scheda di un'azienda si può chiedere solo da una sessione con accesso (servizio HTTP)."
+        return "La scheda di una società si può chiedere solo da una sessione con accesso (servizio HTTP)."
     # Importato qui: l'app grafo resta utilizzabile anche senza l'app elaborazione
     from elaborazione import coda
 

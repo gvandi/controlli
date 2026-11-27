@@ -10,7 +10,7 @@
 <div class="scheda">
   <h2>{% translate "Archivio" %}</h2>
   {% if puo_vedere_l_archivio %}
-    <p>{% translate "Faldoni e fascicoli: caricamenti, aziende, indagini." %}</p>
+    <p>{% translate "Faldoni e fascicoli: caricamenti, società, indagini." %}</p>
     <p><a class="bottone" href="{% url 'archivio:faldoni' %}">{% translate "Apri l'archivio" %}</a></p>
   {% else %}
     <p class="tenue">{% translate "Non hai i diritti per consultare l'archivio." %}</p>
@@ -30,7 +30,7 @@
 <div class="scheda">
   <h2>{% translate "Analisi" %}</h2>
   {% if perms.indici.view_regoladirischio %}
-    <p>{% translate "Le aziende come punti in tre dimensioni (dipendenti, fatturato, attività): quelle per cui scatta una regola e quelle che si discostano dalle aziende simili." %}</p>
+    <p>{% translate "Le società come punti in tre dimensioni (dipendenti, fatturato, attività): quelle per cui scatta una regola e quelle che si discostano dalle società simili." %}</p>
     <p><a class="bottone" href="{% url 'indici:spazio' %}">{% translate "Apri lo spazio degli indici" %}</a></p>
   {% else %}
     <p class="tenue">{% translate "Non hai i diritti per consultare gli indici di rischio." %}</p>

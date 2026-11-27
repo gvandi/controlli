@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   mappa.py  -  app grafo, VERSIONE 34
+#   mappa.py  -  app grafo, VERSIONE 35
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: mappa
@@ -26,6 +26,7 @@
 #   [20] Nuova produci(): restituisce percorso, nome del file e soggetto; chiesta dalla chat, la
 #        mappa porta nel nome anche il numero di sessione, così analisti diversi non si
 #        sovrascrivono.
+#   [35] Il report e la legenda della mappa dicono «società» al posto di soggetto.
 #
 # <<< NOVITA
 """
@@ -105,7 +106,7 @@ def costruisci_report(soggetto=None):
     """
     soggetto = _soggetto_da_analizzare(soggetto)
     if soggetto is None:
-        return "<p>Nessuna irregolarità accertata nell'archivio: nessun soggetto da analizzare.</p>", None
+        return "<p>Nessuna irregolarità accertata nell'archivio: nessuna società da analizzare.</p>", None
 
     nodo_target = soggetto["nodo"]
     html_nodo_target = genera_nodi_interattivi_html([nodo_target])
@@ -114,7 +115,7 @@ def costruisci_report(soggetto=None):
     report = SCRIPT_TOGGLE
     report += "<h3>--- FASE ISPETTIVA ---</h3>\n"
     report += f"<i>{html.escape(interrogazione.intestazione_dati())}</i><br>\n"
-    report += f"<b>Soggetto Sospetto Identificato:</b> <span style='color: #d9534f;'>Nodo {html_nodo_target}</span><br>\n"
+    report += f"<b>Società sospetta identificata:</b> <span style='color: #d9534f;'>Nodo {html_nodo_target}</span><br>\n"
     report += f"<b>Irregolarità analizzata:</b> <code>{html.escape(soggetto['tipo'])}</code><br>\n"
     report += (
         f"<b>Punteggio di Rischio Assegnato dalla GNN:</b> <code>{soggetto['punteggio']*100:.2f}%</code> "
@@ -131,7 +132,7 @@ def costruisci_report(soggetto=None):
             "la richiesta è stata messa in coda per il processo di calcolo.</i></p>\n"
         )
     else:
-        report += "<h3>--- 1. RELAZIONI E SOGGETTI RESPONSABILI DELL'ANOMALIA ---</h3>\n"
+        report += "<h3>--- 1. RELAZIONI E SOCIETÀ RESPONSABILI DELL'ANOMALIA ---</h3>\n"
         relazioni = indicatori["relazioni"]
         report += f"Nel raggio d'azione della GAT, sono state isolate <b>{len(relazioni)}</b> relazioni critiche:<br>\n"
         for (a, b), importanza in relazioni:
@@ -164,9 +165,9 @@ def costruisci_report(soggetto=None):
     vicini_2 = sorted(interrogazione.vicini_a_due_passi(nodo_target))
 
     report += "<p></p>\n"
-    report += f"<h3>--- ANALISI DELLE TRIANGOLAZIONI SUL SOGGETTO {html_nodo_target} ---</h3>\n"
+    report += f"<h3>--- ANALISI DELLE TRIANGOLAZIONI SULLA SOCIETÀ {html_nodo_target} ---</h3>\n"
     report += (
-        f"<b>Stato noto del soggetto:</b> <span style='color: #d9534f; font-weight: bold;'>"
+        f"<b>Stato noto della società:</b> <span style='color: #d9534f; font-weight: bold;'>"
         f"{html.escape(interrogazione.stato_compliance(nodo_target))}</span><br><br>\n"
     )
     report += f"<b>[LIVELLO 1-HOP]</b> - Canali di Transito Diretti (<code>{len(vicini_1)}</code> nodi):<br>\n"
@@ -181,12 +182,12 @@ def costruisci_report(soggetto=None):
     if complici_indiretti:
         report += (
             f"<span style='color: #d9534f; font-weight: bold;'>⚠️ ALLERTA TRIANGOLAZIONE:</span> "
-            f"Il soggetto a rischio <b>{nodo_target}</b> è collegato indirettamente "
-            f"(tramite i nodi del circuito 1-hop) ad altri soggetti con <b>IRREGOLARITÀ ACCERTATE</b>: "
+            f"La società a rischio <b>{nodo_target}</b> è collegata indirettamente "
+            f"(tramite i nodi del circuito 1-hop) ad altre società con <b>IRREGOLARITÀ ACCERTATE</b>: "
             f"<code>{genera_nodi_interattivi_html(complici_indiretti)}</code><br>\n"
         )
     else:
-        report += "<span style='color: #5cb85c; font-weight: bold;'>✅ Nessun circuito chiuso</span> o triangolazione con altri soggetti con irregolarità accertate nel raggio di 2-hop.<br>\n"
+        report += "<span style='color: #5cb85c; font-weight: bold;'>✅ Nessun circuito chiuso</span> o triangolazione con altre società con irregolarità accertate nel raggio di 2-hop.<br>\n"
 
     return report, {"target": nodo_target, "vicini_1": vicini_1, "vicini_2": vicini_2}
 
@@ -211,7 +212,7 @@ def scrivi_mappa(report_html, bolla, nome_file):
     titolo_mappa = (
         "<b>Mappa Investigativa delle Triangolazioni</b><br>"
         "Legenda: Centro Rosso: Target | Giallo: 1-Hop (Transito) | Verde: 2-Hop (Destinatari)<br>"
-        "Bordo Nero Spesso: Soggetto con irregolarità accertate"
+        "Bordo Nero Spesso: Società con irregolarità accertate"
     )
 
     for nodo in G_bolla.nodes():
@@ -231,7 +232,7 @@ def scrivi_mappa(report_html, bolla, nome_file):
 
         dati = interrogazione.dati_azienda(nodo)
         tooltip = (
-            f"Soggetto ID: {html.escape(dati['nome'])} {html.escape(dati['nr_iscrizione'] or dati['id_fiscale'])}\n"
+            f"Società ID: {html.escape(dati['nome'])} {html.escape(dati['nr_iscrizione'] or dati['id_fiscale'])}\n"
             f"Ruolo nella Bolla: {ruolo}\n"
             f"Stato Compliance: {html.escape(interrogazione.stato_compliance(nodo))}"
         )

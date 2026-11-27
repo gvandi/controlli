@@ -40,8 +40,8 @@
     {% csrf_token %}
     <p>
       <label><input type="checkbox" name="anche_soggetti" value="si"{% if anche_soggetti %} checked{% endif %}>
-      {% translate "Cancella anche i soggetti provvisori che esistevano solo per questo file" %}</label>
-      <span class="tenue">{% translate "(un soggetto citato da altri file, da un'indagine o da una dichiarazione resta comunque)" %}</span>
+      {% translate "Cancella anche le società provvisorie che esistevano solo per questo file" %}</label>
+      <span class="tenue">{% translate "(una società citata da altri file, da un'indagine o da una dichiarazione resta comunque)" %}</span>
     </p>
     <label for="motivazione">{% translate "Motivo della cancellazione (obbligatorio, resta nel registro)" %}</label>
     <textarea id="motivazione" name="motivazione" required minlength="10">{{ motivazione }}</textarea>
