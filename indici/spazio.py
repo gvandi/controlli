@@ -94,19 +94,22 @@ def _dentro_la_regola(regola, dipendenti, fatturato, divisioni):
 
 def rapporti():
     """
-    I rapporti fra aziende dai documenti confermati e non riservati, sommati per coppia e verso:
-        [{"da": soggetto che vende, "a": soggetto che compra, "quanti": n, "importo": somma}], {soggetto: nome}
+    I rapporti fra società dai documenti ammessi (elaborazione/ammissione.py) e non riservati, sommati
+    per coppia e verso:
+        [{"da": chi vende, "a": chi compra, "quanti": n, "da_verificare": n, "importo": somma}], {soggetto: nome}
+    da_verificare: quanti di quei documenti non sono ancora stati confermati da una persona.
     """
     per_coppia, nomi = {}, {}
     for mittente, destinatario, documento in dati_reali.archi_dall_archivio()[0]:
-        voce = per_coppia.setdefault((mittente.pk, destinatario.pk), [0, 0.0])
+        voce = per_coppia.setdefault((mittente.pk, destinatario.pk), [0, 0.0, 0])
         voce[0] += 1
         voce[1] += float(documento.totale)
+        voce[2] += not documento.confermato
         nomi[mittente.pk] = anagrafica.nome_vero(mittente.denominazione) or "senza denominazione"
         nomi[destinatario.pk] = anagrafica.nome_vero(destinatario.denominazione) or "senza denominazione"
     elenco = [
-        {"da": da, "a": a, "quanti": quanti, "importo": round(importo, 2)}
-        for (da, a), (quanti, importo) in sorted(per_coppia.items())
+        {"da": da, "a": a, "quanti": quanti, "da_verificare": da_verificare, "importo": round(importo, 2)}
+        for (da, a), (quanti, importo, da_verificare) in sorted(per_coppia.items())
     ]
     return elenco, nomi
 
@@ -289,7 +292,8 @@ def racconta(utente, regola="", azienda=""):
                 chi = f"{punti[altra]['nome']} ({_segni(punti[altra], soglia_z)})"
             else:
                 chi = f"{dati['fuori'].get(str(altra), 'società')} (non collocata nello spazio)"
-            righe.append(f"- {verso} {chi}: {rapporto['quanti']} documenti, importo totale {rapporto['importo']:.2f}")
+            nota = f" ({rapporto['da_verificare']} non verificati)" if rapporto.get("da_verificare") else ""
+            righe.append(f"- {verso} {chi}: {rapporto['quanti']} documenti{nota}, importo totale {rapporto['importo']:.2f}")
     else:
         scattano = [p for p in dati["punti"] if p["scatta"]]
         discoste = [p for p in dati["punti"] if abs(p["z"]) >= soglia_z]

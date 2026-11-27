@@ -150,6 +150,24 @@ class LavoriTest(TestCase):
         self.assertEqual([voce["tipo"] for voce in gruppi[0]["voci"]], [None, "elabora_file", None, "importa_anagrafica", "calcola_indici"])
         self.assertTrue(all(voce["passo"] is None for gruppo in gruppi[1:] for voce in gruppo["voci"]))
 
+    def test_l_amministratore_sceglie_che_cosa_ammettere_oltre_ai_documenti_confermati(self):
+        self.client.force_login(self.ada)
+        pagina = self.client.get(reverse("home"))
+        self.assertContains(pagina, 'name="ammette_documenti_non_confermati"', count=2)   # indici e fotografia
+        self.assertNotContains(pagina, 'name="ammette_entita_fuori_catalogo"')            # non cambia il grafo
+        # una casella non spuntata vale "no"; le letture incomplete non hanno senso senza i non confermati
+        self.client.post(reverse("lavori:richiedi"), {"tipo": "calcola_indici", "criteri_mostrati": "1", "ammette_letture_incomplete": "si"})
+        ammette = Lavoro.objects.get(tipo="calcola_indici").parametri["ammette"]
+        self.assertEqual((ammette["documenti_non_confermati"], ammette["letture_incomplete"]), (False, False))
+        self.client.post(reverse("lavori:richiedi"), {
+            "tipo": "dati_reali", "criteri_mostrati": "1", "ammette_documenti_non_confermati": "si", "ammette_letture_incomplete": "si",
+        })
+        ammette = Lavoro.objects.get(tipo="dati_reali").parametri["ammette"]
+        self.assertEqual((ammette["documenti_non_confermati"], ammette["letture_incomplete"]), (True, True))
+        # i due lavori si eseguono con i criteri scelti (qui non ci sono dati: lo dicono)
+        call_command("esegui_lavori", una_volta=True, stdout=StringIO())
+        self.assertEqual(set(Lavoro.objects.values_list("stato", flat=True)), {FINITO})
+
     def test_la_fotografia_da_sola_avverte_che_non_e_in_uso(self):
         from indici import importazione
 

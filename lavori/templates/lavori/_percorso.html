@@ -41,6 +41,14 @@
                 <p><input type="file" name="file" accept=".csv,text/csv" required></p>
                 <p><input type="text" name="fonte" placeholder="{% translate 'da dove viene il file' %}" style="width:14rem"></p>
               {% endif %}
+              {% if voce.criteri %}
+                <input type="hidden" name="criteri_mostrati" value="1">
+                <p class="tenue" style="margin-bottom:0">{% translate "Oltre ai documenti confermati, usa anche:" %}</p>
+                {% for codice, titolo, spiegazione, spuntata in voce.criteri %}
+                  <p style="margin:0"><label style="display:inline" title="{{ spiegazione }}"><input type="checkbox" name="ammette_{{ codice }}" value="si" style="width:auto"{% if spuntata %} checked{% endif %}> {{ titolo|lower }}</label></p>
+                {% endfor %}
+                <p class="tenue">{% translate "I rapporti che ne vengono sono segnati «non verificato»." %}</p>
+              {% endif %}
             </form>
             <p class="tenue">
               {% if voce.ultimo %}

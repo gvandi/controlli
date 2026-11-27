@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   calcolo.py  -  app grafo, VERSIONE 36
+#   calcolo.py  -  app grafo, VERSIONE 37
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: calcolo
@@ -72,6 +72,11 @@
 #        calcola gli indici» (prima «Calcola gli indici»): è il passo che fotografa i rapporti,
 #        applica le regole e mette il risultato in uso.
 #   [35] I testi della diagnosi e dei comandi dicono «società» al posto di azienda e soggetto.
+#   [37] La fotografia dei dati reali accetta i criteri di ammissione
+#        (elaborazione/ammissione.py): con quelli larghi entrano anche i documenti non
+#        confermati, con i ruoli proposti dal modello, segnati come non verificati; la
+#        descrizione della fotografia ricorda i criteri, il resoconto conta i rapporti non
+#        verificati, la diagnosi dice «può entrare, come NON VERIFICATO».
 #
 # <<< NOVITA
 """

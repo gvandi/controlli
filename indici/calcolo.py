@@ -79,16 +79,22 @@ def punteggi(scattate):
 
 
 @transaction.atomic
-def esegui():
+def esegui(criteri=None):
     """
+    criteri: che cosa è ammesso oltre ai documenti confermati (elaborazione/ammissione.py;
+    None = quelli predefiniti). Il resoconto riporta anche "relazioni" e "non_verificate".
+
     Prende la fotografia dei dati reali (ne crea una nuova se l'archivio è cambiato),
     applica le regole attive e registra l'esecuzione. Restituisce un resoconto:
         {"versione_dati", "esecuzione", "aziende": n, "senza_dati": n, "segnalate": n, "regole": n}
     Senza dati reali "esecuzione" è None.
     """
-    fotografia = dati_reali.fotografa()
+    fotografia = dati_reali.fotografa(criteri=criteri)
     versione_dati = fotografia["versione_dati"]
-    resoconto = {"versione_dati": versione_dati, "esecuzione": None, "aziende": 0, "senza_dati": 0, "segnalate": 0}
+    resoconto = {
+        "versione_dati": versione_dati, "esecuzione": None, "aziende": 0, "senza_dati": 0, "segnalate": 0,
+        "relazioni": fotografia["relazioni"], "non_verificate": fotografia["non_verificate"], "criteri": fotografia["criteri"],
+    }
     regole = [
         regola for regola in RegolaDiRischio.objects.filter(attiva=True)
         if regola.tipo in contratto.TIPI_IRREGOLARITA
