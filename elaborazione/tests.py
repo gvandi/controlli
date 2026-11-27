@@ -960,6 +960,59 @@ class ScansioneTest(ConFile):
         self.assertEqual(Elaborazione.objects.get().natura, riconoscimento.IMMAGINE)
 
 
+class OriginaleTest(ConFile):
+    """Il documento originale accanto alle entità, e le pagine con l'azione accanto all'elenco."""
+
+    def test_pdf_e_immagini_si_mostrano_nella_pagina_gli_altri_file_no(self):
+        pdf = self.carica(b"%PDF-1.4 scansione finta", nome="fattura.pdf", titolo="Uno")
+        png = self.carica(b"\x89PNG\r\n\x1a\n immagine finta", nome="pagina.png", titolo="Due")
+        # il tipo si decide dai primi byte, non dal nome: una pagina HTML chiamata .pdf non si mostra
+        finto = self.carica(b"<html><script>alert(1)</script></html>", nome="finto.pdf", titolo="Tre")
+        testo = self.carica("solo testo", nome="verbale.txt", titolo="Quattro")
+        self.assertEqual(
+            [caricamento.tipo_in_pagina(f) for f in (pdf, png, finto, testo)], ["application/pdf", "image/png", None, None]
+        )
+        self.client.force_login(self.anna)
+        risposta = self.client.get(reverse("archivio:anteprima", args=[pdf.pk]))
+        self.assertEqual((risposta.status_code, risposta["Content-Type"]), (200, "application/pdf"))
+        self.assertTrue(risposta["Content-Disposition"].startswith("inline"))
+        self.assertEqual((risposta["X-Frame-Options"], risposta["X-Content-Type-Options"]), ("SAMEORIGIN", "nosniff"))
+        self.assertEqual(b"".join(risposta.streaming_content), b"%PDF-1.4 scansione finta")
+        for altro in (finto, testo):
+            self.assertEqual(self.client.get(reverse("archivio:anteprima", args=[altro.pk])).status_code, 404)
+
+        # nella revisione: la cornice per il PDF, l'immagine per il PNG, il solo collegamento per il resto
+        pagina = self.client.get(reverse("elaborazione:file", args=[pdf.pk]))
+        self.assertContains(pagina, f'<iframe id="cornice-originale" src="{reverse("archivio:anteprima", args=[pdf.pk])}"')
+        self.assertContains(self.client.get(reverse("elaborazione:file", args=[png.pk])), 'alt="Immagine del documento originale"')
+        pagina = self.client.get(reverse("elaborazione:file", args=[testo.pk]))
+        self.assertNotContains(pagina, "cornice-originale")
+        self.assertContains(pagina, "non si può mostrare accanto alle entità")
+
+    def test_l_originale_segue_la_visibilita_del_file(self):
+        from archivio import servizi
+
+        indagine = servizi.apri_indagine(self.anna, "Riservata")
+        riservato = self.carica(b"%PDF-1.4 riservato", nome="riservato.pdf", indagine=indagine)
+        self.client.force_login(self.bruno)   # non assegnato all'indagine
+        self.assertEqual(self.client.get(reverse("archivio:anteprima", args=[riservato.pk])).status_code, 404)
+        self.client.logout()
+        self.assertEqual(self.client.get(reverse("archivio:anteprima", args=[riservato.pk])).status_code, 302)
+
+    def test_nel_faldone_l_azione_sta_accanto_all_elenco(self):
+        for numero in range(3):
+            self.carica("testo", titolo=f"Lotto {numero}")
+        self.client.force_login(self.anna)
+        pagina = self.client.get(reverse("archivio:faldone", args=["CARICAMENTI"]))
+        self.assertContains(pagina, 'class="affiancati con-azione"')
+        self.assertContains(pagina, "3 in tutto.")
+        testo = pagina.content.decode()
+        self.assertLess(testo.index('role="search"'), testo.index("Nuovo caricamento"))
+        cercata = self.client.get(reverse("archivio:faldone", args=["CARICAMENTI"]), {"q": "Lotto 1"})
+        self.assertContains(cercata, "1 trovati per «Lotto 1».")
+        self.assertContains(cercata, "Mostra tutti")
+
+
 class MessaggiTest(SimpleTestCase):
     """Gli errori di lettura in parole dell'utente (elaborazione/messaggi.py)."""
 

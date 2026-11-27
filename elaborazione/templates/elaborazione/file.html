@@ -10,6 +10,24 @@
   .ok { color: #1e6b3a; } .avviso { color: #a12622; }
   pre { white-space: pre-wrap; background: var(--sfondo); padding: 0.6rem; border-radius: 4px; max-height: 24rem; overflow: auto; }
   tr.ritirata td { text-decoration: line-through; color: #888; }
+  /* L'originale a sinistra, fermo mentre si scorre; i dati a destra. Stretto: uno sopra l'altro. */
+  {% if originale %}main { max-width: 120rem; }{% endif %}
+  .affiancati.con-originale { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 1rem; align-items: start; }
+  .affiancati.senza-originale { display: block; }
+  .affiancati.senza-originale .originale { display: none; }
+  .originale { position: sticky; top: 0.5rem; background: #fff; border: 1px solid var(--bordo); border-radius: 6px; padding: 0.5rem; }
+  .originale .barra { margin: 0 0 0.4rem; display: flex; gap: 1rem; align-items: baseline; flex-wrap: wrap; }
+  .originale iframe { width: 100%; height: calc(100vh - 5.5rem); border: 1px solid var(--bordo); background: var(--sfondo); }
+  .originale .immagine { max-height: calc(100vh - 5.5rem); overflow: auto; border: 1px solid var(--bordo); }
+  .originale img { display: block; width: 100%; height: auto; }
+  .dati { min-width: 0; }
+  .dati .scheda { overflow-x: auto; }
+  @media (max-width: 70rem) {
+    .affiancati.con-originale { display: block; }
+    .originale { position: static; margin-bottom: 1rem; }
+    .originale iframe { height: 70vh; }
+    .originale .immagine { max-height: 70vh; }
+  }
 </style>
 <p>
   <a href="{% url 'archivio:fascicolo' fascicolo.pk %}">{{ fascicolo.titolo }}</a> &rsaquo;
@@ -23,7 +41,30 @@
   {% blocktranslate with n=utilizzabili %}{{ n }} utilizzabili per descrivere una società{% endblocktranslate %}
   {% if in_attesa %}&middot; <span class="avviso">{% blocktranslate with n=in_attesa %}{{ n }} da rivedere{% endblocktranslate %}</span>{% endif %}
 </p>
+{% if originale %}
+<p><button type="button" class="secondario" id="mostra-originale" aria-controls="originale" aria-expanded="true">{% translate "Nascondi il documento originale" %}</button></p>
+{% endif %}
+
+<div class="affiancati{% if originale %} con-originale{% endif %}" id="affiancati">
+{% if originale %}
+<aside class="originale" id="originale" aria-label="{% translate 'Documento originale' %}">
+  <p class="barra">
+    <strong>{% translate "Documento originale" %}</strong>
+    <a href="{% url 'archivio:anteprima' file.pk %}" target="_blank" rel="noopener">{% translate "Apri in un'altra scheda" %}</a>
+    <a href="{% url 'archivio:scarica' file.pk %}">{% translate "Scarica" %}</a>
+  </p>
+  {% if originale == "application/pdf" %}
+    <iframe id="cornice-originale" src="{% url 'archivio:anteprima' file.pk %}" data-base="{% url 'archivio:anteprima' file.pk %}" title="{% translate 'Documento originale' %}"></iframe>
+  {% else %}
+    <div class="immagine"><img src="{% url 'archivio:anteprima' file.pk %}" alt="{% translate 'Immagine del documento originale' %}"></div>
+  {% endif %}
+</aside>
+{% endif %}
+<div class="dati">
 {% avviso_di_lettura file %}
+{% if not originale %}
+  <p class="tenue">{% translate "Questo tipo di file non si può mostrare accanto alle entità:" %} <a href="{% url 'archivio:scarica' file.pk %}">{% translate "scarica l'originale" %}</a>.</p>
+{% endif %}
 
 <form method="post">
 {% csrf_token %}
@@ -98,7 +139,7 @@
       {% for e in entita %}
         <tr{% if e.ritirata %} class="ritirata"{% endif %}>
           {% if puo_rivedere %}<td>{% if not e.ritirata %}<input type="checkbox" name="entita" value="{{ e.pk }}" style="width:auto" checked>{% endif %}</td>{% endif %}
-          <td>{{ e.pagina|default:"-" }}</td>
+          <td>{% if e.pagina and originale == "application/pdf" %}<button type="button" class="secondario" data-vai-pagina="{{ e.pagina }}" title="{% translate 'Mostra questa pagina nel documento originale' %}">{{ e.pagina }}</button>{% else %}{{ e.pagina|default:"-" }}{% endif %}</td>
           <td>
             {% if e.voce %}<strong>{{ e.voce.codice }}</strong>{% else %}{{ e.etichetta }} <span class="tenue">({% translate "fuori catalogo" %})</span>{% endif %}
             {% if e.periodo %}<span class="tenue">{{ e.periodo }}</span>{% endif %}
@@ -131,7 +172,7 @@
 <div class="scheda">
   <h2>{% translate "Testo" %}</h2>
   {% for t in testi %}
-    <h3>{% translate "Pagina" %} {{ t.pagina }} <span class="tenue">({{ t.origine }})</span></h3>
+    <h3>{% translate "Pagina" %} {{ t.pagina }} <span class="tenue">({{ t.origine }})</span>{% if originale == "application/pdf" %} <button type="button" class="secondario" data-vai-pagina="{{ t.pagina }}">{% translate "vedi nell'originale" %}</button>{% endif %}</h3>
     <pre>{{ t.testo }}</pre>
   {% empty %}
     <p class="tenue">{% translate "Nessun testo disponibile." %}</p>
@@ -153,4 +194,34 @@
     {% endfor %}
   </table>
 </div>
+</div>{# .dati #}
+</div>{# .affiancati #}
+{% if originale %}
+<script>
+  // Nascondere e mostrare l'originale; un numero di pagina porta il PDF a quella pagina.
+  (function () {
+    var blocco = document.getElementById("affiancati"), bottone = document.getElementById("mostra-originale");
+    var cornice = document.getElementById("cornice-originale");
+    function imposta(nascosto) {
+      blocco.classList.toggle("senza-originale", nascosto);
+      bottone.setAttribute("aria-expanded", nascosto ? "false" : "true");
+      bottone.textContent = nascosto ? "{% translate 'Mostra il documento originale' %}" : "{% translate 'Nascondi il documento originale' %}";
+      try { window.localStorage.setItem("controlli-originale-nascosto", nascosto ? "1" : ""); } catch (errore) {}
+    }
+    var ricordato = "";
+    try { ricordato = window.localStorage.getItem("controlli-originale-nascosto") || ""; } catch (errore) {}
+    if (ricordato) imposta(true);
+    bottone.addEventListener("click", function () { imposta(!blocco.classList.contains("senza-originale")); });
+    if (!cornice) return;
+    document.querySelectorAll("[data-vai-pagina]").forEach(function (voce) {
+      voce.addEventListener("click", function () {
+        var pagina = voce.getAttribute("data-vai-pagina");
+        if (blocco.classList.contains("senza-originale")) imposta(false);
+        // il parametro cambia l'indirizzo e fa ricaricare il visualizzatore, che così rispetta #page
+        cornice.src = cornice.getAttribute("data-base") + "?pagina=" + pagina + "#page=" + pagina;
+      });
+    });
+  })();
+</script>
+{% endif %}
 {% endblock %}

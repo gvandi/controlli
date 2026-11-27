@@ -6,6 +6,15 @@
   table { border-collapse: collapse; width: 100%; }
   th, td { text-align: left; padding: 0.35rem 0.6rem 0.35rem 0; border-bottom: 1px solid var(--bordo); }
   .in-riga label, .in-riga input, .in-riga select { display: inline-block; width: auto; margin-right: 0.5rem; }
+  main { max-width: 84rem; }
+  .affiancati.con-azione { display: grid; grid-template-columns: minmax(0, 1fr) 24rem; gap: 1rem; align-items: start; }
+  .affiancati .azione { position: sticky; top: 1rem; }
+  .affiancati .azione select { font: inherit; width: 100%; }
+  @media (max-width: 62rem) {
+    .affiancati.con-azione { display: flex; flex-direction: column; }
+    .affiancati .azione { position: static; order: -1; width: 100%; }
+    .affiancati .elenco { width: 100%; }
+  }
 </style>
 <p><a href="{% url 'archivio:faldoni' %}">{% translate "Archivio" %}</a> &rsaquo; {{ faldone.nome }}</p>
 <h1>{{ faldone.nome }}</h1>
@@ -14,12 +23,21 @@
 {% endif %}
 {% if errore %}<p class="errore">{{ errore }}</p>{% endif %}
 
+{# Ricerca ed elenco a sinistra, l'azione del faldone (nuovo caricamento, nuova società, nuova indagine) a destra: #}
+{# con molti fascicoli l'azione non finisce più in fondo alla pagina. Su uno schermo stretto l'azione va sopra. #}
+<div class="affiancati{% if puo_aprire_indagini or puo_caricare or puo_aggiungere_aziende %} con-azione{% endif %}">
+<div class="elenco">
 <div class="scheda">
-  <form method="get" class="in-riga">
+  <form method="get" class="in-riga" role="search">
     <label for="q">{% translate "Cerca per titolo o identificativo" %}</label>
     <input type="text" id="q" name="q" value="{{ cerca }}">
-    <button type="submit" class="secondario">{% translate "Cerca" %}</button>
+    <button type="submit">{% translate "Cerca" %}</button>
+    {% if cerca %}<a href="{% url 'archivio:faldone' faldone.codice %}">{% translate "Mostra tutti" %}</a>{% endif %}
   </form>
+  <p class="tenue">
+    {% if cerca %}{% blocktranslate with n=quanti q=cerca %}{{ n }} trovati per «{{ q }}».{% endblocktranslate %}{% else %}{% blocktranslate with n=quanti %}{{ n }} in tutto.{% endblocktranslate %}{% endif %}
+    {% if quanti > fascicoli|length %}{% blocktranslate with n=fascicoli|length %}Qui sotto i {{ n }} più recenti: per gli altri usa la ricerca.{% endblocktranslate %}{% endif %}
+  </p>
   <table>
     <tr><th>{% translate "N." %}</th><th>{% translate "Fascicolo" %}</th><th>{% translate "Stato" %}</th><th>{% translate "Creato il" %}</th></tr>
     {% for f in fascicoli %}
@@ -34,7 +52,9 @@
     {% endfor %}
   </table>
 </div>
+</div>
 
+<aside class="azione">
 {% if puo_aprire_indagini %}
 <div class="scheda">
   <h2>{% translate "Apri un'indagine" %}</h2>
@@ -90,4 +110,6 @@
   </form>
 </div>
 {% endif %}
+</aside>
+</div>
 {% endblock %}

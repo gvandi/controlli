@@ -17,6 +17,7 @@ from django.contrib.auth.decorators import login_required, permission_required
 from django.db.models import Q
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.clickjacking import xframe_options_sameorigin
 
 from decodifiche.models import TipoDocumento, TipoIdentificativo
 from soggetti import servizi as anagrafica
@@ -88,6 +89,7 @@ def faldone(request, codice):
         fascicoli = fascicoli.filter(
             Q(titolo__icontains=cerca) | Q(soggetto__identificativi__valore_normalizzato__icontains=cerca)
         ).distinct()
+    quanti = fascicoli.count()
     elenco = list(fascicoli.order_by("-creato_il")[:MASSIMO_IN_ELENCO])
     stati = caricamento.avanzamento(elenco)
     for riga in elenco:
@@ -96,6 +98,7 @@ def faldone(request, codice):
         "faldone": faldone,
         "fascicoli": elenco,
         "cerca": cerca,
+        "quanti": quanti,
         "errore": errore,
         "puo_aprire_indagini": puo_aprire_indagini,
         "puo_aggiungere_aziende": puo_aggiungere_aziende,
@@ -335,3 +338,24 @@ def scarica(request, numero):
     except OSError:
         raise Http404
     return FileResponse(contenuto, as_attachment=True, filename=riga.percorso_originale.rsplit("/", 1)[-1])
+
+
+@login_required
+@permission_required("archivio.view_fascicolo", raise_exception=True)
+@xframe_options_sameorigin
+def anteprima(request, numero):
+    """
+    Il contenuto originale da mostrare DENTRO una pagina dell'applicativo (accanto alle entità,
+    nella revisione): solo PDF, JPEG e PNG, riconosciuti dai primi byte. Stessa visibilità di
+    scarica(). Si può incorniciare solo dalle pagine dell'applicativo stesso.
+    """
+    riga = _file_visibile(request, numero)
+    tipo = caricamento.tipo_in_pagina(riga)
+    if tipo is None:
+        raise Http404
+    risposta = FileResponse(
+        caricamento.apri_contenuto(riga), content_type=tipo, filename=riga.percorso_originale.rsplit("/", 1)[-1]
+    )
+    risposta["X-Content-Type-Options"] = "nosniff"
+    risposta["Cache-Control"] = "private, max-age=300"
+    return risposta

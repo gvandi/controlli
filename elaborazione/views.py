@@ -21,6 +21,7 @@ from django.contrib.auth.decorators import login_required, permission_required
 from django.http import Http404
 from django.shortcuts import redirect, render
 
+from archivio import caricamento
 from archivio import models as archivio
 from archivio.models import Fascicolo, FileCaricato
 from soggetti import servizi as anagrafica
@@ -118,6 +119,8 @@ def file(request, numero):
         "parti": list(documento.parti.select_related("soggetto").order_by("pk")) if documento else [],
         "soggetti_del_file": [(s.pk, anagrafica.etichetta(s)) for s in coda.soggetti_del_file(riga)],
         "ruoli": models.RUOLI,
+        # L'originale accanto alle entità: "application/pdf", "image/..." oppure None (solo da scaricare)
+        "originale": caricamento.tipo_in_pagina(riga) if request.user.has_perm("archivio.view_fascicolo") else None,
     })
 
 
