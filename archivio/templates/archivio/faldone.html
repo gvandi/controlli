@@ -73,8 +73,8 @@
 
 {% if puo_aggiungere_aziende %}
 <div class="scheda">
-  <h2>{% translate "Aggiungi un'azienda" %}</h2>
-  <p class="tenue">{% translate "Di norma il fascicolo di un'azienda nasce da solo con l'elaborazione dei file. Qui si può crearlo a mano." %}</p>
+  <h2>{% translate "Aggiungi una società" %}</h2>
+  <p class="tenue">{% translate "Di norma il fascicolo di una società nasce da solo con l'elaborazione dei file. Qui si può crearlo a mano." %}</p>
   <form method="post">
     {% csrf_token %}
     <input type="hidden" name="azione" value="aggiungi_azienda">

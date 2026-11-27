@@ -242,7 +242,7 @@ class NomiEStrumentiTest(ConArchivio):
         self.assertIn("Indicatore #400", interrogazione.indicatore("Paesi OFFSHORE", "Beta Legnami"))
         self.assertIn("Nessun indicatore", interrogazione.indicatore("zzz"))
         self.assertIn("- nessuna", interrogazione.indicatore("fatturato"))
-        self.assertIn("Indicatore #400", interrogazione.consulta("Quali aziende hanno l'indicatore sui paesi offshore?"))
+        self.assertIn("Indicatore #400", interrogazione.consulta("Quali società hanno l'indicatore sui paesi offshore?"))
 
     def test_il_report_si_compone_dal_solo_database(self):
         report, bolla = mappa.costruisci_report()

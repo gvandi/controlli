@@ -329,7 +329,7 @@ class CodaTest(ConFile):
         self.assertEqual(self.stato(file), archivio.FILE_DA_RIVEDERE)
         data = self.entita(file, regole.DATA)
         self.assertTrue(data.da_rivedere)
-        self.assertIn("soggetti dichiarati", data.motivo_revisione)
+        self.assertIn("società dichiarate", data.motivo_revisione)
         # l'identificativo trovato è un fatto: resta attribuito al suo soggetto, senza revisione
         self.assertFalse(self.entita(file, regole.COE).da_rivedere)
 
@@ -497,9 +497,9 @@ class CancellazioneTest(ConFile):
         self.assertEqual(anteprima["elaborazioni"], 1)
         self.assertEqual(anteprima["pagine di testo"], 1)
         self.assertEqual(anteprima["entità estratte"], 3)  # due COE e una data
-        self.assertEqual(anteprima["collegamenti ai fascicoli delle aziende"], 2)
-        self.assertEqual(anteprima["soggetti che esistevano solo per questo file"], 1)
-        self.assertEqual(anteprima["fascicoli di azienda rimasti vuoti"], 1)
+        self.assertEqual(anteprima["collegamenti ai fascicoli delle società"], 2)
+        self.assertEqual(anteprima["società che esistevano solo per questo file"], 1)
+        self.assertEqual(anteprima["fascicoli di società rimasti vuoti"], 1)
         self.assertEqual((EntitaEstratta.objects.count(), Soggetto.objects.count(), Fascicolo.objects.count()), prima)
         self.assertEqual(len(self.nel_deposito()), 2)
         pagina = self.pagina(self.dora, primo.pk)
@@ -671,11 +671,11 @@ class DocumentoTest(ConFile):
         # la chat riceve le stesse cose in parole, cercando per identificativo o per nome
         racconto = coda.descrivi_azienda("COE 10000", self.anna)
         for atteso in ("Alfa S.r.l.", "Denominazione", "DDT n. 45/2026 del 2026-11-12", "totale 1234.56",
-                       "ruolo dell'azienda: mittente", "vettore: Trasporti Beta S.r.l.", "non ancora arrivate"):
+                       "ruolo della società: mittente", "vettore: Trasporti Beta S.r.l.", "non ancora arrivate"):
             self.assertIn(atteso, racconto)
         self.assertEqual(coda.descrivi_azienda("alfa", self.anna), racconto)
-        self.assertIn("Nessuna azienda nota", coda.descrivi_azienda("99999", self.anna))
-        self.assertIn("Più aziende", coda.descrivi_azienda("s.r.l.", self.anna))
+        self.assertIn("Nessuna società nota", coda.descrivi_azienda("99999", self.anna))
+        self.assertIn("Più società", coda.descrivi_azienda("s.r.l.", self.anna))
         # lo strumento della chat risponde solo a chi ha una sessione, con la sua visibilità
         from grafo import servizio_mcp
         self.assertIn("solo da una sessione", servizio_mcp.scheda("10000"))
@@ -700,7 +700,7 @@ class DocumentoTest(ConFile):
         # la diagnosi segue il documento fino al grafo e dice a che punto è
         diagnosi = "\n".join(dati_reali.diagnosi(mittente))
         for atteso in ("File che la riguardano: 1", "documento DDT n. 45/2026 del 2026-11-12, totale 1234.56",
-                       "-> può entrare nel grafo", "Documenti pronti per il grafo: 1", "1 rapporti dell'azienda",
+                       "-> può entrare nel grafo", "Documenti pronti per il grafo: 1", "1 rapporti della società",
                        "non è utilizzabile"):   # nessun calcolo ancora: chat e mappa non hanno nulla da usare
             self.assertIn(atteso, diagnosi)
         Documento.objects.filter(file=file).update(confermato=False)

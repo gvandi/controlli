@@ -11,7 +11,7 @@ from grafo import dati_reali
 
 
 class Command(BaseCommand):
-    help = "Registra la fotografia dei dati reali (soggetti e rapporti dai documenti confermati)."
+    help = "Registra la fotografia dei dati reali (società e rapporti dai documenti confermati)."
 
     def handle(self, *args, **opzioni):
         resoconto = dati_reali.fotografa()
@@ -19,10 +19,10 @@ class Command(BaseCommand):
             self.stdout.write(f"Documenti confermati non usati, {motivo}: {quanti}")
         versione = resoconto["versione_dati"]
         if versione is None:
-            self.stdout.write("Nessuna azienda con dati per periodo e nessun documento confermato utilizzabile: nessuna fotografia.")
+            self.stdout.write("Nessuna società con dati per periodo e nessun documento confermato utilizzabile: nessuna fotografia.")
             return
         stato = "nuova fotografia" if resoconto["nuova"] else "nessuna novità: resta la fotografia"
         self.stdout.write(
-            f"{stato} dati n. {versione.numero}: {resoconto['soggetti']} soggetti, {resoconto['relazioni']} relazioni."
+            f"{stato} dati n. {versione.numero}: {resoconto['soggetti']} società, {resoconto['relazioni']} relazioni."
         )
         self.stdout.write("Non ci sono ancora punteggi su questi dati: la chat continua a usare l'ultima esecuzione.")

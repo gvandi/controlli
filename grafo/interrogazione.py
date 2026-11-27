@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   interrogazione.py  -  app grafo, VERSIONE 34
+#   interrogazione.py  -  app grafo, VERSIONE 35
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: interrogazione
@@ -79,6 +79,8 @@
 #   [29] risolvi_societa() riconosce un codice comunque scritto: COE10000, COE 10000, C.O.E. SM
 #        10000 e 10000 sono la stessa società; il codice viene cercato prima del numero interno
 #        della società, perché sui dati reali il numero che l'ispettore conosce è il COE.
+#   [35] Le risposte dicono «società» al posto di azienda e soggetto; le domande con «azienda»,
+#        «soggetto» o «impresa» sono capite come prima.
 #
 # <<< NOVITA
 """
@@ -896,13 +898,13 @@ def contesto_classifica(n, tipo, popolazione):
     testo = "--- CLASSIFICA DI RISCHIO CALCOLATA DAL GRAFO DI COMPLIANCE ---\n"
     testo += intestazione_dati()
     testo += f"Popolazione confrontata: {DESCRIZIONE_POPOLAZIONE[popolazione]}\n"
-    testo += f"Irregolarità considerata: {tipo if tipo else 'qualsiasi (per ogni azienda il tipo con punteggio più alto)'}\n"
+    testo += f"Irregolarità considerata: {tipo if tipo else 'qualsiasi (per ogni società il tipo con punteggio più alto)'}\n"
     testo += (
-        "AVVERTENZA: i punteggi servono a ordinare le aziende, non sono probabilità "
-        "calibrate. Il percentile indica la quota di aziende confrontate con punteggio inferiore.\n"
+        "AVVERTENZA: i punteggi servono a ordinare le società, non sono probabilità "
+        "calibrate. Il percentile indica la quota di società confrontate con punteggio inferiore.\n"
     )
     if not classifica:
-        return testo + "Nessuna azienda nella popolazione richiesta.\n"
+        return testo + "Nessuna società nella popolazione richiesta.\n"
 
     for voce in classifica:
         diretti = vicini_diretti(voce["nodo"])
@@ -930,7 +932,7 @@ def genera_contesto_investigativo(nodo_a, nodo_b, tipo=None):
     testo += intestazione_dati()
     for sigla, nodo in (("A", nodo_a), ("B", nodo_b)):
         testo += (
-            f"Soggetto {sigla}: {etichetta(nodo)}\n"
+            f"Società {sigla}: {etichetta(nodo)}\n"
             f"  Stato noto: {stato_compliance(nodo)}\n"
             f"  Punteggi di rischio GNN: {descrivi_rischi(nodo)}\n"
         )
@@ -955,7 +957,7 @@ def genera_contesto_investigativo(nodo_a, nodo_b, tipo=None):
     else:
         testo += "Nessun nodo intermediario comune fra A e B.\n"
 
-    testo += "\n--- INDICATORI ISOLATI DA GNNEXPLAINER (soggetto A) ---\n"
+    testo += "\n--- INDICATORI ISOLATI DA GNNEXPLAINER (società A) ---\n"
     return testo + indicatori_o_richiesta(nodo_a, tipo_da_spiegare(nodo_a, tipo))
 
 
@@ -968,7 +970,7 @@ def contesto_spiegazione(nodo, tipo=None):
 
     testo = "--- SPIEGAZIONE DEL RISCHIO ESTRATTA DAL GRAFO DI COMPLIANCE ---\n"
     testo += intestazione_dati()
-    testo += f"Soggetto: {etichetta(nodo)}\n"
+    testo += f"Società: {etichetta(nodo)}\n"
     testo += f"  Stato noto: {stato_compliance(nodo)}\n"
     testo += f"  Punteggi di rischio GNN: {descrivi_rischi(nodo)}\n"
     testo += (
@@ -986,7 +988,7 @@ def contesto_vicinato(nodo):
 
     testo = "--- RELAZIONI COMMERCIALI ESTRATTE DAL GRAFO DI COMPLIANCE ---\n"
     testo += intestazione_dati()
-    testo += f"Soggetto: {etichetta(nodo)} | Stato noto: {stato_compliance(nodo)}\n"
+    testo += f"Società: {etichetta(nodo)} | Stato noto: {stato_compliance(nodo)}\n"
     testo += f"Controparti dirette ({len(diretti)}):\n"
     for vicino in diretti:
         migliore = max(punteggi_nodo(vicino), key=lambda voce: voce["punteggio"])
@@ -997,7 +999,7 @@ def contesto_vicinato(nodo):
         )
     if not diretti:
         testo += "  - nessuna\n"
-    testo += f"Soggetti raggiungibili in 2 passi: {len(indiretti)}\n"
+    testo += f"Società raggiungibili in 2 passi: {len(indiretti)}\n"
     testo += (
         "Fra questi, con irregolarità accertate: "
         + ("; ".join(etichetta(v) for v in indiretti_irregolari) or "nessuno")
@@ -1022,7 +1024,7 @@ def contesto_indicatore(termine, nodo=None):
             "usate dalla GNN e arrivano con i dati del suo calcolo: sui dati reali, dove la GNN non è "
             "ancora calcolata, l'elenco è vuoto. Non è un errore e l'ispettore non deve fare nulla. "
             "Per le regole di rischio, gli scostamenti e lo spazio degli indici usare lo strumento spazio; "
-            "per le aziende più rischiose lo strumento classifica.\n"
+            "per le società più rischiose lo strumento classifica.\n"
         )
     if not trovati:
         return testo + f"Nessun indicatore fra i {voci_dizionario} del dizionario contiene '{termine}'.\n"
@@ -1124,9 +1126,9 @@ def classifica(n: int = 3, tipo: str = "", popolazione: str = "non_ispezionate")
     try:
         n = int(n)
     except (TypeError, ValueError):
-        return "Il numero di aziende deve essere un intero."
+        return "Il numero di società deve essere un intero."
     if not 1 <= n <= contratto.MAX_AZIENDE_IN_CLASSIFICA:
-        return f"Il numero di aziende deve essere fra 1 e {contratto.MAX_AZIENDE_IN_CLASSIFICA}."
+        return f"Il numero di società deve essere fra 1 e {contratto.MAX_AZIENDE_IN_CLASSIFICA}."
     return contesto_classifica(n, tipo or None, popolazione)
 
 
@@ -1217,7 +1219,7 @@ NUMERI_IN_LETTERE = {
 NOMI_COLLETTIVI = r"(?:aziende|societ[àa]|soggetti|imprese|nodi)"
 
 MESSAGGIO_NON_SUPPORTATA = (
-    "Domanda non riconosciuta. Posso rispondere a: classifica delle aziende più rischiose, "
+    "Domanda non riconosciuta. Posso rispondere a: classifica delle società più rischiose, "
     "relazione fra due società, spiegazione del rischio di una società, controparti di una società, "
     "ricerca di un indicatore di rischio (le società si indicano per nome o per numero, es. 'società 12')."
 )

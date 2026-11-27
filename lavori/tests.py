@@ -109,7 +109,7 @@ class LavoriTest(TestCase):
         self.assertIn("Righe nuove: 2; aggiornate: 0; rifiutate: 1.", importazione.esito)
         self.assertEqual(DatiPerPeriodo.objects.filter(fonte="prova").count(), 2)
         self.assertEqual(indici.stato, FINITO)
-        self.assertIn("2 aziende, 1 sopra soglia", indici.esito)
+        self.assertIn("2 società, 1 sopra soglia", indici.esito)
 
         # le pagine mostrano l'esito: l'elenco e la pagina iniziale, con la stessa sequenza
         elenco = self.client.get(reverse("lavori:elenco"))

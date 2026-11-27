@@ -450,7 +450,7 @@ def _salva(file, elaborazione, lettura):
         )
         motivo = ""
         if estraneo and nominato is None:
-            motivo = "Il file non nomina nessuno dei soggetti dichiarati"
+            motivo = "Il file non nomina nessuna delle società dichiarate"
         elif rivedi_le_scansioni and da_scansione and (
             entita["etichetta"] in DELICATE_SE_DA_SCANSIONE
             or (voce is not None and voce.tipo_valore in ("identificativo", "importo"))
@@ -549,7 +549,7 @@ def _segnala_valori_in_conflitto(file):
         ).exclude(pk=entita.pk)
         diverse = [a.pk for a in altre if _compatto(a.valore_normalizzato) != _compatto(entita.valore_normalizzato)]
         if diverse:
-            motivo = "Valore diverso da quello di un'altra fonte per lo stesso soggetto e periodo"
+            motivo = "Valore diverso da quello di un'altra fonte per la stessa società e periodo"
             EntitaEstratta.objects.filter(pk__in=diverse + [entita.pk]).update(da_rivedere=True, motivo_revisione=motivo)
             FileCaricato.objects.filter(entita__pk__in=diverse, stato=archivio.FILE_ELABORATO).update(
                 stato=archivio.FILE_DA_RIVEDERE
@@ -837,7 +837,7 @@ def trova_azienda(cercata):
     """
     cercata = " ".join(str(cercata or "").split())
     if not cercata:
-        return None, "Indicare l'azienda: COE, partita IVA oppure nome."
+        return None, "Indicare la società: COE, partita IVA oppure nome."
     cifre = re.sub(r"\D", "", cercata)
     if len(cifre) >= 5 and len(re.sub(r"[\W\d_]", "", cercata)) <= 6:  # un identificativo, con al più una sigla (COE, SM, IT)
         # si confrontano le sole cifre: la forma normalizzata può portare una sigla davanti
@@ -849,11 +849,11 @@ def trova_azienda(cercata):
         trovati = Soggetto.objects.filter(denominazione__icontains=cercata)
     trovati = list(trovati.order_by("denominazione", "pk")[:MASSIMO_OMONIMI + 1])
     if not trovati:
-        return None, f"Nessuna azienda nota corrisponde a «{cercata}»."
+        return None, f"Nessuna società nota corrisponde a «{cercata}»."
     if len(trovati) > 1:
         elenco = "\n".join(f"- {anagrafica.etichetta(s)}" for s in trovati[:MASSIMO_OMONIMI])
         altre = "\n(ce ne sono altre: restringere la ricerca)" if len(trovati) > MASSIMO_OMONIMI else ""
-        return None, f"Più aziende corrispondono a «{cercata}». Indicare l'identificativo di una di queste:\n{elenco}{altre}"
+        return None, f"Più società corrispondono a «{cercata}». Indicare l'identificativo di una di queste:\n{elenco}{altre}"
     return trovati[0], ""
 
 
@@ -871,9 +871,9 @@ def descrivi_azienda(cercata, utente):
         return messaggio
     scheda = scheda_del_soggetto(soggetto, utente)
     documenti = documenti_del_soggetto(soggetto, utente)
-    righe = [f"Azienda: {anagrafica.etichetta(soggetto)}"]
+    righe = [f"Società: {anagrafica.etichetta(soggetto)}"]
     if soggetto.provvisorio:
-        righe.append("Anagrafica provvisoria: il soggetto è noto solo da identificativi dichiarati o letti nei file.")
+        righe.append("Anagrafica provvisoria: la società è nota solo da identificativi dichiarati o letti nei file.")
 
     note = [riga for riga in scheda if not riga["mancante"]]
     righe.append(f"\nVoci note ({len(note)}):" if note else "\nNessuna voce nota.")
@@ -903,7 +903,7 @@ def descrivi_azienda(cercata, utente):
             f"{altra.ruolo}: {altra.denominazione}" + (f" ({altra.identificativo})" if altra.identificativo else "")
             for altra in riga["altre"]
         )
-        righe.append(f"- {' '.join(dati)}; ruolo dell'azienda: {riga['ruolo']}" + (f"; altre parti: {altre}" if altre else ""))
+        righe.append(f"- {' '.join(dati)}; ruolo della società: {riga['ruolo']}" + (f"; altre parti: {altre}" if altre else ""))
     righe.append(
         "\nFonte: file caricati nell'archivio ed elaborati. Questi dati non vengono dall'analisi di rete "
         "e non sono punteggi di rischio."

@@ -12,7 +12,7 @@ from grafo import dati_reali
 
 
 class Command(BaseCommand):
-    help = "Spiega perché un'azienda ha o non ha rapporti nella mappa e nella chat."
+    help = "Spiega perché una società ha o non ha rapporti nella mappa e nella chat."
 
     def add_arguments(self, parser):
         parser.add_argument("azienda", nargs="+", help="COE, partita IVA o nome")

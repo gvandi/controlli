@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   scrittura.py  -  app grafo, VERSIONE 34
+#   scrittura.py  -  app grafo, VERSIONE 35
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: calcolo
@@ -71,6 +71,7 @@
 #   [33] La diagnosi chiama il lavoro da lanciare con il suo nuovo nome, «Aggiorna il grafo e
 #        calcola gli indici» (prima «Calcola gli indici»): è il passo che fotografa i rapporti,
 #        applica le regole e mette il risultato in uso.
+#   [35] I testi della diagnosi e dei comandi dicono «società» al posto di azienda e soggetto.
 #
 # <<< NOVITA
 """

@@ -146,8 +146,8 @@ class SoggettoInIndagine(models.Model):
     aggiunto_il = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        verbose_name = "soggetto in indagine"
-        verbose_name_plural = "soggetti in indagine"
+        verbose_name = "società in indagine"
+        verbose_name_plural = "società in indagine"
         constraints = [
             models.UniqueConstraint(fields=["fascicolo", "soggetto"], name="soggetto_in_indagine_unico"),
         ]
@@ -245,8 +245,8 @@ class SoggettoDichiarato(models.Model):
     soggetto = models.ForeignKey("soggetti.Soggetto", on_delete=models.PROTECT, related_name="+")
 
     class Meta:
-        verbose_name = "soggetto dichiarato"
-        verbose_name_plural = "soggetti dichiarati"
+        verbose_name = "società dichiarata"
+        verbose_name_plural = "società dichiarate"
 
     def __str__(self):
         return f"{self.tipo.codice} {self.valore_normalizzato}"

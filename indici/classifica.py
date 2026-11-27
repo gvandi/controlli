@@ -23,7 +23,7 @@ import collections
 from . import spazio
 from .models import RegolaDiRischio
 
-REGOLE, SCOSTAMENTO, RAPPORTI = "regole", "scostamento", "rapporti con aziende segnalate"
+REGOLE, SCOSTAMENTO, RAPPORTI = "regole", "scostamento", "rapporti con società segnalate"
 
 
 def _indice(pesi):
@@ -95,10 +95,10 @@ def racconta(utente, n=3, regola=""):
     def nome(numero):
         if numero in punti:
             return f"{punti[numero]['nome']} ({punti[numero]['codice']})" if punti[numero]["codice"] else punti[numero]["nome"]
-        return f"{fuori.get(str(numero), 'azienda')} (senza dati per periodo)"
+        return f"{fuori.get(str(numero), 'società')} (senza dati per periodo)"
 
     def titolo(testo, elenco):
-        quante = f"{len(elenco)} aziende" if len(elenco) != 1 else "1 azienda"
+        quante = f"{len(elenco)} società" if len(elenco) != 1 else "1 società"
         return f"\n{testo}: {quante}" + (f", le prime {n}" if len(elenco) > n else "") + ("." if not elenco else ":")
 
     per_azienda = collections.defaultdict(list)
@@ -113,7 +113,7 @@ def racconta(utente, n=3, regola=""):
         key=lambda voce: (-len(voce[1]), nome(voce[0])),
     )
 
-    righe = [f"Aziende collocate con i dati per periodo: {len(punti)}."]
+    righe = [f"Società collocate con i dati per periodo: {len(punti)}."]
     righe.append(titolo("SEGNALATE DA PIÙ CRITERI", concordi))
     righe += [f"- {nome(numero)}: {' + '.join(elenco)}" for numero, elenco in concordi[:n]]
 
@@ -129,13 +129,13 @@ def racconta(utente, n=3, regola=""):
         righe.append(f"- {nome(numero)}: indice {indice:.2f}; regole scattate: {', '.join(codici)}; attività {p['ateco']}")
 
     righe.append(titolo(
-        f"CRITERIO 2 - SCOSTAMENTO DALLE AZIENDE SIMILI (z-score robusto del fatturato rispetto al personale, soglia {c['soglia_z']})",
+        f"CRITERIO 2 - SCOSTAMENTO DALLE SOCIETÀ SIMILI (z-score robusto del fatturato rispetto al personale, soglia {c['soglia_z']})",
         c["scostamento"],
     ))
     for numero, z in c["scostamento"][:n]:
         righe.append(f"- {nome(numero)}: z {z:+.2f}, confronto con {punti[numero]['gruppo']}; attività {punti[numero]['ateco']}")
 
-    righe.append(titolo("CRITERIO 3 - RAPPORTI CON AZIENDE SEGNALATE (dai documenti confermati)", c["rapporti"]))
+    righe.append(titolo("CRITERIO 3 - RAPPORTI CON SOCIETÀ SEGNALATE (dai documenti confermati)", c["rapporti"]))
     for numero, elenco, importo in c["rapporti"][:n]:
         altre = "; ".join(f"{nome(altra)} [{', '.join(perche)}], {quanti} documenti" for altra, perche, quanti, _ in elenco)
         righe.append(f"- {nome(numero)}: {altre}; importo totale {importo:.2f}")

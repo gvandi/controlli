@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   dati_reali.py  -  app grafo, VERSIONE 34
+#   dati_reali.py  -  app grafo, VERSIONE 35
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: calcolo
@@ -71,6 +71,7 @@
 #   [33] La diagnosi chiama il lavoro da lanciare con il suo nuovo nome, «Aggiorna il grafo e
 #        calcola gli indici» (prima «Calcola gli indici»): è il passo che fotografa i rapporti,
 #        applica le regole e mette il risultato in uso.
+#   [35] I testi della diagnosi e dei comandi dicono «società» al posto di azienda e soggetto.
 #
 # <<< NOVITA
 """
@@ -196,7 +197,7 @@ def diagnosi(soggetto_anagrafica):
 
     from . import contratto, interrogazione
 
-    righe = [f"Azienda: {anagrafica.etichetta(soggetto_anagrafica)} (soggetto n. {soggetto_anagrafica.pk} dell'anagrafica)"]
+    righe = [f"Società: {anagrafica.etichetta(soggetto_anagrafica)} (società n. {soggetto_anagrafica.pk} dell'anagrafica)"]
 
     # 1. I file che la riguardano e i documenti riconosciuti
     collegati = (
@@ -218,7 +219,7 @@ def diagnosi(soggetto_anagrafica):
         for documento in documenti:
             parti = "; ".join(
                 f"{parte.ruolo or '(ruolo da assegnare)'}: {parte.denominazione or '-'}"
-                + (" [senza soggetto]" if not parte.soggetto_id else "") + (" [tolta]" if parte.ritirata else "")
+                + (" [senza società]" if not parte.soggetto_id else "") + (" [tolta]" if parte.ritirata else "")
                 for parte in documento.parti.all()
             )
             righe.append(f"       documento {documento.tipo or '?'} n. {documento.numero or '?'} del {documento.data or '?'}, "
@@ -239,7 +240,7 @@ def diagnosi(soggetto_anagrafica):
     del_grafo = Soggetto.objects.filter(riferimento=riferimento(soggetto_anagrafica)).first()
     righe.append(f"\n2. Documenti pronti per il grafo: {pronti}")
     if del_grafo is None:
-        righe.append("   L'azienda non è in nessuna fotografia dei dati: lanciare «Aggiorna il grafo e calcola gli indici» "
+        righe.append("   La società non è in nessuna fotografia dei dati: lanciare «Aggiorna il grafo e calcola gli indici» "
                      "(python manage.py calcola_indici).")
         return righe
     righe.append(f"   Nel grafo è la società n. {del_grafo.pk}.")
@@ -252,7 +253,7 @@ def diagnosi(soggetto_anagrafica):
             Relazione.objects.filter(versione_dati=fotografia, venditore=del_grafo).count()
             + Relazione.objects.filter(versione_dati=fotografia, acquirente=del_grafo).count()
         )
-        righe.append(f"   - dati n. {fotografia.numero} ({fotografia.descrizione}): {conteggi[fotografia.numero]} rapporti dell'azienda")
+        righe.append(f"   - dati n. {fotografia.numero} ({fotografia.descrizione}): {conteggi[fotografia.numero]} rapporti della società")
 
     # 3. Che cosa stanno usando la chat e la mappa
     try:
@@ -266,15 +267,15 @@ def diagnosi(soggetto_anagrafica):
     righe.append(f"\n3. In uso da chat e mappa: calcolo {in_uso['versione_calcolo']} / dati n. {numero}")
     piu_recente = fotografie[0].numero if fotografie else None
     if numero not in {f.numero for f in fotografie}:
-        righe.append("   Questa fotografia NON contiene l'azienda: per questo la mappa non la mostra con i suoi rapporti. "
+        righe.append("   Questa fotografia NON contiene la società: per questo la mappa non la mostra con i suoi rapporti. "
                      "Probabilmente è la fotografia dei dati simulati (calcolo della GNN).")
     else:
-        righe.append(f"   In questa fotografia l'azienda ha {conteggi.get(numero, '?')} rapporti.")
+        righe.append(f"   In questa fotografia la società ha {conteggi.get(numero, '?')} rapporti.")
     righe.append("\nChe cosa fare:")
     if pronti and (piu_recente is None or conteggi.get(piu_recente, 0) < pronti):
         righe.append("   - Ci sono documenti pronti che non sono ancora in una fotografia: lanciare «Aggiorna il grafo e calcola gli indici».")
     if piu_recente is not None and numero != piu_recente:
-        righe.append(f"   - La fotografia più recente con l'azienda è la n. {piu_recente}, ma è in uso la n. {numero}: "
+        righe.append(f"   - La fotografia più recente con la società è la n. {piu_recente}, ma è in uso la n. {numero}: "
                      "manca un calcolo sulla più recente (lanciare «Aggiorna il grafo e calcola gli indici»), oppure una restrizione "
                      "del cruscotto sta scegliendo un altro calcolo.")
     if not pronti:

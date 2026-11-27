@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   contratto.py  -  app grafo, VERSIONE 34
+#   contratto.py  -  app grafo, VERSIONE 35
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: contratto
@@ -66,6 +66,8 @@
 #   [34] Ogni modello dichiara il suo nome in italiano, singolare e plurale (migrazione 0004):
 #        nelle pagine di amministrazione non compaiono più «Sessiones», «Richiestas», «Mappa
 #        prodottas», «Token accessos». Cambiano solo le etichette.
+#   [35] Un solo nome: le descrizioni delle popolazioni e i nomi dei modelli nelle pagine di
+#        amministrazione dicono «società» (migrazione 0005). Tabelle e campi non cambiano nome.
 #
 # <<< NOVITA
 """
@@ -93,7 +95,7 @@ from packaging.version import InvalidVersion, Version
 # 1) PROGETTO: quale rilascio è installato. Solo provenienza: non blocca nulla.
 #    Dalla versione 20 è un numero intero (20, 21...): non essendo mai confrontato
 #    con un intervallo, un secondo numero non serviva.
-VERSIONE_CODICE = "34"
+VERSIONE_CODICE = "35"
 
 # 2) SCHEMA del database: decide se un lettore può aprire l'archivio.
 #    Secondo numero: modifiche che AGGIUNGONO (tabella, colonna facoltativa, indice).
@@ -225,9 +227,9 @@ NUM_TIPI = len(TIPI_IRREGOLARITA)
 
 POPOLAZIONI = ("non_ispezionate", "ispezionate", "tutte")
 DESCRIZIONE_POPOLAZIONE = {
-    "non_ispezionate": "aziende NON ancora ispezionate (dove dirigere i controlli)",
-    "ispezionate": "aziende già ispezionate",
-    "tutte": "tutte le aziende",
+    "non_ispezionate": "società NON ancora ispezionate (dove dirigere i controlli)",
+    "ispezionate": "società già ispezionate",
+    "tutte": "tutte le società",
 }
 
 # Strumenti che il server MCP espone alla chat: uno per intento

@@ -71,7 +71,7 @@ def _calcola_indici(lavoro):
     if r["esecuzione"] is None:
         return "Nessun dato reale: importare l'anagrafica o confermare almeno un documento."
     return (
-        f"Calcolo {contratto.VERSIONE_CALCOLO_REGOLE} / dati n. {r['versione_dati'].numero}: {r['aziende']} aziende, "
+        f"Calcolo {contratto.VERSIONE_CALCOLO_REGOLE} / dati n. {r['versione_dati'].numero}: {r['aziende']} società, "
         f"{r['segnalate']} sopra soglia, {r['senza_dati']} senza dati per periodo, {r['regole']} regole attive."
     )
 
@@ -87,9 +87,9 @@ def _dati_reali(lavoro):
 
     r = dati_reali.fotografa()
     if r["versione_dati"] is None:
-        return "Nessuna azienda con dati per periodo e nessun documento confermato utilizzabile: nessuna fotografia."
+        return "Nessuna società con dati per periodo e nessun documento confermato utilizzabile: nessuna fotografia."
     stato = "Nuova fotografia" if r["nuova"] else "Nessuna novità: resta la fotografia"
-    testo = f"{stato} dati n. {r['versione_dati'].numero}: {r['soggetti']} soggetti, {r['relazioni']} relazioni."
+    testo = f"{stato} dati n. {r['versione_dati'].numero}: {r['soggetti']} società, {r['relazioni']} relazioni."
     if r["nuova"]:
         testo += f"\nChat e mappa non la usano ancora: lanciare «{TIPI['calcola_indici'].titolo}»."
     for motivo, quanti in sorted(r["esclusi"].items()):
@@ -126,14 +126,14 @@ TIPI = {
     ),
     "importa_anagrafica": Tipo(
         "Importa l'anagrafica da CSV", REALI,
-        "Attività, dipendenti e fatturato delle aziende, per periodo: sono i dati su cui lavorano le regole.",
+        "Attività, dipendenti e fatturato delle società, per periodo: sono i dati su cui lavorano le regole.",
         _importa_anagrafica,
         "Un file CSV. Non dipende dai passi precedenti.",
-        "L'anagrafica per periodo e il nome delle aziende. Niente ancora negli indici.",
+        "L'anagrafica per periodo e il nome delle società. Niente ancora negli indici.",
     ),
     "calcola_indici": Tipo(
         "Aggiorna il grafo e calcola gli indici", REALI,
-        "Fa tre cose insieme: fotografa aziende e rapporti (dai documenti confermati), applica le regole di "
+        "Fa tre cose insieme: fotografa società e rapporti (dai documenti confermati), applica le regole di "
         "rischio, e mette il risultato in uso.", _calcola_indici,
         "Documenti confermati e/o anagrafica importata. Va rilanciato ogni volta che uno dei due cambia.",
         "Ciò che leggono chat, mappa di rete, classifica e spazio degli indici.",
@@ -152,13 +152,13 @@ TIPI = {
     ),
     "allinea_denominazioni": Tipo(
         "Riallinea le denominazioni", SERVIZIO,
-        "Rimette in ordine i nomi delle aziende: prevale l'anagrafica ufficiale.", _allinea_denominazioni,
-        "Serve solo se un'azienda compare con un nome sbagliato o come «non rilevata».",
-        "Il nome delle aziende in anagrafica.",
+        "Rimette in ordine i nomi delle società: prevale l'anagrafica ufficiale.", _allinea_denominazioni,
+        "Serve solo se una società compare con un nome sbagliato o come «non rilevata».",
+        "Il nome delle società in anagrafica.",
     ),
     "dati_reali": Tipo(
         "Fotografa i dati reali senza calcolare", SERVIZIO,
-        "La sola prima parte di «Aggiorna il grafo e calcola gli indici»: conta aziende e rapporti e dice quali "
+        "La sola prima parte di «Aggiorna il grafo e calcola gli indici»: conta società e rapporti e dice quali "
         "documenti restano fuori.", _dati_reali,
         "Serve per un controllo. Per l'uso normale basta il passo del percorso.",
         "Una fotografia che chat e mappa NON usano finché non si calcolano gli indici.",
@@ -178,12 +178,12 @@ _CONFERMARE = (
 # LA SEQUENZA: (gruppo, titolo, nota, voci). Una voce è il nome di un tipo oppure un passo manuale.
 PERCORSO = (
     (REALI, "Percorso dei dati reali",
-     "In quest'ordine. I passi 1-3 portano i rapporti fra aziende, il passo 4 i dati per le regole: sono "
+     "In quest'ordine. I passi 1-3 portano i rapporti fra società, il passo 4 i dati per le regole: sono "
      "indipendenti fra loro, e il passo 5 li usa entrambi.",
      (_CARICARE, "elabora_file", _CONFERMARE, "importa_anagrafica", "calcola_indici")),
     (SIMULATA, "Rete simulata (prototipo)",
      "La GNN non è ancora calcolata sui dati reali: questi due lavori servono a provare il modello e non "
-     "cambiano ciò che si vede delle aziende vere.",
+     "cambiano ciò che si vede delle società vere.",
      ("calcola_gnn", "spiegazioni")),
     (SERVIZIO, "Strumenti di servizio",
      "Non fanno parte della sequenza: si lanciano quando serve.",

@@ -24,6 +24,6 @@ class Command(BaseCommand):
             self.stdout.write("Attenzione: nessuna regola attiva (python manage.py carica_regole, oppure dall'amministrazione).")
         self.stdout.write(
             f"Calcolo {contratto.VERSIONE_CALCOLO_REGOLE} / dati n. {resoconto['versione_dati'].numero}: "
-            f"{resoconto['aziende']} aziende, {resoconto['segnalate']} sopra soglia, "
+            f"{resoconto['aziende']} società, {resoconto['segnalate']} sopra soglia, "
             f"{resoconto['senza_dati']} senza dati per periodo, {resoconto['regole']} regole attive."
         )

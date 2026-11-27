@@ -50,8 +50,8 @@ class Soggetto(models.Model):
     creato_il = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        verbose_name = "soggetto del grafo"
-        verbose_name_plural = "soggetti del grafo"
+        verbose_name = "società del grafo"
+        verbose_name_plural = "società del grafo"
         db_table = "grafo_soggetto"
 
     def __str__(self):
@@ -88,8 +88,8 @@ class DatiSoggetto(models.Model):
     ispezionata = models.BooleanField(default=False)
 
     class Meta:
-        verbose_name = "dati di un soggetto"
-        verbose_name_plural = "dati dei soggetti"
+        verbose_name = "dati di una società"
+        verbose_name_plural = "dati delle società"
         db_table = "grafo_dati_soggetto"
         constraints = [
             models.UniqueConstraint(
@@ -191,8 +191,8 @@ class NodoSoggetto(models.Model):
     soggetto = models.ForeignKey(Soggetto, on_delete=models.PROTECT, related_name="+")
 
     class Meta:
-        verbose_name = "nodo di un soggetto"
-        verbose_name_plural = "nodi dei soggetti"
+        verbose_name = "nodo di una società"
+        verbose_name_plural = "nodi delle società"
         db_table = "grafo_nodo"
         constraints = [
             models.UniqueConstraint(fields=["esecuzione", "indice_nodo"], name="grafo_nodo_unico"),

@@ -180,7 +180,7 @@ class IndiciTest(TestCase):
         servizio_mcp._chiamata.sessione = types.SimpleNamespace(utente=utente)
         self.addCleanup(setattr, servizio_mcp._chiamata, "sessione", None)
         testo = servizio_mcp.classifica()
-        for atteso in ("CRITERIO 1 - REGOLE DI RISCHIO (tutte le regole attive: COMMERCIO_SENZA_DIPENDENTI): 1 azienda:",
+        for atteso in ("CRITERIO 1 - REGOLE DI RISCHIO (tutte le regole attive: COMMERCIO_SENZA_DIPENDENTI): 1 società:",
                        "indice 0.60; regole scattate: COMMERCIO_SENZA_DIPENDENTI",
                        "CRITERIO 4 - ANALISI DI RETE (GNN): non calcolato sui dati reali"):
             self.assertIn(atteso, testo)
@@ -281,9 +281,9 @@ class SpazioTest(TestCase):
         utente.user_permissions.add(Permission.objects.get(content_type__app_label="indici", codename="view_regoladirischio"))
         utente = get_user_model().objects.get(pk=utente.pk)
         testo = classifica.racconta(utente, n=2)
-        for atteso in ("SEGNALATE DA PIÙ CRITERI: 1 azienda:", "- Alfa S.r.l. (COE 10000): regole + scostamento",
-                       "tutte le regole attive: COMMERCIO_SENZA_DIPENDENTI, NEGOZI): 10 aziende, le prime 2:",
-                       "CRITERIO 2 - SCOSTAMENTO", "CRITERIO 3 - RAPPORTI CON AZIENDE SEGNALATE (dai documenti confermati): 0 aziende."):
+        for atteso in ("SEGNALATE DA PIÙ CRITERI: 1 società:", "- Alfa S.r.l. (COE 10000): regole + scostamento",
+                       "tutte le regole attive: COMMERCIO_SENZA_DIPENDENTI, NEGOZI): 10 società, le prime 2:",
+                       "CRITERIO 2 - SCOSTAMENTO", "CRITERIO 3 - RAPPORTI CON SOCIETÀ SEGNALATE (dai documenti confermati): 0 società."):
             self.assertIn(atteso, testo)
         self.assertIn("la sola regola NEGOZI (Dettaglio)", classifica.racconta(utente, regola="negozi"))
         self.assertIn("Nessuna regola corrisponde", classifica.racconta(utente, regola="inesistente"))
@@ -293,7 +293,7 @@ class SpazioTest(TestCase):
         servizio_mcp._chiamata.sessione = types.SimpleNamespace(utente=utente)
         self.addCleanup(setattr, servizio_mcp._chiamata, "sessione", None)
         risposta = servizio_mcp.classifica(n=2)
-        self.assertIn("AZIENDE PIÙ RISCHIOSE, PER CRITERIO", risposta)
+        self.assertIn("SOCIETÀ PIÙ RISCHIOSE, PER CRITERIO", risposta)
         self.assertIn("regole + scostamento", risposta)
         self.assertIn("CRITERIO 4 - ANALISI DI RETE (GNN): non disponibile", risposta)
         # "mostrami lo spazio degli indici": se il modello sbaglia e chiama indicatore, risponde comunque spazio

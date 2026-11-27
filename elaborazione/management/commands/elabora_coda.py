@@ -5,7 +5,7 @@ from elaborazione import coda
 
 class Command(BaseCommand):
     help = (
-        "Elabora i file ricevuti: testo, entità, collegamento alle aziende. Da avviare di notte "
+        "Elabora i file ricevuti: testo, entità, collegamento alle società. Da avviare di notte "
         "con un limite di tempo; i file non presi restano in attesa per la volta successiva."
     )
 
