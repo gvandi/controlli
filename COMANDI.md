@@ -99,7 +99,7 @@ python manage.py calcola_indici
 
 ## Lo stesso, dall'interfaccia: la sequenza
 
-L'Amministratore lancia tutto dal riquadro "Elaborazioni e calcoli" della pagina iniziale (o da
+L'Amministratore lancia tutto dalla scheda "Aggiornamento dati" della pagina iniziale (o da
 `/lavori/`). I pulsanti sono in un posto solo e nell'ordine in cui vanno usati; registrano la
 richiesta, che viene eseguita dal processo `esegui_lavori` (deve essere acceso).
 

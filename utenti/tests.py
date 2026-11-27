@@ -52,3 +52,13 @@ class AccessoTest(TestCase):
         self.client.login(username="mario", password="una-password-lunga")
         risposta = self.client.get(reverse("home"))
         self.assertEqual(risposta.status_code, 200)
+        # la pagina è a schede; chi non ha diritti vede le tre di tutti, senza quelle di chi amministra
+        self.assertContains(risposta, 'role="tablist"')
+        for scheda in ("da-fare", "caricamento", "societa"):
+            self.assertContains(risposta, f'id="scheda-{scheda}"')
+        for scheda in ("aggiornamento", "configurazione"):
+            self.assertNotContains(risposta, f'id="scheda-{scheda}"')
+        self.assertContains(risposta, 'data-iniziale="da-fare"')
+        # una ricerca senza i diritti per le schede non rivela nulla
+        risposta = self.client.get(reverse("home"), {"societa": "10000"})
+        self.assertNotContains(risposta, "Ciò che se ne sa")

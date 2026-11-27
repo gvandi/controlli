@@ -1,87 +1,312 @@
 {% extends "base.html" %}
 {% load i18n %}
 {% block contenuto %}
+{% comment %}
+  PAGINA INIZIALE A SCHEDE (utenti/views.py, DECISIONI.md n. 101).
+  Ogni scheda è un <section class="pannello" id="scheda-..."> con il suo bottone nell'elenco in alto.
+  Senza JavaScript le schede si vedono tutte, una sotto l'altra: nessuna funzione resta irraggiungibile.
+  L'indirizzo ricorda la scheda (/#caricamento): un collegamento o il ritorno da un modulo portano lì.
+{% endcomment %}
+<style>
+  main { max-width: 84rem; }
+  .schede { display: flex; flex-wrap: wrap; gap: 0.25rem; border-bottom: 2px solid var(--bordo); margin: 1rem 0 1.25rem; }
+  .schede[hidden] { display: none; }
+  .schede button { background: transparent; color: var(--testo); border-radius: 6px 6px 0 0; padding: 0.55rem 1rem; border: 1px solid transparent; border-bottom: 0; margin-bottom: -2px; }
+  .schede button[aria-selected="true"] { background: #fff; border-color: var(--bordo); border-bottom: 2px solid #fff; color: var(--accento); font-weight: 600; }
+  .schede button:focus-visible { outline: 2px solid var(--accento); outline-offset: 2px; }
+  .schede .numero { display: inline-block; min-width: 1.4rem; text-align: center; border-radius: 1rem; padding: 0 0.35rem; margin-left: 0.3rem; background: #a12622; color: #fff; font-size: 0.8rem; font-weight: 600; }
+  .con-schede .pannello { display: none; }
+  .con-schede .pannello.aperto { display: block; }
+  .pannello > h2 { font-size: 1.15rem; margin: 0 0 0.75rem; }
+  .con-schede .pannello > h2 { position: absolute; left: -999rem; }   /* il titolo è già nel bottone */
+  .colonne { display: grid; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); gap: 1rem; align-items: start; }
+  .colonne .scheda { margin-bottom: 0; }
+  .elenco-breve { list-style: none; padding: 0; margin: 0.4rem 0; }
+  .elenco-breve li { padding: 0.3rem 0; border-top: 1px solid var(--bordo); }
+  .conto { font-size: 1.6rem; font-weight: 600; line-height: 1.1; }
+  .cerca-societa input[type=text] { display: inline-block; width: min(26rem, 100%); margin-right: 0.5rem; }
+  .da-verificare { font-size: 0.8rem; color: #8a5a00; background: #fdf6e3; border: 1px solid #e6cf9c; border-radius: 3px; padding: 0 0.3rem; white-space: nowrap; }
+  table.dati { border-collapse: collapse; width: 100%; }
+  table.dati th, table.dati td { text-align: left; padding: 0.3rem 0.6rem 0.3rem 0; border-top: 1px solid var(--bordo); vertical-align: top; }
+  pre.messaggio { white-space: pre-wrap; font: inherit; margin: 0.5rem 0; }
+</style>
 <h1>Controlli</h1>
 <p class="tenue">
   {% translate "Ruoli assegnati:" %}
   {% if ruoli %}{{ ruoli|join:", " }}{% else %}{% translate "nessuno" %}{% endif %}{% if user.is_superuser %} ({% translate "superutente" %}){% endif %}
 </p>
 
-<div class="scheda">
-  <h2>{% translate "Archivio" %}</h2>
-  {% if puo_vedere_l_archivio %}
-    <p>{% translate "Faldoni e fascicoli: caricamenti, società, indagini." %}</p>
-    <p><a class="bottone" href="{% url 'archivio:faldoni' %}">{% translate "Apri l'archivio" %}</a></p>
+<div id="pagina-a-schede" data-iniziale="{{ scheda_iniziale }}">
+<div class="schede" role="tablist" aria-label="{% translate 'Sezioni della pagina iniziale' %}" hidden>
+  <button type="button" role="tab" id="bottone-da-fare" aria-controls="scheda-da-fare" data-scheda="da-fare">{% translate "Da fare" %}{% if da_fare and da_fare.da_rivedere.quanti %}<span class="numero" title="{% translate 'file da rivedere' %}">{{ da_fare.da_rivedere.quanti }}</span>{% endif %}</button>
+  <button type="button" role="tab" id="bottone-caricamento" aria-controls="scheda-caricamento" data-scheda="caricamento">{% translate "Caricamento" %}</button>
+  <button type="button" role="tab" id="bottone-societa" aria-controls="scheda-societa" data-scheda="societa">{% translate "Società e analisi" %}</button>
+  {% if lavori or puo_vedere_i_lavori %}<button type="button" role="tab" id="bottone-aggiornamento" aria-controls="scheda-aggiornamento" data-scheda="aggiornamento">{% translate "Aggiornamento dati" %}</button>{% endif %}
+  {% if mostra_configurazione %}<button type="button" role="tab" id="bottone-configurazione" aria-controls="scheda-configurazione" data-scheda="configurazione">{% translate "Configurazione" %}</button>{% endif %}
+</div>
+
+{# ------------------------------------------------------------------ DA FARE #}
+<section class="pannello" id="scheda-da-fare" role="tabpanel" aria-labelledby="bottone-da-fare" tabindex="0">
+  <h2>{% translate "Da fare" %}</h2>
+  {% if not da_fare %}
+    <div class="scheda"><p class="tenue">{% translate "Non hai i diritti per consultare l'archivio: qui non c'è nulla che ti aspetti." %}</p></div>
   {% else %}
-    <p class="tenue">{% translate "Non hai i diritti per consultare l'archivio." %}</p>
+    {% if da_fare.nulla %}
+      <div class="scheda">
+        <p><strong>{% translate "Niente ti aspetta." %}</strong>
+        {% if da_fare.in_attesa %}{% blocktranslate with n=da_fare.in_attesa %}{{ n }} file sono in attesa di essere letti dal programma: non devi fare nulla.{% endblocktranslate %}{% else %}{% translate "Nessun file da rivedere, nessuna lettura fallita, nessun caricamento lasciato a metà." %}{% endif %}</p>
+      </div>
+    {% endif %}
+    <div class="colonne">
+      <div class="scheda">
+        <p class="conto">{{ da_fare.da_rivedere.quanti }}</p>
+        <p><strong>{% translate "File da rivedere" %}</strong><br><span class="tenue">{% translate "Il programma li ha letti e chiede un controllo: entità, mittente e destinatario. I più vecchi per primi." %}</span></p>
+        <ul class="elenco-breve">
+          {% for f in da_fare.da_rivedere.primi %}
+            <li><a href="{% if puo_vedere_le_schede %}{% url 'elaborazione:file' f.pk %}{% else %}{% url 'archivio:file' f.pk %}{% endif %}">{{ f.percorso_originale }}</a><br><span class="tenue">{{ f.fascicolo.titolo }} &middot; {{ f.caricato_il|date:"Y-m-d" }}</span></li>
+          {% endfor %}
+        </ul>
+        {% if da_fare.da_rivedere.quanti > da_fare.da_rivedere.primi|length %}<p class="tenue">{% translate "Gli altri sono nei rispettivi caricamenti." %}</p>{% endif %}
+      </div>
+      <div class="scheda">
+        <p class="conto">{{ da_fare.in_errore.quanti }}</p>
+        <p><strong>{% translate "File che il programma non è riuscito a leggere" %}</strong><br><span class="tenue">{% translate "Aprendo il file trovi che cosa è successo e che cosa fare." %}</span></p>
+        <ul class="elenco-breve">
+          {% for f in da_fare.in_errore.primi %}
+            <li><a href="{% url 'archivio:file' f.pk %}">{{ f.percorso_originale }}</a><br><span class="tenue">{{ f.fascicolo.titolo }} &middot; {{ f.caricato_il|date:"Y-m-d" }}</span></li>
+          {% endfor %}
+        </ul>
+      </div>
+      <div class="scheda">
+        <p class="conto">{{ da_fare.bozze.quanti }}</p>
+        <p><strong>{% translate "Tuoi caricamenti in bozza" %}</strong><br><span class="tenue">{% translate "Finché non li confermi, i file non vengono letti." %}</span></p>
+        <ul class="elenco-breve">
+          {% for c in da_fare.bozze.primi %}
+            <li><a href="{% url 'archivio:fascicolo' c.pk %}">{{ c.titolo }}</a><br><span class="tenue">{{ c.creato_il|date:"Y-m-d" }}</span></li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+    {% if da_fare.in_attesa and not da_fare.nulla %}
+      <p class="tenue">{% blocktranslate with n=da_fare.in_attesa %}{{ n }} file sono in attesa di essere letti dal programma: per quelli non devi fare nulla.{% endblocktranslate %}</p>
+    {% endif %}
   {% endif %}
-</div>
+</section>
 
-<div class="scheda">
-  <h2>{% translate "Caricamento dati" %}</h2>
-  {% if puo_caricare_file %}
-    <p>{% translate "Invio dei file da analizzare: file singoli, una cartella o un archivio ZIP." %}</p>
-    <p><a class="bottone" href="{% url 'archivio:faldone' 'CARICAMENTI' %}">{% translate "Apri i caricamenti" %}</a></p>
-  {% else %}
-    <p class="tenue">{% translate "Non hai i diritti per caricare file." %}</p>
-  {% endif %}
-</div>
+{# -------------------------------------------------------------- CARICAMENTO #}
+<section class="pannello" id="scheda-caricamento" role="tabpanel" aria-labelledby="bottone-caricamento" tabindex="0">
+  <h2>{% translate "Caricamento" %}</h2>
+  <div class="colonne">
+    <div class="scheda">
+      <h2>{% translate "Caricare file" %}</h2>
+      {% if puo_caricare_file %}
+        <p>{% translate "File singoli, una cartella o un archivio ZIP. Si apre un caricamento in bozza: aggiungi i file, completa i dati e alla fine conferma." %}</p>
+        <p><a class="bottone" href="{% url 'archivio:faldone' 'CARICAMENTI' %}">{% translate "Nuovo caricamento ed elenco dei caricamenti" %}</a></p>
+      {% else %}
+        <p class="tenue">{% translate "Non hai i diritti per caricare file." %}</p>
+      {% endif %}
+    </div>
+    <div class="scheda">
+      <h2>{% translate "Archivio" %}</h2>
+      {% if puo_vedere_l_archivio %}
+        <p>{% translate "Faldoni e fascicoli: caricamenti, società, indagini." %}</p>
+        <p><a class="bottone" href="{% url 'archivio:faldoni' %}">{% translate "Apri l'archivio" %}</a></p>
+      {% else %}
+        <p class="tenue">{% translate "Non hai i diritti per consultare l'archivio." %}</p>
+      {% endif %}
+    </div>
+  </div>
+  <p class="tenue">{% translate "Dopo la conferma i file vengono letti dal programma (lo lancia l'amministratore, dalla scheda «Aggiornamento dati»). Quelli che chiedono un controllo compaiono in «Da fare»." %}</p>
+</section>
 
-<div class="scheda">
-  <h2>{% translate "Analisi" %}</h2>
-  {% if perms.indici.view_regoladirischio %}
-    <p>{% translate "Le società come punti in tre dimensioni (dipendenti, fatturato, attività): quelle per cui scatta una regola e quelle che si discostano dalle società simili." %}</p>
-    <p><a class="bottone" href="{% url 'indici:spazio' %}">{% translate "Apri lo spazio degli indici" %}</a></p>
-  {% else %}
-    <p class="tenue">{% translate "Non hai i diritti per consultare gli indici di rischio." %}</p>
-  {% endif %}
-</div>
+{# -------------------------------------------------------- SOCIETÀ E ANALISI #}
+<section class="pannello" id="scheda-societa" role="tabpanel" aria-labelledby="bottone-societa" tabindex="0">
+  <h2>{% translate "Società e analisi" %}</h2>
+  <div class="scheda">
+    <h2>{% translate "Cerca una società" %}</h2>
+    {% if puo_vedere_le_schede %}
+      <form method="get" action="{% url 'home' %}" class="cerca-societa" role="search">
+        <label for="societa">{% translate "COE, partita IVA oppure nome (anche una parte)" %}</label>
+        <input type="text" id="societa" name="societa" value="{{ cercata }}" required>
+        <button type="submit">{% translate "Cerca" %}</button>
+      </form>
+    {% else %}
+      <p class="tenue">{% translate "Non hai i diritti per consultare le schede delle società." %}</p>
+    {% endif %}
 
-<div class="scheda">
-  <h2>{% translate "Analisi di rete" %}</h2>
-  <p class="tenue">{% translate "Punteggi di rischio calcolati sulla rete dei rapporti commerciali, interrogabili dalla chat. Prototipo su dati simulati." %}</p>
-  {% if puo_usare_la_chat %}
-    <p><a class="bottone" href="{% url 'grafo:collegamento' %}">{% translate "Collegamento alla chat e mappe" %}</a></p>
-  {% endif %}
-  {% if puo_amministrare_il_grafo %}
-    <p><a class="bottone" href="{% url 'grafo:cruscotto' %}">{% translate "Cruscotto: versioni, parametri e sessioni" %}</a></p>
-  {% endif %}
-</div>
+    {% if societa and societa.messaggio %}
+      <pre class="messaggio">{{ societa.messaggio }}</pre>
+    {% elif societa %}
+      <h2 style="margin-top:1.25rem">{{ societa.etichetta }}</h2>
+      <p>
+        {% if societa.fascicolo %}
+          <a class="bottone" href="{% url 'elaborazione:soggetto' societa.fascicolo.pk %}">{% translate "Scheda completa" %}</a>
+          <a class="bottone" href="{% url 'archivio:fascicolo' societa.fascicolo.pk %}">{% translate "Fascicolo e file" %}</a>
+        {% endif %}
+        {% if perms.indici.view_regoladirischio %}<a class="bottone" href="{% url 'indici:spazio' %}?azienda={{ societa.soggetto.pk }}">{% translate "Nello spazio degli indici" %}</a>{% endif %}
+      </p>
 
+      <div class="colonne">
+        <div>
+          <h3>{% translate "Ciò che se ne sa" %}</h3>
+          <table class="dati">
+            {% for periodo in societa.periodi %}
+              <tr><th>{% translate "Anagrafica" %} {{ periodo.periodo }}</th><td>{% translate "attività" %} {{ periodo.codice_attivita|default:"-" }}; {% translate "dipendenti" %} {{ periodo.classe_dipendenti|default:periodo.dipendenti|default:"-" }}; {% translate "fatturato" %} {{ periodo.classe_fatturato|default:periodo.fatturato|default:"-" }}</td></tr>
+            {% endfor %}
+            {% for riga in societa.note %}
+              {% with e=riga.valori.0 %}
+                <tr><th>{{ riga.voce.descrizione }}</th><td>{{ e.valore }}{% if e.periodo %} <span class="tenue">({{ e.periodo }})</span>{% endif %}{% if e.non_verificata %} <span class="da-verificare">{% translate "non verificato" %}</span>{% endif %}{% if riga.valori|length > 1 %} <span class="tenue">{% blocktranslate with n=riga.valori|length|add:"-1" %}e altri {{ n }}{% endblocktranslate %}</span>{% endif %}</td></tr>
+              {% endwith %}
+            {% endfor %}
+            {% if not societa.periodi and not societa.note %}
+              <tr><td class="tenue">{% translate "Ancora nulla: nessuna anagrafica importata e nessuna voce letta nei file." %}</td></tr>
+            {% endif %}
+          </table>
+          <p class="tenue">
+            {% blocktranslate with n=societa.mancanti %}Voci del catalogo non ancora arrivate: {{ n }} (un dato mancante non è uno zero).{% endblocktranslate %}
+            {% if societa.altre %}{% blocktranslate with n=societa.altre %}Altre informazioni lette nei file: {{ n }}, nella scheda completa.{% endblocktranslate %}{% endif %}
+          </p>
+        </div>
+        <div>
+          <h3>{% translate "Documenti in cui compare" %}</h3>
+          <table class="dati">
+            {% for riga in societa.documenti %}
+              <tr>
+                <td><strong>{{ riga.documento.tipo|default:"-" }}</strong> {{ riga.documento.numero }}<br><span class="tenue">{{ riga.documento.data|date:"Y-m-d"|default:"-" }} &middot; {{ riga.documento.totale|default:"-" }}</span></td>
+                <td>{{ riga.ruolo }}{% if not riga.verificato %} <span class="da-verificare">{% translate "non verificato" %}</span>{% endif %}<br><span class="tenue">{% for altra in riga.altre %}{{ altra.ruolo|default:altra.ruolo_proposto }}: {{ altra.denominazione }}{% if not forloop.last %}; {% endif %}{% endfor %}</span></td>
+              </tr>
+            {% empty %}
+              <tr><td class="tenue">{% translate "Nessun documento." %}</td></tr>
+            {% endfor %}
+          </table>
+
+          <h3>{% translate "Mappe di rete che hai chiesto in chat" %}</h3>
+          <ul class="elenco-breve">
+            {% for mappa in societa.mappe %}
+              <li><a href="{% url 'grafo:mappa' mappa.pk %}">{% translate "Mappa del" %} {{ mappa.prodotta_il|date:"Y-m-d H:i" }}</a> <span class="tenue">{% translate "calcolo" %} {{ mappa.versione_calcolo }} / {% translate "dati n." %} {{ mappa.numero_dati }}</span></li>
+            {% empty %}
+              <li class="tenue">{% translate "Nessuna. Si chiede in chat: «mostrami la mappa di rete di» seguito dal COE." %}</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="colonne" style="margin-top:1rem">
+    <div class="scheda">
+      <h2>{% translate "Tutte le società" %}</h2>
+      {% if puo_vedere_l_archivio %}
+        <p>{% translate "L'elenco dei fascicoli delle società, con la ricerca." %}</p>
+        <p><a class="bottone" href="{% url 'archivio:faldone' 'AZIENDE' %}">{% translate "Apri il faldone Società" %}</a></p>
+      {% else %}
+        <p class="tenue">{% translate "Non hai i diritti per consultare l'archivio." %}</p>
+      {% endif %}
+    </div>
+    <div class="scheda">
+      <h2>{% translate "Spazio degli indici" %}</h2>
+      {% if perms.indici.view_regoladirischio %}
+        <p>{% translate "Le società come punti in tre dimensioni (dipendenti, fatturato, attività): quelle per cui scatta una regola e quelle che si discostano dalle società simili." %}</p>
+        <p><a class="bottone" href="{% url 'indici:spazio' %}">{% translate "Apri lo spazio degli indici" %}</a></p>
+      {% else %}
+        <p class="tenue">{% translate "Non hai i diritti per consultare gli indici di rischio." %}</p>
+      {% endif %}
+    </div>
+    <div class="scheda">
+      <h2>{% translate "Analisi di rete e chat" %}</h2>
+      <p>{% translate "Classifica, rapporti fra società e mappe di rete si chiedono in chat." %}</p>
+      {% if puo_usare_la_chat %}
+        <p><a class="bottone" href="{% url 'grafo:collegamento' %}">{% translate "Collegamento alla chat e tutte le mappe" %}</a></p>
+      {% else %}
+        <p class="tenue">{% translate "Non hai i diritti per usare la chat." %}</p>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+{# ------------------------------------------------------- AGGIORNAMENTO DATI #}
 {% if lavori or puo_vedere_i_lavori %}
-<div class="scheda">
-  <h2>{% translate "Elaborazioni e calcoli" %}</h2>
-  <p class="tenue">{% translate "Ciò che trasforma i file caricati e l'anagrafica in quello che si vede nelle sezioni Analisi e Analisi di rete, nell'ordine in cui va fatto." %}</p>
-  {% if lavori %}{% include "lavori/_percorso.html" with percorso=lavori %}{% endif %}
-  {% if puo_vedere_i_lavori %}
-    <p><a href="{% url 'lavori:elenco' %}">{% translate "Storico dei lavori e loro esito" %}</a></p>
-  {% endif %}
-</div>
+<section class="pannello" id="scheda-aggiornamento" role="tabpanel" aria-labelledby="bottone-aggiornamento" tabindex="0">
+  <h2>{% translate "Aggiornamento dati" %}</h2>
+  <div class="scheda">
+    <h2>{% translate "Elaborazioni e calcoli" %}</h2>
+    <p class="tenue">{% translate "Ciò che trasforma i file caricati e l'anagrafica in quello che si vede nella scheda «Società e analisi», nell'ordine in cui va fatto." %}</p>
+    {% if lavori %}{% include "lavori/_percorso.html" with percorso=lavori ritorno=ritorno_lavori %}{% endif %}
+    {% if puo_vedere_i_lavori %}
+      <p><a href="{% url 'lavori:elenco' %}">{% translate "Storico dei lavori e loro esito" %}</a></p>
+    {% endif %}
+  </div>
+</section>
 {% endif %}
 
-<div class="scheda">
+{# ----------------------------------------------------------- CONFIGURAZIONE #}
+{% if mostra_configurazione %}
+<section class="pannello" id="scheda-configurazione" role="tabpanel" aria-labelledby="bottone-configurazione" tabindex="0">
   <h2>{% translate "Configurazione" %}</h2>
-  {% if puo_entrare_in_admin and puo_configurare %}
-    <p>{% translate "Tabelle di decodifica: attività economiche, classi dimensionali, forma giuridica, modello di business, identificativi e documenti." %}</p>
-    <p><a class="bottone" href="{% url 'admin:app_list' 'decodifiche' %}">{% translate "Apri le tabelle di decodifica" %}</a></p>
-    {% if puo_gestire_il_catalogo %}
-      <p>
-        <a class="bottone" href="{% url 'admin:elaborazione_vocecatalogo_changelist' %}">{% translate "Catalogo delle entità da estrarre" %}</a>
-        <a class="bottone" href="{% url 'elaborazione:fuori_catalogo' %}">{% translate "Entità fuori catalogo" %}</a>
-      </p>
+  <div class="colonne">
+    {% if puo_entrare_in_admin and puo_configurare %}
+    <div class="scheda">
+      <h2>{% translate "Decodifiche e catalogo" %}</h2>
+      <p>{% translate "Tabelle di decodifica: attività economiche, classi dimensionali, forma giuridica, modello di business, identificativi e documenti." %}</p>
+      <p><a class="bottone" href="{% url 'admin:app_list' 'decodifiche' %}">{% translate "Apri le tabelle di decodifica" %}</a></p>
+      {% if puo_gestire_il_catalogo %}
+        <p>
+          <a class="bottone" href="{% url 'admin:elaborazione_vocecatalogo_changelist' %}">{% translate "Catalogo delle entità da estrarre" %}</a>
+          <a class="bottone" href="{% url 'elaborazione:fuori_catalogo' %}">{% translate "Entità fuori catalogo" %}</a>
+        </p>
+      {% endif %}
+    </div>
     {% endif %}
-  {% else %}
-    <p class="tenue">{% translate "Non hai i diritti per modificare la configurazione." %}</p>
-  {% endif %}
+    {% if puo_entrare_in_admin and puo_gestire_utenti %}
+    <div class="scheda">
+      <h2>{% translate "Utenti e diritti" %}</h2>
+      <p>{% translate "Creazione e modifica degli utenti, assegnazione dei ruoli." %}</p>
+      <p><a class="bottone" href="{% url 'admin:app_list' 'utenti' %}">{% translate "Gestisci gli utenti" %}</a></p>
+    </div>
+    {% endif %}
+    {% if puo_amministrare_il_grafo %}
+    <div class="scheda">
+      <h2>{% translate "Analisi di rete" %}</h2>
+      <p>{% translate "Versioni dei dati e dei calcoli, parametri, sessioni della chat." %}</p>
+      <p><a class="bottone" href="{% url 'grafo:cruscotto' %}">{% translate "Cruscotto: versioni, parametri e sessioni" %}</a></p>
+    </div>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
 </div>
 
-<div class="scheda">
-  <h2>{% translate "Utenti e diritti" %}</h2>
-  {% if puo_entrare_in_admin and puo_gestire_utenti %}
-    <p>{% translate "Creazione e modifica degli utenti, assegnazione dei ruoli." %}</p>
-    <p><a class="bottone" href="{% url 'admin:app_list' 'utenti' %}">{% translate "Gestisci gli utenti" %}</a></p>
-  {% else %}
-    <p class="tenue">{% translate "La gestione degli utenti è riservata all'amministratore." %}</p>
-  {% endif %}
-</div>
+<script>
+  // Le schede: una alla volta, scelta dall'indirizzo (/#caricamento) o da quella indicata dalla pagina.
+  // Frecce sinistra e destra passano da un bottone all'altro, come ci si aspetta da un elenco di schede.
+  (function () {
+    var pagina = document.getElementById("pagina-a-schede"), elenco = pagina.querySelector(".schede");
+    var bottoni = Array.prototype.slice.call(elenco.querySelectorAll("[role=tab]"));
+    function apri(nome, ricorda) {
+      var trovata = bottoni.some(function (b) { return b.getAttribute("data-scheda") === nome; });
+      if (!trovata) nome = bottoni[0].getAttribute("data-scheda");
+      bottoni.forEach(function (b) {
+        var scelta = b.getAttribute("data-scheda") === nome;
+        b.setAttribute("aria-selected", scelta ? "true" : "false");
+        b.tabIndex = scelta ? 0 : -1;
+        document.getElementById(b.getAttribute("aria-controls")).classList.toggle("aperto", scelta);
+      });
+      if (ricorda && window.history && window.history.replaceState) window.history.replaceState(null, "", "#" + nome);
+    }
+    elenco.hidden = false;
+    pagina.classList.add("con-schede");
+    bottoni.forEach(function (b, posto) {
+      b.addEventListener("click", function () { apri(b.getAttribute("data-scheda"), true); });
+      b.addEventListener("keydown", function (evento) {
+        var passo = evento.key === "ArrowRight" ? 1 : evento.key === "ArrowLeft" ? -1 : 0;
+        if (!passo) return;
+        var altro = bottoni[(posto + passo + bottoni.length) % bottoni.length];
+        altro.focus(); apri(altro.getAttribute("data-scheda"), true);
+      });
+    });
+    function dallIndirizzo() { return window.location.hash.replace("#", ""); }
+    apri(dallIndirizzo() || pagina.getAttribute("data-iniziale"), false);
+    window.addEventListener("hashchange", function () { apri(dallIndirizzo(), false); });
+  })();
+</script>
 {% endblock %}

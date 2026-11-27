@@ -815,6 +815,29 @@ class DocumentoTest(ConFile):
         self.assertEqual(ammissione.descrivi(ammissione.SOLO_VERIFICATI), "solo dati verificati")
         self.assertEqual(ammissione.predefiniti(), ammissione.SOLO_VERIFICATI)
 
+    @override_settings(ELABORAZIONE_MODELLO_NOME="modello-di-prova")
+    def test_la_pagina_iniziale_dice_che_cosa_aspetta_e_che_cosa_si_sa_di_una_societa(self):
+        file = self.elabora_il_ddt()
+        self.assertEqual(self.stato(file), archivio.FILE_DA_RIVEDERE)
+        self.client.force_login(self.anna)
+        # scheda "Da fare": il file da rivedere, con il collegamento alla revisione, e il numero sul bottone
+        pagina = self.client.get(reverse("home"))
+        self.assertContains(pagina, 'data-iniziale="da-fare"')
+        self.assertContains(pagina, f'<a href="{reverse("elaborazione:file", args=[file.pk])}">ddt.txt</a>')
+        self.assertContains(pagina, '<span class="numero" title="file da rivedere">1</span>')
+        self.assertEqual(pagina.context["da_fare"]["da_rivedere"]["quanti"], 1)
+        # scheda "Società e analisi": cercata per COE, si apre su quella scheda con ciò che se ne sa
+        pagina = self.client.get(reverse("home"), {"societa": "10000"})
+        self.assertContains(pagina, 'data-iniziale="societa"')
+        self.assertContains(pagina, "Ciò che se ne sa")
+        alfa = anagrafica.trova(self.coe, "10000")
+        self.assertEqual(pagina.context["societa"]["soggetto"], alfa)
+        self.assertContains(pagina, reverse("elaborazione:soggetto", args=[pagina.context["societa"]["fascicolo"].pk]))
+        # una ricerca senza esito lo dice, e chi non vede un'indagine non ne vede i file fra le cose da fare
+        self.assertContains(self.client.get(reverse("home"), {"societa": "99999"}), "Nessuna società nota")
+        self.client.force_login(self.lettore)
+        self.assertEqual(self.client.get(reverse("home")).status_code, 200)
+
     def test_documento_e_citazione_non_allungano_la_risposta_sulle_entita(self):
         file = self.carica(DDT + "\nAmministratore: Mario Rossi.", nome="ddt.txt")
         modello = ModelloFinto([entita_json(("AMMINISTRATORE", "Mario Rossi"))], documento=DDT_DAL_MODELLO)
