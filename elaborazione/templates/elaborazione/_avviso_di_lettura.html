@@ -1,0 +1,19 @@
+{% load i18n %}
+{% comment %}Errore o avviso di lettura di un file, in parole dell'utente: vedi elaborazione/messaggi.py.{% endcomment %}
+{% if avviso %}
+<div class="avviso-di-lettura" role="{% if grave %}alert{% else %}status{% endif %}"
+     style="border: 1px solid {% if grave %}#e3b7b5{% else %}#e6cf9c{% endif %}; background: {% if grave %}#fbeeed{% else %}#fdf6e3{% endif %}; border-radius: 4px; padding: 0.6rem 0.9rem; margin: 0.75rem 0;">
+  <p style="margin: 0 0 0.3rem"><strong>{{ avviso.titolo }}</strong></p>
+  {% if avviso.righe|length == 1 %}
+    <p style="margin: 0 0 0.3rem">{{ avviso.righe.0 }}</p>
+  {% else %}
+    <ul style="margin: 0 0 0.3rem; padding-left: 1.2rem">{% for riga in avviso.righe %}<li>{{ riga }}</li>{% endfor %}</ul>
+  {% endif %}
+  {% if avviso.fare %}<p style="margin: 0"><strong>{% translate "Che cosa fare:" %}</strong> {{ avviso.fare }}</p>{% endif %}
+  {% if mostra_tecnico %}
+    <details style="margin-top: 0.4rem"><summary class="tenue">{% translate "Dettaglio tecnico" %}</summary>
+      <p class="tenue" style="margin: 0.3rem 0 0">{{ avviso.tecnico }}</p>
+    </details>
+  {% endif %}
+</div>
+{% endif %}

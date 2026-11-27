@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n messaggi %}
 {% block titolo %}{{ file.percorso_originale }}{% endblock %}
 {% block contenuto %}
 <style>
@@ -24,8 +24,8 @@
     <tr><th>{% translate "Dimensione" %}</th><td>{{ file.dimensione|filesizeformat }}</td></tr>
     <tr><th>{% translate "Caricato" %}</th><td>{{ file.caricato_il|date:"Y-m-d H:i" }}{% if file.caricato_da %} {% translate "da" %} {{ file.caricato_da.get_username }}{% endif %}</td></tr>
     <tr><th>{% translate "Impronta (SHA-256)" %}</th><td class="percorso">{{ file.impronta }}</td></tr>
-    {% if file.ultimo_errore %}<tr><th>{% translate "Ultimo errore" %}</th><td>{{ file.ultimo_errore }}</td></tr>{% endif %}
   </table>
+  {% avviso_di_lettura file %}
   <p>
     <a class="bottone" href="{% url 'archivio:scarica' file.pk %}">{% translate "Scarica l'originale" %}</a>
     <a class="bottone" href="{% url 'elaborazione:file' file.pk %}">{% translate "Testo ed entità estratte" %}</a>

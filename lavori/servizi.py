@@ -8,6 +8,7 @@ NOVITÀ
         Ogni voce dice a che cosa serve, che cosa le serve prima e che cosa aggiorna.
         "Calcola gli indici" si chiama ora "Aggiorna il grafo e calcola gli indici", perché
         è ciò che fa. Il tipo resta "calcola_indici": lo storico non cambia.
+    [3] Un lavoro fallito dice prima che cosa è successo e che cosa fare, poi il dettaglio tecnico.
     [1] Prima versione: coda nel database, processo esegui_lavori.
 
     richiedi()   chiamata dalle pagine: registra la richiesta (o restituisce quella già aperta)
@@ -237,12 +238,15 @@ def esegui(lavoro):
         esito, stato = TIPI[lavoro.tipo].funzione(lavoro), FINITO
     except ModuleNotFoundError as errore:
         esito, stato = (
-            f"Su questa macchina manca la libreria '{errore.name}': questo lavoro va eseguito dal processo "
-            "avviato sulla macchina che la possiede.", FALLITO,
+            f"Questo lavoro non può essere eseguito su questa macchina, perché manca la libreria '{errore.name}': "
+            "va eseguito dal processo avviato sulla macchina che la possiede.", FALLITO,
         )
     except Exception as errore:
         registro.exception("Lavoro %s fallito", lavoro.pk)
-        esito, stato = f"{type(errore).__name__}: {errore}"[:2000], FALLITO
+        esito, stato = (
+            "Il lavoro non è riuscito per un errore imprevisto: nulla di ciò che stava facendo è andato perso, "
+            f"si può lanciare di nuovo. Se si ripete, serve chi mantiene il programma.\nDettaglio tecnico: {type(errore).__name__}: {errore}"
+        )[:2000], FALLITO
     lavoro.stato, lavoro.esito, lavoro.finito_il, lavoro.ingresso = stato, esito, timezone.now(), ""
     lavoro.save(update_fields=["stato", "esito", "finito_il", "ingresso"])
     return lavoro

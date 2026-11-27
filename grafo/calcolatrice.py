@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   calcolatrice.py  -  app grafo, VERSIONE 35
+#   calcolatrice.py  -  app grafo, VERSIONE 36
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: server
@@ -87,6 +87,9 @@
 #        che ha autorizzato la chat); la pagina di collegamento elenca le chat autorizzate con
 #        il proprio utente e permette di scollegarle.
 #   [35] Le risposte degli strumenti e il prompt di sistema dicono «società».
+#   [36] Quando l'archivio non è utilizzabile la chat risponde che l'analisi di rete non è
+#        disponibile e che non dipende dalla domanda; il motivo tecnico segue come dettaglio per
+#        l'amministratore.
 #
 # <<< NOVITA
 """
