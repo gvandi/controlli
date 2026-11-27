@@ -1,6 +1,6 @@
 # Registro delle novità
 
-Versione corrente: 35
+Versione corrente: 36
 
 Elenco completo delle novità rispetto alla versione 12 (ultimo file unico di partenza).
 È l'UNICO posto in cui le novità si scrivono a mano: `aggiorna_intestazioni.py` ricopia
@@ -156,6 +156,7 @@ Dalla 20 il numero di versione del codice è un intero.
 - [30] (server) La pagina di una mappa che non si può mostrare resta 404 ma spiega che cosa fare: con quale utente si è collegati e che la mappa si apre con l'utente che ha autorizzato la chat, oppure che il file non c'è più e va richiesta di nuovo; il motivo preciso va nel registro del server.
 - [31] (server) Gli strumenti mappa e spazio dicono con quale utente va aperto il collegamento (quello che ha autorizzato la chat); la pagina di collegamento elenca le chat autorizzate con il proprio utente e permette di scollegarle.
 - [35] (server) Le risposte degli strumenti e il prompt di sistema dicono «società».
+- [36] (server) Quando l'archivio non è utilizzabile la chat risponde che l'analisi di rete non è disponibile e che non dipende dalla domanda; il motivo tecnico segue come dettaglio per l'amministratore.
 
 ## mappa
 

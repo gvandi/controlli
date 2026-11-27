@@ -926,6 +926,21 @@ class ScansioneTest(ConFile):
         for atteso in ("Pagina 1: la risposta del modello sulle entità è stata tagliata", "tenute le 2 arrivate intere", "ha ripetuto 7 volte"):
             self.assertIn(atteso, riga.ultimo_errore)
         self.assertEqual(Elaborazione.objects.get(file=file).errore, riga.ultimo_errore)
+        # ... in parole sue: il testo tecnico resta nel database e lo vede, ripiegato, solo chi amministra
+        self.client.force_login(self.anna)
+        for nome in ("archivio:file", "elaborazione:file"):
+            pagina = self.client.get(reverse(nome, args=[file.pk]))
+            self.assertContains(pagina, "La lettura di questo file è incompleta")
+            self.assertContains(pagina, "Pagina 1: la lettura delle entità è incompleta: qualcuna può mancare.")
+            self.assertContains(pagina, "Confronta l&#x27;elenco delle entità con il documento originale")
+            self.assertNotContains(pagina, "limite di lunghezza")
+            self.assertNotContains(pagina, "Dettaglio tecnico")
+        from django.contrib.auth import get_user_model
+
+        self.client.force_login(get_user_model().objects.create_superuser("radice", password="x"))
+        pagina = self.client.get(reverse("archivio:file", args=[file.pk]))
+        self.assertContains(pagina, "Dettaglio tecnico")
+        self.assertContains(pagina, "tagliata dal limite di lunghezza")
         # chiusa la revisione il file è elaborato e l'avviso non serve più
         coda.chiudi_revisione(file, list(EntitaEstratta.objects.filter(file=file).values_list("pk", flat=True)))
         riga.refresh_from_db()
@@ -943,6 +958,50 @@ class ScansioneTest(ConFile):
         coda.esegui(lettori=[lettore])
         self.assertEqual(self.stato(file), archivio.FILE_ELABORATO)
         self.assertEqual(Elaborazione.objects.get().natura, riconoscimento.IMMAGINE)
+
+
+class MessaggiTest(SimpleTestCase):
+    """Gli errori di lettura in parole dell'utente (elaborazione/messaggi.py)."""
+
+    def test_un_errore_dice_che_cosa_e_successo_e_se_il_programma_riprovera(self):
+        from elaborazione import messaggi
+
+        tecnico = "Pagina 2, trascrizione: Risposta tagliata: il modello ha raggiunto il limite di lunghezza."
+        primo = messaggi.in_chiaro(tecnico, archivio.FILE_ERRORE, 1, 3)
+        self.assertEqual(primo["titolo"], "La lettura di questo file non è riuscita.")
+        self.assertEqual(primo["righe"], ["Pagina 2: il testo è troppo lungo per essere trascritto in una volta sola."])
+        self.assertIn("Non devi fare nulla", primo["fare"])
+        self.assertIn("tentativo 1 di 3", primo["fare"])
+        self.assertEqual(primo["tecnico"], tecnico)
+        # finiti i tentativi il programma non riprova: serve una persona
+        ultimo = messaggi.in_chiaro(tecnico, archivio.FILE_ERRORE, 3, 3)
+        self.assertIn("non riproverà da solo", ultimo["fare"])
+        self.assertIn("amministratore", ultimo["fare"])
+        # ciò che il programma non riconosce non mostra mai il testo tecnico al posto della spiegazione
+        ignoto = messaggi.in_chiaro("Errore imprevisto: KeyError 'x'", archivio.FILE_ERRORE, 1, 3)
+        self.assertEqual(ignoto["righe"], ["Si è verificato un errore che il programma non sa descrivere."])
+        self.assertIn("amministratore", ignoto["fare"])
+        for riga in primo["righe"] + ultimo["righe"] + ignoto["righe"]:
+            for parola in ("modello ha raggiunto", "token", "JSON", "KeyError"):
+                self.assertNotIn(parola, riga)
+
+    def test_gli_avvisi_si_raccolgono_per_pagina_e_dicono_che_cosa_fare(self):
+        from elaborazione import messaggi
+
+        tagliata = "la risposta del modello sulle entità è stata tagliata dal limite di lunghezza: tenute le 4 arrivate intere, qualcuna può mancare."
+        tecnico = f"Pagina 1: {tagliata} Pagina 1: il modello ha ripetuto 9 volte entità già elencate. Pagina 3: {tagliata}"
+        avviso = messaggi.in_chiaro(tecnico, archivio.FILE_DA_RIVEDERE)
+        self.assertIn("incompleta", avviso["titolo"])
+        self.assertEqual(avviso["righe"], [
+            "Pagine 1 e 3: la lettura delle entità è incompleta: qualcuna può mancare.",
+            "Pagina 1: alcune entità comparivano più volte e sono state contate una volta sola.",
+        ])
+        self.assertEqual(avviso["fare"], messaggi.CONFRONTA)
+        # altri casi noti, e nessun messaggio quando non c'è nulla da dire
+        self.assertIn("(binario) non può essere letto", messaggi.in_chiaro("Tipo di file non gestito (binario).", "errore", 3, 3)["righe"][0])
+        self.assertIn("non ha risposto", messaggi.in_chiaro("Pagina 1, entità: Il server del modello non ha risposto: timeout", "errore", 1, 3)["righe"][0])
+        self.assertIsNone(messaggi.in_chiaro("", archivio.FILE_ELABORATO))
+        self.assertEqual((messaggi.ERRORE, messaggi.DA_RIVEDERE), (archivio.FILE_ERRORE, archivio.FILE_DA_RIVEDERE))
 
 
 class RegoleTest(SimpleTestCase):

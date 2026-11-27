@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n messaggi %}
 {% block titolo %}{% translate "Testo ed entità" %}: {{ file.percorso_originale }}{% endblock %}
 {% block contenuto %}
 <style>
@@ -23,7 +23,7 @@
   {% blocktranslate with n=utilizzabili %}{{ n }} utilizzabili per descrivere una società{% endblocktranslate %}
   {% if in_attesa %}&middot; <span class="avviso">{% blocktranslate with n=in_attesa %}{{ n }} da rivedere{% endblocktranslate %}</span>{% endif %}
 </p>
-{% if file.ultimo_errore %}<p class="errore">{{ file.ultimo_errore }}</p>{% endif %}
+{% avviso_di_lettura file %}
 
 <form method="post">
 {% csrf_token %}

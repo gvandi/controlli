@@ -68,7 +68,9 @@ class LavoriTest(TestCase):
             servizi.richiedi("calcola_gnn", self.ada)
             call_command("esegui_lavori", una_volta=True, stdout=StringIO())
         stati = {lavoro.tipo: (lavoro.stato, lavoro.esito) for lavoro in Lavoro.objects.all()}
-        self.assertEqual(stati["allinea_denominazioni"], (FALLITO, "RuntimeError: guasto di prova"))
+        self.assertEqual(stati["allinea_denominazioni"][0], FALLITO)
+        self.assertTrue(stati["allinea_denominazioni"][1].startswith("Il lavoro non è riuscito"))
+        self.assertTrue(stati["allinea_denominazioni"][1].endswith("Dettaglio tecnico: RuntimeError: guasto di prova"))
         self.assertEqual(stati["dati_reali"][0], FINITO)
         self.assertEqual(stati["calcola_gnn"][0], FALLITO)
         self.assertIn("manca la libreria 'torch'", stati["calcola_gnn"][1])
