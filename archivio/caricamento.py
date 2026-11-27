@@ -273,6 +273,27 @@ def apri_contenuto(file):
     return open(deposito.percorso(cartella_deposito(), file.impronta), "rb")
 
 
+# I soli tipi che si mostrano dentro una pagina: (come comincia il file, tipo dichiarato al browser).
+# Il tipo si decide dai primi byte, mai dal nome del file né da ciò che dichiara chi lo ha caricato.
+_MOSTRABILI = ((b"%PDF-", "application/pdf"), (b"\xff\xd8\xff", "image/jpeg"), (b"\x89PNG\r\n\x1a\n", "image/png"))
+
+
+def tipo_in_pagina(file):
+    """
+    Il tipo con cui il contenuto originale si può mostrare dentro una pagina (PDF, JPEG, PNG),
+    oppure None: ogni altro file si può solo scaricare. None anche se il contenuto non si trova.
+    """
+    try:
+        with apri_contenuto(file) as contenuto:
+            inizio = contenuto.read(1024)
+    except OSError:
+        return None
+    for firma, tipo in _MOSTRABILI:
+        if (inizio.lstrip() if tipo == "application/pdf" else inizio).startswith(firma):
+            return tipo
+    return None
+
+
 # ---------------------------------------------------------------------
 # Metadati dichiarati ed ereditarietà
 # ---------------------------------------------------------------------
