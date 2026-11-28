@@ -412,7 +412,10 @@ def conferma(fascicolo, utente):
     with transaction.atomic():
         numero = fascicolo.file.filter(stato=models.FILE_BOZZA).update(stato=models.FILE_RICEVUTO)
         if not numero:
-            raise NonAmmesso("Il caricamento non contiene file.")
+            raise NonAmmesso(
+                "Il caricamento non contiene file: prima scegli i file nel riquadro «Aggiungi file» "
+                "(vengono caricati appena scelti) e aspetta di vederli nell'elenco, poi conferma."
+            )
         Fascicolo.objects.filter(pk=fascicolo.pk).update(stato=models.CONFERMATO)
         _registra(fascicolo, utente, "confermato", f"{numero} file")
     fascicolo.stato = models.CONFERMATO
