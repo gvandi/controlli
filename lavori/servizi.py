@@ -181,8 +181,9 @@ _CARICARE = ("Caricare i file", "Fatture, DDT e altri documenti: file singoli, u
              "Lo fa l'ispettore, da Caricamento dati.")
 _CONFERMARE = (
     "Rivedere e confermare i documenti",
-    "Per ogni file letto, controllare entità, mittente e destinatario e confermare. Solo un documento "
-    "confermato, con mittente, destinatario, data e totale, diventa un rapporto nel grafo.",
+    "Per ogni file letto, controllare entità, mittente e destinatario e confermare. Con i criteri di prova un "
+    "documento entra nel grafo anche prima, segnato «non verificato»: la conferma toglie il segno. Servono "
+    "comunque mittente, destinatario, data e totale.",
     "Lo fa l'ispettore, dalla pagina «Testo ed entità estratte» del file.",
 )
 
