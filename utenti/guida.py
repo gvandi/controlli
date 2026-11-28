@@ -112,17 +112,19 @@ def voci(utente):
 
 def suggerimenti(utente, da_fare, stato_dei_dati, esecutore_acceso):
     """
-    Ciò che conviene fare ora, dallo stato dell'archivio: [{"testo", "indirizzo", "azione"}], al più tre.
+    Ciò che conviene fare ora, dallo stato dell'archivio: [{"testo", "indirizzo", "azione", "conta"}], al più tre.
+    "conta" è vero per ciò che aspetta davvero qualcuno (non per "niente ti aspetta") e non è già
+    contato fra file da rivedere, file non letti e bozze: serve al numero sul bottone "Da fare".
     da_fare è quello della pagina iniziale (o None), stato_dei_dati quello di grafo.dati_reali (o None).
     """
     puo_lanciare, voci_utili = utente.has_perm("lavori.lancia_lavori"), []
 
-    def aggiungi(testo, indirizzo="", azione=""):
-        voci_utili.append({"testo": testo, "indirizzo": indirizzo, "azione": azione})
+    def aggiungi(testo, indirizzo="", azione="", conta=False):
+        voci_utili.append({"testo": testo, "indirizzo": indirizzo, "azione": azione, "conta": conta})
 
     if puo_lanciare and not esecutore_acceso:
         aggiungi("Nessun processo sta eseguendo i lavori: ciò che lanci resta in attesa. Avvia «./avvia.sh» "
-                 "oppure «python manage.py esegui_lavori».", reverse("lavori:elenco"), "Apri i lavori")
+                 "oppure «python manage.py esegui_lavori».", reverse("lavori:elenco"), "Apri i lavori", conta=True)
     if da_fare:
         rivedere = da_fare["da_rivedere"]
         if rivedere["quanti"]:
@@ -138,10 +140,10 @@ def suggerimenti(utente, da_fare, stato_dei_dati, esecutore_acceso):
             aggiungi(f"Il caricamento «{bozza.titolo}» è ancora in bozza: finché non lo confermi i suoi file non vengono letti.",
                      reverse("archivio:fascicolo", args=[bozza.pk]), "Apri il caricamento")
         if puo_lanciare and da_fare["in_attesa"]:
-            aggiungi(f"{da_fare['in_attesa']} file aspettano di essere letti dal programma.", "#aggiornamento", "Vai al passo 2")
+            aggiungi(f"{da_fare['in_attesa']} file aspettano di essere letti dal programma.", "#aggiornamento", "Vai al passo 2", conta=True)
     if stato_dei_dati and not stato_dei_dati["vuoto"] and not stato_dei_dati["aggiornati"]:
         if puo_lanciare:
-            aggiungi("Chat, mappa e classifica non vedono gli ultimi dati caricati.", "#aggiornamento", "Vai al passo 5")
+            aggiungi("Chat, mappa e classifica non vedono gli ultimi dati caricati.", "#aggiornamento", "Vai al passo 5", conta=True)
     elif stato_dei_dati and stato_dei_dati["vuoto"] and puo_lanciare:
         aggiungi("Non ci sono ancora dati da analizzare: importa un'anagrafica (passo 4) o fai leggere i file caricati (passo 2).",
                  "#aggiornamento", "Vai all'aggiornamento dei dati")

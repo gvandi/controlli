@@ -113,6 +113,12 @@ def home(request):
     contesto["suggerimenti"] = guida.suggerimenti(
         utente, contesto["da_fare"], contesto["stato_dei_dati"], bool(lavori.tipi_serviti()) if puo_lanciare else True
     )
+    # Il numero sul bottone "Da fare": quante cose aspettano QUESTO utente. File da rivedere, file
+    # non letti e bozze uno per uno; in più, per chi amministra, ciò che deve lanciare o avviare.
+    da_fare = contesto["da_fare"]
+    contesto["quante_da_fare"] = sum(1 for voce in contesto["suggerimenti"] if voce["conta"]) + (
+        da_fare["da_rivedere"]["quanti"] + da_fare["in_errore"]["quanti"] + da_fare["bozze"]["quanti"] if da_fare else 0
+    )
     contesto["mostra_configurazione"] = contesto["puo_entrare_in_admin"] and (
         contesto["puo_configurare"] or contesto["puo_gestire_utenti"]
     ) or contesto["puo_amministrare_il_grafo"]

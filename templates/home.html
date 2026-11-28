@@ -39,7 +39,7 @@
 
 <div id="pagina-a-schede" data-iniziale="{{ scheda_iniziale }}">
 <div class="schede" role="tablist" aria-label="{% translate 'Sezioni della pagina iniziale' %}" hidden>
-  <button type="button" role="tab" id="bottone-da-fare" aria-controls="scheda-da-fare" data-scheda="da-fare">{% translate "Da fare" %}{% if da_fare and da_fare.da_rivedere.quanti %}<span class="numero" title="{% translate 'file da rivedere' %}">{{ da_fare.da_rivedere.quanti }}</span>{% endif %}</button>
+  <button type="button" role="tab" id="bottone-da-fare" aria-controls="scheda-da-fare" data-scheda="da-fare">{% translate "Da fare" %}{% if quante_da_fare %}<span class="numero" title="{% translate 'cose che ti aspettano' %}">{{ quante_da_fare }}</span>{% endif %}</button>
   <button type="button" role="tab" id="bottone-caricamento" aria-controls="scheda-caricamento" data-scheda="caricamento">{% translate "Caricamento" %}</button>
   <button type="button" role="tab" id="bottone-societa" aria-controls="scheda-societa" data-scheda="societa">{% translate "Società e analisi" %}</button>
   {% if lavori or puo_vedere_i_lavori %}<button type="button" role="tab" id="bottone-aggiornamento" aria-controls="scheda-aggiornamento" data-scheda="aggiornamento">{% translate "Aggiornamento dati" %}</button>{% endif %}
