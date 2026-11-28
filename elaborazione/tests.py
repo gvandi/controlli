@@ -377,7 +377,7 @@ class CodaTest(ConFile):
             fascicolo = Fascicolo.objects.get(faldone__codice=archivio.AZIENDE, soggetto=soggetto)
             completa = self.client.get(reverse("elaborazione:soggetto", args=[fascicolo.pk]))
             collegamento = f'{reverse("elaborazione:file", args=[primo.pk])}?pagina=1#entita-{altre[0].pk}'
-            self.assertContains(completa, f'<a class="da-verificare" href="{collegamento}"')
+            self.assertContains(completa, f'<a class="da-verificare" target="_blank" rel="noopener" href="{collegamento}"')
             revisione = self.client.get(reverse("elaborazione:file", args=[primo.pk]), {"pagina": "3"})
             self.assertContains(revisione, f'<tr id="entita-{altre[0].pk}"')
             self.assertEqual(revisione.context["pagina_iniziale"], 3)

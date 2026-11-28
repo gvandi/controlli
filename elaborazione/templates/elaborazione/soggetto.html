@@ -25,7 +25,7 @@
       {% for e in riga.valori %}
         <tr>
           <td>{% if forloop.first %}<strong>{{ riga.voce.descrizione }}</strong>{% elif riga.voce.cambia_nel_tempo and not riga.voce.multipla %}<span class="tenue">{% translate "(valore precedente)" %}</span>{% endif %}</td>
-          <td title="{{ e.citazione }}">{{ e.valore }}{% if e.non_verificata %} <a class="da-verificare" href="{% url 'elaborazione:file' e.file_id %}?pagina={{ e.pagina|default:1 }}#entita-{{ e.pk }}" title="{% translate 'Apri il documento da cui viene questo dato, per controllarlo' %}">{% translate "non verificato" %}</a>{% endif %}</td>
+          <td title="{{ e.citazione }}">{{ e.valore }}{% if e.non_verificata %} <a class="da-verificare" target="_blank" rel="noopener" href="{% url 'elaborazione:file' e.file_id %}?pagina={{ e.pagina|default:1 }}#entita-{{ e.pk }}" title="{% translate 'Apri il documento da cui viene questo dato, per controllarlo' %}">{% translate "non verificato" %} &#8599;</a>{% endif %}</td>
           <td>{{ e.periodo|default:"-" }}</td>
           <td>{{ e.estratta_il|date:"Y-m-d" }}</td>
           <td class="percorso"><a href="{% url 'elaborazione:file' e.file_id %}">{{ e.file.percorso_originale }}</a>{% if e.pagina %}, {% translate "pag." %} {{ e.pagina }}{% endif %}</td>
@@ -47,7 +47,7 @@
         <td><strong>{{ riga.documento.tipo|default:"-" }}</strong> {{ riga.documento.numero }}</td>
         <td>{{ riga.documento.data|date:"Y-m-d"|default:"-" }}</td>
         <td>{{ riga.documento.totale|default:"-" }}</td>
-        <td>{{ riga.ruolo }}{% if not riga.verificato %} <a class="da-verificare" href="{% url 'elaborazione:file' riga.documento.file_id %}#documento" title="{% translate 'Apri il documento, per controllare mittente e destinatario' %}">{% translate "non verificato" %}</a>{% endif %}</td>
+        <td>{{ riga.ruolo }}{% if not riga.verificato %} <a class="da-verificare" target="_blank" rel="noopener" href="{% url 'elaborazione:file' riga.documento.file_id %}#documento" title="{% translate 'Apri il documento, per controllare mittente e destinatario' %}">{% translate "non verificato" %} &#8599;</a>{% endif %}</td>
         <td>{% for altra in riga.altre %}{{ altra.ruolo }}: {{ altra.denominazione }}{% if altra.identificativo %} <span class="tenue">({{ altra.identificativo }})</span>{% endif %}{% if not forloop.last %}<br>{% endif %}{% endfor %}</td>
         <td class="percorso"><a href="{% url 'elaborazione:file' riga.documento.file_id %}">{{ riga.documento.file.percorso_originale }}</a></td>
       </tr>
@@ -66,7 +66,7 @@
     {% for e in altre %}
       <tr>
         <td>{{ e.etichetta }}</td>
-        <td title="{{ e.citazione }}">{{ e.valore }}{% if e.non_verificata %} <a class="da-verificare" href="{% url 'elaborazione:file' e.file_id %}?pagina={{ e.pagina|default:1 }}#entita-{{ e.pk }}" title="{% translate 'Apri il documento da cui viene questo dato, per controllarlo' %}">{% translate "non verificato" %}</a>{% endif %}</td>
+        <td title="{{ e.citazione }}">{{ e.valore }}{% if e.non_verificata %} <a class="da-verificare" target="_blank" rel="noopener" href="{% url 'elaborazione:file' e.file_id %}?pagina={{ e.pagina|default:1 }}#entita-{{ e.pk }}" title="{% translate 'Apri il documento da cui viene questo dato, per controllarlo' %}">{% translate "non verificato" %} &#8599;</a>{% endif %}</td>
         <td>{{ e.periodo|default:"-" }}</td>
         <td>{{ e.estratta_il|date:"Y-m-d" }}</td>
         <td class="percorso"><a href="{% url 'elaborazione:file' e.file_id %}">{{ e.file.percorso_originale }}</a>{% if e.pagina %}, {% translate "pag." %} {{ e.pagina }}{% endif %}</td>
