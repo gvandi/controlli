@@ -19,7 +19,8 @@ Restano SEMPRE fuori, qualunque sia la scelta: ciò che una persona ha scartato,
 senza una società, e (lo decide grafo/dati_reali.py) i caricamenti riservati a un'indagine.
 
 Ciò che entra senza conferma resta riconoscibile: verificato() lo dice per un'entità o un
-documento, e chi mostra il dato deve dirlo.
+documento, e chi mostra il dato deve dirlo. "Verificato" vuol dire confermato da una persona:
+il controllo automatico sul testo non conta (n. 103).
 
 Questo è l'UNICO posto in cui si decide che cosa è ammesso.
 """
@@ -110,9 +111,14 @@ def entita(criteri=None):
 
 def verificato(oggetto):
     """
-    Vero se una persona o il controllo automatico garantiscono il dato:
-    un documento confermato; un'entità confermata, oppure ritrovata nel testo e non in attesa.
+    Vero solo se UNA PERSONA ha confermato il dato: un documento confermato, un'entità confermata.
+
+    Il controllo automatico (EntitaEstratta.verificata: "il valore si ritrova nel testo") NON basta:
+    dice che quella scritta nel file c'è, non che sia la risposta giusta. Il modello può leggere
+    "€ 25.500,00" in un verbale e chiamarlo ricavi, o indicare come amministratore il socio
+    sbagliato: sono valori presenti nel testo, e sbagliati. Per questo un dato che nessuno ha
+    guardato resta "non verificato", qualunque cosa dica il controllo automatico (n. 103).
     """
     if isinstance(oggetto, Documento):
         return oggetto.confermato
-    return bool(oggetto.confermata or (oggetto.verificata and not oggetto.da_rivedere))
+    return bool(oggetto.confermata)

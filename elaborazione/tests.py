@@ -369,7 +369,15 @@ class CodaTest(ConFile):
         with override_settings(CALCOLO_AMMETTE=dict.fromkeys(ammissione.CRITERI, True)):
             larga = {riga["voce"].codice: riga for riga in coda.scheda_del_soggetto(soggetto, self.anna)}
             self.assertEqual(sorted(e.periodo for e in larga["RICAVI"]["valori"]), ["2023", "2024", "2024"])
-            self.assertEqual(sum(e.non_verificata for e in larga["RICAVI"]["valori"]), 2)
+            # nessuno dei tre è stato confermato da una persona: sono tutti "non verificati", anche
+            # quello che il controllo automatico ha ritrovato nel testo
+            self.assertEqual(sum(e.non_verificata for e in larga["RICAVI"]["valori"]), 3)
+            ritrovata = next(e for e in larga["RICAVI"]["valori"] if e.periodo == "2023")
+            self.assertTrue(ritrovata.verificata and ritrovata.non_verificata)
+            EntitaEstratta.objects.filter(pk=ritrovata.pk).update(confermata=True)
+            dopo = {riga["voce"].codice: riga for riga in coda.scheda_del_soggetto(soggetto, self.anna)}
+            self.assertEqual(sum(e.non_verificata for e in dopo["RICAVI"]["valori"]), 2)
+            EntitaEstratta.objects.filter(pk=ritrovata.pk).update(confermata=False)
             altre = coda.altre_informazioni(soggetto, self.anna)
             self.assertEqual([(e.etichetta, e.non_verificata) for e in altre], [("data di consegna", True)])
             # il segno "non verificato" porta al documento da cui viene il dato, sulla riga dell'entità
