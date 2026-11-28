@@ -8,7 +8,10 @@
   L'indirizzo ricorda la scheda (/#caricamento): un collegamento o il ritorno da un modulo portano lì.
 {% endcomment %}
 <style>
-  main { max-width: 84rem; }
+  main { max-width: 120rem; }
+  .affiancati.due { display: grid; grid-template-columns: minmax(0, 3fr) minmax(22rem, 2fr); gap: 1rem; align-items: start; }
+  .affiancati .scheda { min-width: 0; overflow-x: auto; }
+  @media (max-width: 80rem) { .affiancati.due { display: block; } .scheda.storico { position: static; max-height: none; } }
   [hidden] { display: none !important; }   /* vale anche per i bottoni, che hanno un display proprio */
   .schede { display: flex; flex-wrap: wrap; gap: 0.25rem; border-bottom: 2px solid var(--bordo); margin: 1rem 0 1.25rem; }
   .schede[hidden] { display: none; }
@@ -183,6 +186,15 @@
         {% endif %}
         {% if perms.indici.view_regoladirischio %}<a class="bottone" href="{% url 'indici:spazio' %}?azienda={{ societa.soggetto.pk }}">{% translate "Nello spazio degli indici" %}</a>{% endif %}
       </p>
+      {% if puo_usare_la_chat %}
+        {# La mappa si apre in un'altra scheda del browser: è una pagina a sé, senza il menu dell'applicativo #}
+        <form method="post" action="{% url 'grafo:nuova_mappa' %}" target="_blank" style="margin: 0 0 0.75rem">{% csrf_token %}
+          <input type="hidden" name="soggetto" value="{{ societa.soggetto.pk }}">
+          <input type="hidden" name="cercata" value="{{ cercata }}">
+          <button type="submit">{% translate "Mostra la mappa di rete" %}</button>
+          <span class="tenue">{% translate "i rapporti a uno e due passi, sui dati in uso; i rapporti non verificati sono tratteggiati" %}</span>
+        </form>
+      {% endif %}
 
       <div class="colonne">
         <div>
@@ -218,12 +230,12 @@
             {% endfor %}
           </table>
 
-          <h3>{% translate "Mappe di rete che hai chiesto in chat" %}</h3>
+          <h3>{% translate "Mappe di rete che hai già chiesto" %}</h3>
           <ul class="elenco-breve">
             {% for mappa in societa.mappe %}
               <li><a href="{% url 'grafo:mappa' mappa.pk %}">{% translate "Mappa del" %} {{ mappa.prodotta_il|date:"Y-m-d H:i" }}</a> <span class="tenue">{% translate "calcolo" %} {{ mappa.versione_calcolo }} / {% translate "dati n." %} {{ mappa.numero_dati }}</span></li>
             {% empty %}
-              <li class="tenue">{% translate "Nessuna. Si chiede in chat: «mostrami la mappa di rete di» seguito dal COE." %}</li>
+              <li class="tenue">{% translate "Nessuna. Usa il pulsante «Mostra la mappa di rete», oppure chiedila in chat." %}</li>
             {% endfor %}
           </ul>
         </div>
@@ -267,14 +279,22 @@
 <section class="pannello" id="scheda-aggiornamento" role="tabpanel" aria-labelledby="bottone-aggiornamento" tabindex="0">
   <h2>{% translate "Aggiornamento dati" %}</h2>
   {% include "grafo/_dati_non_aggiornati.html" with stato=stato_dei_dati %}
-  <div class="scheda">
-    <h2>{% translate "Elaborazioni e calcoli" %}</h2>
-    <p class="tenue">{% translate "Ciò che trasforma i file caricati e l'anagrafica in quello che si vede nella scheda «Società e analisi», nell'ordine in cui va fatto." %}</p>
-    {% if lavori %}{% include "lavori/_percorso.html" with percorso=lavori ritorno=ritorno_lavori %}{% endif %}
-    {% if puo_vedere_i_lavori %}
-      <p><a href="{% url 'lavori:elenco' %}">{% translate "Storico dei lavori e loro esito" %}</a></p>
+  {# La sequenza a sinistra e lo storico a destra: si lancia e si vede l'esito senza cambiare pagina #}
+  <div class="affiancati{% if lavori and storico is not None %} due{% endif %}">
+    {% if lavori %}
+    <div class="scheda">
+      <h2>{% translate "Elaborazioni e calcoli" %}</h2>
+      <p class="tenue">{% translate "Ciò che trasforma i file caricati e l'anagrafica in quello che si vede nella scheda «Società e analisi», nell'ordine in cui va fatto." %}</p>
+      {% include "lavori/_percorso.html" with percorso=lavori ritorno=ritorno_lavori %}
+    </div>
+    {% endif %}
+    {% if storico is not None %}
+      {% include "lavori/_storico.html" %}
     {% endif %}
   </div>
+  {% if puo_vedere_i_lavori %}
+    <p><a href="{% url 'lavori:elenco' %}">{% translate "Lo storico completo, in una pagina a sé" %}</a></p>
+  {% endif %}
 </section>
 {% endif %}
 
@@ -346,6 +366,15 @@
     function dallIndirizzo() { return window.location.hash.replace("#", ""); }
     apri(dallIndirizzo() || pagina.getAttribute("data-iniziale"), false);
     window.addEventListener("hashchange", function () { apri(dallIndirizzo(), false); });
+    {% if lavori_in_attivita %}
+    // C'è un lavoro richiesto o in corso: la pagina si aggiorna da sola, ma solo mentre si guarda
+    // la scheda dei lavori e non si sta scrivendo o scegliendo un file.
+    setInterval(function () {
+      var attivo = document.activeElement, scrive = attivo && /^(INPUT|SELECT|TEXTAREA)$/.test(attivo.tagName);
+      var scelto = Array.prototype.some.call(document.querySelectorAll("input[type=file]"), function (c) { return c.files.length; });
+      if (dallIndirizzo() === "aggiornamento" && !scrive && !scelto) window.location.reload();
+    }, 5000);
+    {% endif %}
     // un collegamento a un'altra scheda della stessa pagina la apre e porta in cima
     pagina.addEventListener("click", function (evento) {
       var voce = evento.target.closest ? evento.target.closest("[data-apri-scheda]") : null;

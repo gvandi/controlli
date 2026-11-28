@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   sessioni.py  -  app grafo, VERSIONE 38
+#   sessioni.py  -  app grafo, VERSIONE 39
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: sessioni
@@ -29,6 +29,8 @@
 #   [31] Nuove funzioni chat_autorizzate() e scollega_chat(): l'utente vede quali programmi di
 #        chat agiscono a suo nome con l'accesso OAuth e può revocarli; scollegare chiude le
 #        sessioni aperte, e la chat deve rifare l'accesso dal browser.
+#   [39] Nuova sessione_della_pagina(): la sessione (accesso «pagina») a cui appartengono le
+#        mappe chieste senza chat.
 #
 # <<< NOVITA
 """
@@ -277,6 +279,27 @@ def apri_sessione(identita, client="", indirizzo=None, id_connessione=None):
         indirizzo=indirizzo or None,
         versione_codice=contratto.VERSIONE_CODICE,
     )
+
+
+def sessione_della_pagina(utente, indirizzo=None):
+    """
+    La sessione delle mappe che l'utente chiede da una pagina dell'applicativo, senza chat: una
+    sola aperta per volta, riusata finché non scade per inattività. Serve perché ogni mappa
+    appartiene a una sessione, e dalla sessione si sa di chi è.
+    """
+    sessione = (
+        Sessione.objects.filter(utente=utente, accesso=contratto.ACCESSO_PAGINA, chiusa_il__isnull=True)
+        .order_by("-pk").first()
+    )
+    if sessione is None:
+        return Sessione.objects.create(
+            utente=utente, accesso=contratto.ACCESSO_PAGINA, id_connessione=secrets.token_urlsafe(24),
+            ultima_attivita=timezone.now(), client="pagina dell'applicativo", indirizzo=indirizzo or None,
+            versione_codice=contratto.VERSIONE_CODICE,
+        )
+    sessione.ultima_attivita = timezone.now()
+    sessione.save(update_fields=["ultima_attivita"])
+    return sessione
 
 
 def connessione_nota(identita, id_connessione):
