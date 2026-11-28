@@ -10,6 +10,9 @@
   .ok { color: #1e6b3a; } .avviso { color: #a12622; }
   pre { white-space: pre-wrap; background: var(--sfondo); padding: 0.6rem; border-radius: 4px; max-height: 24rem; overflow: auto; }
   tr.ritirata td { text-decoration: line-through; color: #888; }
+  /* Arrivando da un dato "non verificato": la riga o il riquadro da controllare è evidenziato */
+  tr:target td { background: #fdf6e3; }
+  .scheda:target { outline: 2px solid #e6cf9c; }
   /* L'originale a sinistra, fermo mentre si scorre; i dati a destra. Stretto: uno sopra l'altro. */
   {% if originale %}main { max-width: 120rem; }{% endif %}
   .affiancati.con-originale { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 1rem; align-items: start; }
@@ -54,7 +57,7 @@
     <a href="{% url 'archivio:scarica' file.pk %}">{% translate "Scarica" %}</a>
   </p>
   {% if originale == "application/pdf" %}
-    <iframe id="cornice-originale" src="{% url 'archivio:anteprima' file.pk %}" data-base="{% url 'archivio:anteprima' file.pk %}" title="{% translate 'Documento originale' %}"></iframe>
+    <iframe id="cornice-originale" src="{% url 'archivio:anteprima' file.pk %}{% if pagina_iniziale %}#page={{ pagina_iniziale }}{% endif %}" data-base="{% url 'archivio:anteprima' file.pk %}" title="{% translate 'Documento originale' %}"></iframe>
   {% else %}
     <div class="immagine"><img src="{% url 'archivio:anteprima' file.pk %}" alt="{% translate 'Immagine del documento originale' %}"></div>
   {% endif %}
@@ -69,7 +72,7 @@
 <form method="post">
 {% csrf_token %}
 {% if documento and file.stato != "annullato" %}
-<div class="scheda">
+<div class="scheda" id="documento">
   <h2>{% translate "Documento e parti" %}</h2>
   <p class="tenue">
     {% translate "Il modello ha riconosciuto in questo file un documento commerciale. Controlla i dati e il ruolo di ogni parte: entrano nell'analisi solo dopo la tua conferma." %}
@@ -137,7 +140,7 @@
         <th>{% translate "Evento" %}</th><th>{% translate "Società" %}</th><th>{% translate "Fonte" %}</th><th>{% translate "Controlli" %}</th>
       </tr>
       {% for e in entita %}
-        <tr{% if e.ritirata %} class="ritirata"{% endif %}>
+        <tr id="entita-{{ e.pk }}"{% if e.ritirata %} class="ritirata"{% endif %}>
           {% if puo_rivedere %}<td>{% if not e.ritirata %}<input type="checkbox" name="entita" value="{{ e.pk }}" style="width:auto" checked>{% endif %}</td>{% endif %}
           <td>{% if e.pagina and originale == "application/pdf" %}<button type="button" class="secondario" data-vai-pagina="{{ e.pagina }}" title="{% translate 'Mostra questa pagina nel documento originale' %}">{{ e.pagina }}</button>{% else %}{{ e.pagina|default:"-" }}{% endif %}</td>
           <td>

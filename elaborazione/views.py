@@ -120,6 +120,8 @@ def file(request, numero):
         "soggetti_del_file": [(s.pk, anagrafica.etichetta(s)) for s in coda.soggetti_del_file(riga)],
         "ruoli": models.RUOLI,
         # L'originale accanto alle entità: "application/pdf", "image/..." oppure None (solo da scaricare)
+        # la pagina su cui aprire l'originale, quando si arriva da un dato "non verificato"
+        "pagina_iniziale": int(request.GET["pagina"]) if request.GET.get("pagina", "").isdigit() and request.GET["pagina"] != "1" else None,
         "originale": caricamento.tipo_in_pagina(riga) if request.user.has_perm("archivio.view_fascicolo") else None,
     })
 
