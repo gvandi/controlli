@@ -850,7 +850,7 @@ class DocumentoTest(ConFile):
         pagina = self.client.get(reverse("home"))
         self.assertContains(pagina, 'data-iniziale="da-fare"')
         self.assertContains(pagina, f'<a href="{reverse("elaborazione:file", args=[file.pk])}">ddt.txt</a>')
-        self.assertContains(pagina, '<span class="numero" title="cose che ti aspettano">1</span>')
+        self.assertContains(pagina, '<span class="numero" title="cose da fare che non hai ancora aperto">1</span>')
         self.assertEqual(pagina.context["quante_da_fare"], 1)
         self.assertEqual(pagina.context["da_fare"]["da_rivedere"]["quanti"], 1)
         # scheda "Società e analisi": cercata per COE, si apre su quella scheda con ciò che se ne sa
@@ -867,6 +867,23 @@ class DocumentoTest(ConFile):
         self.assertContains(pagina, 'id="che-cosa"')
         self.assertIn("C'è un file da rivedere", pagina.context["suggerimenti"][0]["testo"])
         self.assertEqual(pagina.context["suggerimenti"][0]["indirizzo"], reverse("elaborazione:file", args=[file.pk]))
+        # il numero conta le righe, non i file: e aprendo la riga dal suo collegamento scala
+        riga = pagina.context["suggerimenti"][0]
+        self.assertFalse(riga["aperta"])
+        aperta = self.client.get(riga["collegamento"])
+        self.assertRedirects(aperta, reverse("elaborazione:file", args=[file.pk]), fetch_redirect_response=False)
+        pagina = self.client.get(reverse("home"))
+        self.assertEqual(pagina.context["quante_da_fare"], 0)
+        self.assertTrue(pagina.context["suggerimenti"][0]["aperta"])       # resta in elenco: non è ancora fatta
+        self.assertContains(pagina, "già aperta")
+        self.assertNotContains(pagina, 'title="cose da fare che non hai ancora aperto">')
+        # una chiave che non corrisponde a nulla riporta all'inizio: l'indirizzo non viene mai dalla richiesta
+        altrove = self.client.get(reverse("apri_da_fare"), {"chiave": "inventata", "vai": "https://esempio.invalid/"})
+        self.assertRedirects(altrove, reverse("home"), fetch_redirect_response=False)
+        # se la situazione cambia (un altro file da rivedere) la riga è un'altra e torna a contare
+        altro = self.carica("Ricavi 2024: 1.000.", coe="10000", titolo="Altro")
+        FileCaricato.objects.filter(pk=altro.pk).update(stato=archivio.FILE_DA_RIVEDERE)
+        self.assertEqual(self.client.get(reverse("home")).context["quante_da_fare"], 1)
         # una ricerca senza esito lo dice, e chi non vede un'indagine non ne vede i file fra le cose da fare
         self.assertContains(self.client.get(reverse("home"), {"societa": "99999"}), "Nessuna società nota")
         self.client.force_login(self.lettore)

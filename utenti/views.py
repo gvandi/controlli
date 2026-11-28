@@ -14,8 +14,9 @@ Una scheda compare solo a chi può usarne almeno una funzione. Ogni scheda ha un
 (/#caricamento, /#societa ...): un collegamento porta direttamente lì.
 """
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 from django.urls import reverse
+from django.utils.http import urlencode
 
 from archivio import models as archivio
 from archivio.models import Fascicolo, FileCaricato
@@ -24,6 +25,7 @@ from lavori import servizi as lavori
 from . import guida
 
 IN_ELENCO = 8
+CHIAVE_DI_SESSIONE = "da_fare_aperte"   # le righe di "Da dove cominciare" già aperte in questo accesso
 
 
 def _da_fare(utente):
@@ -110,18 +112,52 @@ def home(request):
     contesto["stato_dei_dati"] = dati_reali.stato_per_le_pagine() if puo_vedere_l_archivio else None
     contesto["puo_lanciare"] = puo_lanciare
     contesto["guida"] = guida.voci(utente)
+    # "Da dove cominciare": una riga per cosa da fare. Il numero sul bottone "Da fare" conta le righe
+    # che l'utente non ha ancora aperto; una riga aperta resta in elenco, spenta, finché la cosa
+    # non è fatta, e torna a contare se la situazione cambia (n. 104).
     contesto["suggerimenti"] = guida.suggerimenti(
         utente, contesto["da_fare"], contesto["stato_dei_dati"], bool(lavori.tipi_serviti()) if puo_lanciare else True
     )
-    # Il numero sul bottone "Da fare": quante cose aspettano QUESTO utente. File da rivedere, file
-    # non letti e bozze uno per uno; in più, per chi amministra, ciò che deve lanciare o avviare.
-    da_fare = contesto["da_fare"]
-    contesto["quante_da_fare"] = sum(1 for voce in contesto["suggerimenti"] if voce["conta"]) + (
-        da_fare["da_rivedere"]["quanti"] + da_fare["in_errore"]["quanti"] + da_fare["bozze"]["quanti"] if da_fare else 0
-    )
+    aperte = set(request.session.get(CHIAVE_DI_SESSIONE, []))
+    for voce in contesto["suggerimenti"]:
+        voce["aperta"] = bool(voce["chiave"]) and voce["chiave"] in aperte
+        # si passa da apri_da_fare, che ricorda l'apertura e porta alla pagina giusta
+        voce["collegamento"] = (
+            f"{reverse('apri_da_fare')}?{urlencode({'chiave': voce['chiave']})}" if voce["chiave"] else voce["indirizzo"]
+        )
+    contesto["quante_da_fare"] = sum(1 for voce in contesto["suggerimenti"] if voce["chiave"] and not voce["aperta"])
     contesto["mostra_configurazione"] = contesto["puo_entrare_in_admin"] and (
         contesto["puo_configurare"] or contesto["puo_gestire_utenti"]
     ) or contesto["puo_amministrare_il_grafo"]
     # La scheda aperta all'arrivo: quella della società se si è appena cercato, altrimenti "Da fare"
     contesto["scheda_iniziale"] = "societa" if cercata else "da-fare"
     return render(request, "home.html", contesto)
+
+
+@login_required
+def apri_da_fare(request):
+    """
+    Il collegamento di una riga di "Da dove cominciare": ricorda che l'utente l'ha aperta (così il
+    numero sul bottone "Da fare" scala) e porta alla pagina della riga.
+
+    L'indirizzo NON viene dalla richiesta: si ricalcolano le righe di questo utente e si usa
+    quello della riga con la chiave indicata. Una chiave che non corrisponde più a nulla (la cosa
+    è stata fatta, o la situazione è cambiata) riporta alla pagina iniziale.
+    Il ricordo vale per questo accesso: al prossimo, ciò che è ancora da fare torna a contare.
+    """
+    from grafo import dati_reali
+
+    utente, chiave = request.user, request.GET.get("chiave", "")
+    puo_vedere_l_archivio, puo_lanciare = utente.has_perm("archivio.view_fascicolo"), utente.has_perm("lavori.lancia_lavori")
+    righe = guida.suggerimenti(
+        utente, _da_fare(utente) if puo_vedere_l_archivio else None,
+        dati_reali.stato_per_le_pagine() if puo_vedere_l_archivio else None,
+        bool(lavori.tipi_serviti()) if puo_lanciare else True,
+    )
+    riga = next((voce for voce in righe if chiave and voce["chiave"] == chiave), None)
+    if riga is None:
+        return redirect("home")
+    aperte = [c for c in request.session.get(CHIAVE_DI_SESSIONE, []) if c != chiave] + [chiave]
+    request.session[CHIAVE_DI_SESSIONE] = aperte[-50:]
+    indirizzo = riga["indirizzo"]
+    return redirect(reverse("home") + indirizzo if indirizzo.startswith("#") else indirizzo)
