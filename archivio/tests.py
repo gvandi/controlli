@@ -396,7 +396,11 @@ class CaricamentoTest(ConUtenti):
         fascicolo = self.nuovo()
         vuoto = self.pagina(self.anna, "fascicolo", fascicolo.pk, azione="conferma")
         self.assertContains(vuoto, "non contiene file")
+        # senza file la conferma è spenta e la pagina dice che cosa fare; i file partono appena scelti
+        self.assertContains(vuoto, "<button type=\"submit\" disabled>Conferma il caricamento</button>")
+        self.assertContains(vuoto, "vengono caricati appena li scegli")
         caricamento.aggiungi_file(fascicolo, self.anna, [un_file("a.pdf", b"a")])
+        self.assertContains(self.pagina(self.anna, "fascicolo", fascicolo.pk), "<button type=\"submit\">Conferma il caricamento</button>")
         riga = FileCaricato.objects.get()
         self.assertEqual(riga.stato, models.FILE_BOZZA)
         self.pagina(self.anna, "fascicolo", fascicolo.pk, azione="conferma")

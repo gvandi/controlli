@@ -50,13 +50,29 @@
     <label for="cartella">{% translate "Oppure una cartella intera, con le sue sottocartelle" %}</label>
     <input type="file" id="cartella" name="cartella" multiple webkitdirectory>
     <p class="tenue">{% translate "I file omonimi in sottocartelle diverse restano distinti. Uno ZIP viene aperto e non conservato." %}</p>
-    <p><button type="submit">{% translate "Carica" %}</button></p>
+    <p class="tenue" id="avviso-scelta">{% translate "I file vengono caricati appena li scegli: compaiono nell'elenco «File» qui sotto. La conferma del caricamento viene dopo." %}</p>
+    <p id="in-corso" class="ok" role="status" hidden>{% translate "Caricamento dei file in corso: non chiudere la pagina…" %}</p>
+    {# Senza JavaScript i file non partono da soli: resta il pulsante #}
+    <p id="carica-a-mano"><button type="submit">{% translate "Carica" %}</button></p>
   </form>
   <script>
     // Il browser manda solo il nome dei file: il percorso dentro la cartella scelta
     // viaggia in campi a parte, nello stesso ordine dei file.
+    // I file partono appena scelti. Prima bisognava premere "Carica": chi passava subito a
+    // "Conferma il caricamento" perdeva la scelta senza accorgersene.
+    (function () {
+      var modulo = document.getElementById("modulo-carica");
+      function parti() {
+        if (modulo.requestSubmit) modulo.requestSubmit(); else modulo.querySelector("button[type=submit]").click();
+      }
+      ["file", "cartella"].forEach(function (nome) {
+        document.getElementById(nome).addEventListener("change", function () { if (this.files.length) parti(); });
+      });
+      document.getElementById("carica-a-mano").hidden = true;
+    })();
     document.getElementById("modulo-carica").addEventListener("submit", function () {
       var modulo = this;
+      document.getElementById("in-corso").hidden = false;
       modulo.querySelectorAll("input[name=percorso_cartella]").forEach(function (c) { c.remove(); });
       Array.prototype.forEach.call(document.getElementById("cartella").files, function (f) {
         var campo = document.createElement("input");
@@ -112,9 +128,12 @@
 <div class="scheda">
   <h2>{% translate "Conferma" %}</h2>
   <p>{% translate "Con la conferma i file passano all'elaborazione e il caricamento non si può più modificare né cancellare: solo annullare." %}</p>
+  {% if not file %}
+    <p class="avviso">{% translate "Non c'è ancora nessun file: sceglili nel riquadro «Aggiungi file» in alto. Il pulsante di conferma si attiva quando compaiono nell'elenco." %}</p>
+  {% endif %}
   <form method="post" style="display:inline">{% csrf_token %}
     <input type="hidden" name="azione" value="conferma">
-    <button type="submit">{% translate "Conferma il caricamento" %}</button>
+    <button type="submit"{% if not file %} disabled{% endif %}>{% translate "Conferma il caricamento" %}</button>
   </form>
   <form method="post" style="display:inline">{% csrf_token %}
     <input type="hidden" name="azione" value="elimina">
