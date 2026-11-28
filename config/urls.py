@@ -22,6 +22,7 @@ INDIRIZZI_OAUTH = (
 
 urlpatterns = [
     path("", utenti_views.home, name="home"),
+    path("da-fare/apri/", utenti_views.apri_da_fare, name="apri_da_fare"),
     path("accesso/", auth_views.LoginView.as_view(), name="login"),
     path("uscita/", auth_views.LogoutView.as_view(), name="logout"),
     path("admin/", admin.site.urls),

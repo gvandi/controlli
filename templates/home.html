@@ -24,6 +24,7 @@
   .colonne .scheda { margin-bottom: 0; }
   .elenco-breve { list-style: none; padding: 0; margin: 0.4rem 0; }
   .elenco-breve li { padding: 0.3rem 0; border-top: 1px solid var(--bordo); }
+  .suggerimenti li.aperta { color: var(--tenue); }
   .conto { font-size: 1.6rem; font-weight: 600; line-height: 1.1; }
   .cerca-societa input[type=text] { display: inline-block; width: min(26rem, 100%); margin-right: 0.5rem; }
   a.da-verificare { text-decoration: none; } a.da-verificare:hover { text-decoration: underline; }
@@ -40,7 +41,7 @@
 
 <div id="pagina-a-schede" data-iniziale="{{ scheda_iniziale }}">
 <div class="schede" role="tablist" aria-label="{% translate 'Sezioni della pagina iniziale' %}" hidden>
-  <button type="button" role="tab" id="bottone-da-fare" aria-controls="scheda-da-fare" data-scheda="da-fare">{% translate "Da fare" %}{% if quante_da_fare %}<span class="numero" title="{% translate 'cose che ti aspettano' %}">{{ quante_da_fare }}</span>{% endif %}</button>
+  <button type="button" role="tab" id="bottone-da-fare" aria-controls="scheda-da-fare" data-scheda="da-fare">{% translate "Da fare" %}{% if quante_da_fare %}<span class="numero" title="{% translate 'cose da fare che non hai ancora aperto' %}">{{ quante_da_fare }}</span>{% endif %}</button>
   <button type="button" role="tab" id="bottone-caricamento" aria-controls="scheda-caricamento" data-scheda="caricamento">{% translate "Caricamento" %}</button>
   <button type="button" role="tab" id="bottone-societa" aria-controls="scheda-societa" data-scheda="societa">{% translate "Società e analisi" %}</button>
   {% if lavori or puo_vedere_i_lavori %}<button type="button" role="tab" id="bottone-aggiornamento" aria-controls="scheda-aggiornamento" data-scheda="aggiornamento">{% translate "Aggiornamento dati" %}</button>{% endif %}
@@ -57,7 +58,7 @@
     <h2>{% translate "Da dove cominciare" %}</h2>
     <ul class="elenco-breve">
       {% for voce in suggerimenti %}
-        <li>{{ voce.testo }}{% if voce.indirizzo %} <a href="{{ voce.indirizzo }}"{% if voce.indirizzo|slice:":1" == "#" %} data-apri-scheda="{{ voce.indirizzo|slice:"1:" }}"{% endif %}>{{ voce.azione }}</a>{% endif %}</li>
+        <li{% if voce.aperta %} class="aperta"{% endif %}>{{ voce.testo }}{% if voce.indirizzo %} <a href="{{ voce.collegamento }}">{{ voce.azione }}</a>{% endif %}{% if voce.aperta %} <span class="tenue">{% translate "(già aperta: resta qui finché non è fatta)" %}</span>{% endif %}</li>
       {% endfor %}
     </ul>
   </div>

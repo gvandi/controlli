@@ -172,14 +172,14 @@ class LavoriTest(TestCase):
         self.client.force_login(self.ada)
         # nessun processo acceso: è una cosa da fare, e il bottone lo dice con un numero
         pagina = self.client.get(reverse("home"))
-        self.assertTrue(any("Nessun processo" in voce["testo"] and voce["conta"] for voce in pagina.context["suggerimenti"]))
+        self.assertTrue(any("Nessun processo" in voce["testo"] and voce["chiave"] for voce in pagina.context["suggerimenti"]))
         self.assertGreaterEqual(pagina.context["quante_da_fare"], 1)
-        self.assertContains(pagina, 'title="cose che ti aspettano">')
+        self.assertContains(pagina, 'title="cose da fare che non hai ancora aperto">')
         # chi non amministra e non ha nulla da fare non vede numeri
         self.client.force_login(self.bruno)
         pagina = self.client.get(reverse("home"))
         self.assertEqual(pagina.context["quante_da_fare"], 0)
-        self.assertNotContains(pagina, 'title="cose che ti aspettano">')
+        self.assertNotContains(pagina, 'title="cose da fare che non hai ancora aperto">')
         # la pagina dei lavori affianca la sequenza e lo storico
         self.client.force_login(self.ada)
         self.assertContains(self.client.get(reverse("lavori:elenco")), 'class="affiancati due"')

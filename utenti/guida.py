@@ -11,7 +11,7 @@ Per aggiungere una voce: una riga in VOCI. "dove" è il nome di un indirizzo (co
 argomenti) oppure "#nome" per una scheda della pagina iniziale. "diritto" vuoto = tutti.
 
     suggerimenti(...)  è l'altra metà: non ciò che si può fare, ma ciò che conviene fare ORA,
-                       ricavato dallo stato dell'archivio. Al più tre, il più urgente per primo.
+                       ricavato dallo stato dell'archivio, una riga per cosa da fare.
 """
 from django.urls import NoReverseMatch, reverse
 
@@ -112,42 +112,58 @@ def voci(utente):
 
 def suggerimenti(utente, da_fare, stato_dei_dati, esecutore_acceso):
     """
-    Ciò che conviene fare ora, dallo stato dell'archivio: [{"testo", "indirizzo", "azione", "conta"}], al più tre.
-    "conta" è vero per ciò che aspetta davvero qualcuno (non per "niente ti aspetta") e non è già
-    contato fra file da rivedere, file non letti e bozze: serve al numero sul bottone "Da fare".
+    Ciò che conviene fare ora, dallo stato dell'archivio, una riga per cosa da fare:
+        [{"testo", "indirizzo", "azione", "chiave"}]   il più urgente per primo, al più MASSIMO_SUGGERIMENTI
+    Una riga è UNA cosa da fare, qualunque sia il numero di file che contiene: il bottone "Da fare"
+    conta le righe. "chiave" riconosce la riga finché la situazione resta la stessa (stesso primo
+    file, stesso numero): serve a ricordare che l'utente l'ha già aperta, e a riproporla se cambia.
+    Senza chiave la riga non è una cosa da fare ("niente ti aspetta") e non si conta.
     da_fare è quello della pagina iniziale (o None), stato_dei_dati quello di grafo.dati_reali (o None).
     """
     puo_lanciare, voci_utili = utente.has_perm("lavori.lancia_lavori"), []
 
-    def aggiungi(testo, indirizzo="", azione="", conta=False):
-        voci_utili.append({"testo": testo, "indirizzo": indirizzo, "azione": azione, "conta": conta})
+    def aggiungi(testo, indirizzo="", azione="", chiave=""):
+        voci_utili.append({"testo": testo, "indirizzo": indirizzo, "azione": azione, "chiave": chiave})
 
     if puo_lanciare and not esecutore_acceso:
         aggiungi("Nessun processo sta eseguendo i lavori: ciò che lanci resta in attesa. Avvia «./avvia.sh» "
-                 "oppure «python manage.py esegui_lavori».", reverse("lavori:elenco"), "Apri i lavori", conta=True)
+                 "oppure «python manage.py esegui_lavori».", reverse("lavori:elenco"), "Apri i lavori", "esecutore")
     if da_fare:
-        rivedere = da_fare["da_rivedere"]
+        rivedere, in_errore = da_fare["da_rivedere"], da_fare["in_errore"]
         if rivedere["quanti"]:
             primo = rivedere["primi"][0]
             pagina = "elaborazione:file" if utente.has_perm("elaborazione.view_entitaestratta") else "archivio:file"
             aggiungi(
                 ("C'è un file da rivedere" if rivedere["quanti"] == 1 else f"Ci sono {rivedere['quanti']} file da rivedere")
                 + f": comincia dal più vecchio, «{primo.percorso_originale}».",
-                reverse(pagina, args=[primo.pk]), "Apri la revisione",
+                reverse(pagina, args=[primo.pk]), "Apri la revisione", f"rivedere:{primo.pk}:{rivedere['quanti']}",
+            )
+        if in_errore["quanti"]:
+            primo = in_errore["primi"][0]
+            aggiungi(
+                ("Il programma non è riuscito a leggere un file" if in_errore["quanti"] == 1
+                 else f"Il programma non è riuscito a leggere {in_errore['quanti']} file")
+                + f": aprendo «{primo.percorso_originale}» trovi che cosa è successo e che cosa fare.",
+                reverse("archivio:file", args=[primo.pk]), "Apri il file", f"errore:{primo.pk}:{in_errore['quanti']}",
             )
         if da_fare["bozze"]["quanti"]:
             bozza = da_fare["bozze"]["primi"][0]
             aggiungi(f"Il caricamento «{bozza.titolo}» è ancora in bozza: finché non lo confermi i suoi file non vengono letti.",
-                     reverse("archivio:fascicolo", args=[bozza.pk]), "Apri il caricamento")
+                     reverse("archivio:fascicolo", args=[bozza.pk]), "Apri il caricamento", f"bozza:{bozza.pk}")
         if puo_lanciare and da_fare["in_attesa"]:
-            aggiungi(f"{da_fare['in_attesa']} file aspettano di essere letti dal programma.", "#aggiornamento", "Vai al passo 2", conta=True)
+            aggiungi(f"{da_fare['in_attesa']} file aspettano di essere letti dal programma.", "#aggiornamento", "Vai al passo 2",
+                     f"attesa:{da_fare['in_attesa']}")
     if stato_dei_dati and not stato_dei_dati["vuoto"] and not stato_dei_dati["aggiornati"]:
         if puo_lanciare:
-            aggiungi("Chat, mappa e classifica non vedono gli ultimi dati caricati.", "#aggiornamento", "Vai al passo 5", conta=True)
+            aggiungi("Chat, mappa e classifica non vedono gli ultimi dati caricati.", "#aggiornamento", "Vai al passo 5",
+                     f"dati:{stato_dei_dati['numero_in_uso']}:{stato_dei_dati['societa_ora']}:{stato_dei_dati['rapporti_ora']}")
     elif stato_dei_dati and stato_dei_dati["vuoto"] and puo_lanciare:
         aggiungi("Non ci sono ancora dati da analizzare: importa un'anagrafica (passo 4) o fai leggere i file caricati (passo 2).",
-                 "#aggiornamento", "Vai all'aggiornamento dei dati")
+                 "#aggiornamento", "Vai all'aggiornamento dei dati", "vuoto")
     if not voci_utili and da_fare and da_fare["nulla"] and utente.has_perm("archivio.add_filecaricato"):
         aggiungi("Niente ti aspetta. Se hai nuovi documenti, puoi caricarli.", reverse("archivio:faldone", args=["CARICAMENTI"]),
                  "Nuovo caricamento")
-    return voci_utili[:3]
+    return voci_utili[:MASSIMO_SUGGERIMENTI]
+
+
+MASSIMO_SUGGERIMENTI = 5
