@@ -168,6 +168,22 @@ class LavoriTest(TestCase):
         call_command("esegui_lavori", una_volta=True, stdout=StringIO())
         self.assertEqual(set(Lavoro.objects.values_list("stato", flat=True)), {FINITO})
 
+    def test_il_numero_su_da_fare_conta_anche_cio_che_aspetta_l_amministratore(self):
+        self.client.force_login(self.ada)
+        # nessun processo acceso: è una cosa da fare, e il bottone lo dice con un numero
+        pagina = self.client.get(reverse("home"))
+        self.assertTrue(any("Nessun processo" in voce["testo"] and voce["conta"] for voce in pagina.context["suggerimenti"]))
+        self.assertGreaterEqual(pagina.context["quante_da_fare"], 1)
+        self.assertContains(pagina, 'title="cose che ti aspettano">')
+        # chi non amministra e non ha nulla da fare non vede numeri
+        self.client.force_login(self.bruno)
+        pagina = self.client.get(reverse("home"))
+        self.assertEqual(pagina.context["quante_da_fare"], 0)
+        self.assertNotContains(pagina, 'title="cose che ti aspettano">')
+        # la pagina dei lavori affianca la sequenza e lo storico
+        self.client.force_login(self.ada)
+        self.assertContains(self.client.get(reverse("lavori:elenco")), 'class="affiancati due"')
+
     def test_la_fotografia_da_sola_avverte_che_non_e_in_uso(self):
         from indici import importazione
 

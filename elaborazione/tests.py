@@ -833,7 +833,8 @@ class DocumentoTest(ConFile):
         pagina = self.client.get(reverse("home"))
         self.assertContains(pagina, 'data-iniziale="da-fare"')
         self.assertContains(pagina, f'<a href="{reverse("elaborazione:file", args=[file.pk])}">ddt.txt</a>')
-        self.assertContains(pagina, '<span class="numero" title="file da rivedere">1</span>')
+        self.assertContains(pagina, '<span class="numero" title="cose che ti aspettano">1</span>')
+        self.assertEqual(pagina.context["quante_da_fare"], 1)
         self.assertEqual(pagina.context["da_fare"]["da_rivedere"]["quanti"], 1)
         # scheda "Società e analisi": cercata per COE, si apre su quella scheda con ciò che se ne sa
         pagina = self.client.get(reverse("home"), {"societa": "10000"})

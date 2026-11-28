@@ -3,10 +3,22 @@
 {% block titolo %}{% translate "Lavori" %} - Controlli{% endblock %}
 {% block contenuto %}
 <style>
-  main { max-width: 72rem; }
-  table.storico { width: 100%; border-collapse: collapse; }
-  table.storico th, table.storico td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--bordo); vertical-align: top; }
-  td.esito { white-space: pre-line; }
+  main { max-width: 120rem; }
+  .affiancati.due { display: grid; grid-template-columns: minmax(0, 3fr) minmax(22rem, 2fr); gap: 1rem; align-items: start; }
+  .affiancati .scheda { margin-bottom: 0; min-width: 0; overflow-x: auto; }
+  .scheda.storico { position: sticky; top: 0.5rem; max-height: calc(100vh - 1rem); overflow-y: auto; }
+  ul.storico { list-style: none; margin: 0; padding: 0; }
+  ul.storico li { border-top: 1px solid var(--bordo); padding: 0.5rem 0; }
+  ul.storico p { margin: 0 0 0.2rem; }
+  ul.storico .stato { float: right; font-size: 0.85rem; border: 1px solid var(--bordo); border-radius: 1rem; padding: 0 0.5rem; }
+  ul.storico .stato.finito { color: #1e6b3a; border-color: #b9d8c4; }
+  ul.storico .stato.errore { border-color: #e3b7b5; }
+  ul.storico .esito-lavoro { white-space: pre-line; font-size: 0.92rem; }
+  @media (max-width: 80rem) {
+    .affiancati.due { display: block; }
+    .affiancati .scheda { margin-bottom: 1rem; }
+    .scheda.storico { position: static; max-height: none; }
+  }
 </style>
 <p><a href="{% url 'home' %}">{% translate "Inizio" %}</a> &rsaquo; {% translate "Lavori" %}</p>
 <h1>{% translate "Lavori" %}</h1>
@@ -15,6 +27,8 @@
   <p class="errore">{% translate "Nessun processo sta eseguendo i lavori: quelli richiesti resteranno in attesa. Avviare «python manage.py esegui_lavori» (oppure «./avvia.sh»)." %}</p>
 {% endif %}
 
+{# La sequenza a sinistra, lo storico a destra: si lancia e si vede l'esito senza scorrere. Stretto: uno sotto l'altro. #}
+<div class="affiancati{% if puo_lanciare %} due{% endif %}">
 {% if puo_lanciare %}
   <div class="scheda">
     <h2>{% translate "Elaborazioni e calcoli, nell'ordine in cui vanno fatti" %}</h2>
@@ -22,23 +36,25 @@
   </div>
 {% endif %}
 
-<div class="scheda">
+<div class="scheda storico">
   <h2>{% translate "Storico" %}</h2>
-  <table class="storico">
-    <tr><th>N.</th><th>{% translate "Lavoro" %}</th><th>{% translate "Stato" %}</th><th>{% translate "Chiesto" %}</th><th>{% translate "Durata" %}</th><th>{% translate "Esito" %}</th></tr>
+  <ul class="storico">
     {% for lavoro in lavori %}
-      <tr>
-        <td>{{ lavoro.pk }}</td>
-        <td>{{ lavoro.titolo }}{% if lavoro.nome_ingresso %}<br><span class="tenue">{{ lavoro.nome_ingresso }}</span>{% endif %}</td>
-        <td>{% if lavoro.stato == "fallito" %}<span class="errore">{{ lavoro.stato }}</span>{% else %}{{ lavoro.stato }}{% endif %}</td>
-        <td>{{ lavoro.richiesto_il|date:"Y-m-d H:i" }}{% if lavoro.richiesto_da %}<br><span class="tenue">{{ lavoro.richiesto_da }}</span>{% endif %}</td>
-        <td>{% if lavoro.durata %}{{ lavoro.durata.total_seconds|floatformat:0 }} s{% else %}-{% endif %}</td>
-        <td class="esito">{{ lavoro.esito|default:"-" }}</td>
-      </tr>
+      <li>
+        <p class="testa">
+          <span class="tenue">n. {{ lavoro.pk }}</span> <strong>{{ lavoro.titolo }}</strong>
+          {% if lavoro.stato == "fallito" %}<span class="stato errore">{{ lavoro.stato }}</span>{% else %}<span class="stato {{ lavoro.stato|slugify }}">{{ lavoro.stato }}</span>{% endif %}
+        </p>
+        <p class="tenue">
+          {{ lavoro.richiesto_il|date:"Y-m-d H:i" }}{% if lavoro.richiesto_da %} &middot; {{ lavoro.richiesto_da }}{% endif %}{% if lavoro.durata %} &middot; {{ lavoro.durata.total_seconds|floatformat:0 }} s{% endif %}{% if lavoro.nome_ingresso %} &middot; {{ lavoro.nome_ingresso }}{% endif %}
+        </p>
+        {% if lavoro.esito %}<p class="esito-lavoro">{{ lavoro.esito }}</p>{% endif %}
+      </li>
     {% empty %}
-      <tr><td colspan="6" class="tenue">{% translate "Nessun lavoro ancora." %}</td></tr>
+      <li class="tenue">{% translate "Nessun lavoro ancora." %}</li>
     {% endfor %}
-  </table>
+  </ul>
+</div>
 </div>
 {% if in_attivita %}
   {# c'è un lavoro richiesto o in corso: la pagina si aggiorna da sola #}
