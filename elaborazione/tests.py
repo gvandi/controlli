@@ -372,6 +372,15 @@ class CodaTest(ConFile):
             self.assertEqual(sum(e.non_verificata for e in larga["RICAVI"]["valori"]), 2)
             altre = coda.altre_informazioni(soggetto, self.anna)
             self.assertEqual([(e.etichetta, e.non_verificata) for e in altre], [("data di consegna", True)])
+            # il segno "non verificato" porta al documento da cui viene il dato, sulla riga dell'entità
+            self.client.force_login(self.anna)
+            fascicolo = Fascicolo.objects.get(faldone__codice=archivio.AZIENDE, soggetto=soggetto)
+            completa = self.client.get(reverse("elaborazione:soggetto", args=[fascicolo.pk]))
+            collegamento = f'{reverse("elaborazione:file", args=[primo.pk])}?pagina=1#entita-{altre[0].pk}'
+            self.assertContains(completa, f'<a class="da-verificare" href="{collegamento}"')
+            revisione = self.client.get(reverse("elaborazione:file", args=[primo.pk]), {"pagina": "3"})
+            self.assertContains(revisione, f'<tr id="entita-{altre[0].pk}"')
+            self.assertEqual(revisione.context["pagina_iniziale"], 3)
             racconto = coda.descrivi_azienda("12345", self.anna)
             self.assertIn("Altre informazioni lette nei file", racconto)
             self.assertIn("- data di consegna: 12/03/2024 (NON VERIFICATO)", racconto)

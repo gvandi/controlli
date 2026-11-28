@@ -26,6 +26,7 @@
   .elenco-breve li { padding: 0.3rem 0; border-top: 1px solid var(--bordo); }
   .conto { font-size: 1.6rem; font-weight: 600; line-height: 1.1; }
   .cerca-societa input[type=text] { display: inline-block; width: min(26rem, 100%); margin-right: 0.5rem; }
+  a.da-verificare { text-decoration: none; } a.da-verificare:hover { text-decoration: underline; }
   .da-verificare { font-size: 0.8rem; color: #8a5a00; background: #fdf6e3; border: 1px solid #e6cf9c; border-radius: 3px; padding: 0 0.3rem; white-space: nowrap; }
   table.dati { border-collapse: collapse; width: 100%; }
   table.dati th, table.dati td { text-align: left; padding: 0.3rem 0.6rem 0.3rem 0; border-top: 1px solid var(--bordo); vertical-align: top; }
@@ -191,7 +192,7 @@
             {% endfor %}
             {% for riga in societa.note %}
               {% with e=riga.valori.0 %}
-                <tr><th>{{ riga.voce.descrizione }}</th><td>{{ e.valore }}{% if e.periodo %} <span class="tenue">({{ e.periodo }})</span>{% endif %}{% if e.non_verificata %} <span class="da-verificare">{% translate "non verificato" %}</span>{% endif %}{% if riga.valori|length > 1 %} <span class="tenue">{% blocktranslate with n=riga.valori|length|add:"-1" %}e altri {{ n }}{% endblocktranslate %}</span>{% endif %}</td></tr>
+                <tr><th>{{ riga.voce.descrizione }}</th><td>{{ e.valore }}{% if e.periodo %} <span class="tenue">({{ e.periodo }})</span>{% endif %}{% if e.non_verificata %} <a class="da-verificare" href="{% url 'elaborazione:file' e.file_id %}?pagina={{ e.pagina|default:1 }}#entita-{{ e.pk }}" title="{% translate 'Apri il documento da cui viene questo dato, per controllarlo' %}">{% translate "non verificato" %}</a>{% endif %}{% if riga.valori|length > 1 %} <span class="tenue">{% blocktranslate with n=riga.valori|length|add:"-1" %}e altri {{ n }}{% endblocktranslate %}</span>{% endif %}</td></tr>
               {% endwith %}
             {% endfor %}
             {% if not societa.periodi and not societa.note %}
@@ -209,7 +210,7 @@
             {% for riga in societa.documenti %}
               <tr>
                 <td><strong>{{ riga.documento.tipo|default:"-" }}</strong> {{ riga.documento.numero }}<br><span class="tenue">{{ riga.documento.data|date:"Y-m-d"|default:"-" }} &middot; {{ riga.documento.totale|default:"-" }}</span></td>
-                <td>{{ riga.ruolo }}{% if not riga.verificato %} <span class="da-verificare">{% translate "non verificato" %}</span>{% endif %}<br><span class="tenue">{% for altra in riga.altre %}{{ altra.ruolo|default:altra.ruolo_proposto }}: {{ altra.denominazione }}{% if not forloop.last %}; {% endif %}{% endfor %}</span></td>
+                <td>{{ riga.ruolo }}{% if not riga.verificato %} <a class="da-verificare" href="{% url 'elaborazione:file' riga.documento.file_id %}#documento" title="{% translate 'Apri il documento, per controllare mittente e destinatario' %}">{% translate "non verificato" %}</a>{% endif %}<br><span class="tenue">{% for altra in riga.altre %}{{ altra.ruolo|default:altra.ruolo_proposto }}: {{ altra.denominazione }}{% if not forloop.last %}; {% endif %}{% endfor %}</span></td>
               </tr>
             {% empty %}
               <tr><td class="tenue">{% translate "Nessun documento." %}</td></tr>
