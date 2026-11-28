@@ -62,3 +62,27 @@ class AccessoTest(TestCase):
         # una ricerca senza i diritti per le schede non rivela nulla
         risposta = self.client.get(reverse("home"), {"societa": "10000"})
         self.assertNotContains(risposta, "Ciò che se ne sa")
+
+
+class MappaDallaPaginaTest(TestCase):
+    """Il pulsante "Mostra la mappa di rete" della scheda "Società e analisi"."""
+
+    def test_chi_non_puo_non_passa_e_una_societa_fuori_dal_grafo_viene_spiegata(self):
+        from django.contrib.auth.models import Permission
+
+        Utente = get_user_model()
+        senza = Utente.objects.create_user("senza", password="x")
+        self.client.force_login(senza)
+        self.assertEqual(self.client.post(reverse("grafo:nuova_mappa"), {"soggetto": "1"}).status_code, 403)
+        self.assertEqual(self.client.get(reverse("grafo:nuova_mappa")).status_code, 403)
+
+        analista = Utente.objects.create_user("analista_di_prova", password="x")
+        analista.user_permissions.add(Permission.objects.get(content_type__app_label="grafo", codename="usa_chat"))
+        self.client.force_login(analista)
+        self.assertEqual(self.client.get(reverse("grafo:nuova_mappa")).status_code, 405)   # solo con il pulsante
+        # una società che non è nei dati dell'analisi: si torna alla scheda, con la spiegazione
+        risposta = self.client.post(reverse("grafo:nuova_mappa"), {"soggetto": "999999", "cercata": "10276"}, follow=True)
+        self.assertEqual(risposta.redirect_chain[0][0], reverse("home") + "?societa=10276#societa")
+        self.assertContains(risposta, "non è ancora nei dati dell&#x27;analisi di rete")
+        self.assertContains(risposta, 'role="alert"')
+

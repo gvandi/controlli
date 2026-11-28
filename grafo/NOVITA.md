@@ -1,6 +1,6 @@
 # Registro delle novità
 
-Versione corrente: 38
+Versione corrente: 39
 
 Elenco completo delle novità rispetto alla versione 12 (ultimo file unico di partenza).
 È l'UNICO posto in cui le novità si scrivono a mano: `aggiorna_intestazioni.py` ricopia
@@ -47,6 +47,7 @@ Dalla 20 il numero di versione del codice è un intero.
 - [34] (contratto) Ogni modello dichiara il suo nome in italiano, singolare e plurale (migrazione 0004): nelle pagine di amministrazione non compaiono più «Sessiones», «Richiestas», «Mappa prodottas», «Token accessos». Cambiano solo le etichette.
 - [35] (contratto) Un solo nome: le descrizioni delle popolazioni e i nomi dei modelli nelle pagine di amministrazione dicono «società» (migrazione 0005). Tabelle e campi non cambiano nome.
 - [37] (contratto) Nuova costante SEGNO_NON_VERIFICATO: in coda al nome del documento di una relazione dice che viene da un documento non ancora confermato da una persona. Lo schema non cambia.
+- [39] (contratto) Nuova costante ACCESSO_PAGINA.
 
 ## calcolo
 
@@ -161,6 +162,7 @@ Dalla 20 il numero di versione del codice è un intero.
 - [31] (server) Gli strumenti mappa e spazio dicono con quale utente va aperto il collegamento (quello che ha autorizzato la chat); la pagina di collegamento elenca le chat autorizzate con il proprio utente e permette di scollegarle.
 - [35] (server) Le risposte degli strumenti e il prompt di sistema dicono «società».
 - [36] (server) Quando l'archivio non è utilizzabile la chat risponde che l'analisi di rete non è disponibile e che non dipende dalla domanda; il motivo tecnico segue come dettaglio per l'amministratore.
+- [39] (server) La mappa di rete si può chiedere anche da una pagina dell'applicativo: nuovo indirizzo /grafo/mappe/nuova/ (views.nuova_mappa) e mappa_dalla_pagina() in servizio_mcp.py, con la richiesta nel registro come per la chat.
 
 ## mappa
 
@@ -194,3 +196,4 @@ Dalla 20 il numero di versione del codice è un intero.
 - [21] (sessioni) Ogni sessione registra come è stato fatto l'accesso (token oppure oauth) e, per OAuth, il nome con cui la chat si è registrata.
 - [21] (sessioni) I token personali diventano un ripiego che l'amministratore può spegnere dal cruscotto (parametro token_personali_ammessi: si / no).
 - [31] (sessioni) Nuove funzioni chat_autorizzate() e scollega_chat(): l'utente vede quali programmi di chat agiscono a suo nome con l'accesso OAuth e può revocarli; scollegare chiude le sessioni aperte, e la chat deve rifare l'accesso dal browser.
+- [39] (sessioni) Nuova sessione_della_pagina(): la sessione (accesso «pagina») a cui appartengono le mappe chieste senza chat.

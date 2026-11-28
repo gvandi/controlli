@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   protocollo_mcp.py  -  app grafo, VERSIONE 38
+#   protocollo_mcp.py  -  app grafo, VERSIONE 39
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: server
@@ -90,6 +90,9 @@
 #   [36] Quando l'archivio non è utilizzabile la chat risponde che l'analisi di rete non è
 #        disponibile e che non dipende dalla domanda; il motivo tecnico segue come dettaglio per
 #        l'amministratore.
+#   [39] La mappa di rete si può chiedere anche da una pagina dell'applicativo: nuovo indirizzo
+#        /grafo/mappe/nuova/ (views.nuova_mappa) e mappa_dalla_pagina() in servizio_mcp.py, con
+#        la richiesta nel registro come per la chat.
 #
 # <<< NOVITA
 """

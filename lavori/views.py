@@ -20,12 +20,10 @@ MASSIMO_IN_ELENCO = 100
 @login_required
 @permission_required("lavori.view_lavoro", raise_exception=True)
 def elenco(request):
-    lavori = list(Lavoro.objects.select_related("richiesto_da")[:MASSIMO_IN_ELENCO])
-    for lavoro in lavori:
-        lavoro.titolo = servizi.TIPI[lavoro.tipo].titolo if lavoro.tipo in servizi.TIPI else lavoro.tipo
+    lavori, in_attivita = servizi.storico(MASSIMO_IN_ELENCO)
     return render(request, "lavori/elenco.html", {
-        "lavori": lavori, "percorso": servizi.per_le_pagine(),
-        "in_attivita": any(lavoro.stato in APERTI for lavoro in lavori),
+        "lavori": lavori, "storico": lavori, "percorso": servizi.per_le_pagine(),
+        "in_attivita": in_attivita,
         "nessun_esecutore": not servizi.tipi_serviti(),
         "puo_lanciare": request.user.has_perm("lavori.lancia_lavori"),
     })

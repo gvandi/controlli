@@ -180,7 +180,16 @@ class LavoriTest(TestCase):
         pagina = self.client.get(reverse("home"))
         self.assertEqual(pagina.context["quante_da_fare"], 0)
         self.assertNotContains(pagina, 'title="cose da fare che non hai ancora aperto">')
+        # nella scheda "Aggiornamento dati" lo storico è già accanto alla sequenza, senza cambiare pagina
+        self.client.force_login(self.ada)
+        servizi.richiedi("allinea_denominazioni", self.ada)
+        inizio = self.client.get(reverse("home"))
+        self.assertContains(inizio, 'class="affiancati due"')
+        self.assertContains(inizio, '<div class="scheda storico">')
+        self.assertContains(inizio, "<strong>Riallinea le denominazioni</strong>")
+        self.assertTrue(inizio.context["lavori_in_attivita"])
         # la pagina dei lavori affianca la sequenza e lo storico
+
         self.client.force_login(self.ada)
         self.assertContains(self.client.get(reverse("lavori:elenco")), 'class="affiancati due"')
 

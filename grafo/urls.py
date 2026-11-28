@@ -7,6 +7,7 @@ app_name = "grafo"
 
 urlpatterns = [
     path("mcp/", views.mcp, name="mcp"),
+    path("mappe/nuova/", views.nuova_mappa, name="nuova_mappa"),
     path("mappe/<int:numero>/", views.mappa, name="mappa"),
     path("collegamento/", views.collegamento, name="collegamento"),
     path("cruscotto/", views.cruscotto, name="cruscotto"),

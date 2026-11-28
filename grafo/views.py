@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   views.py  -  app grafo, VERSIONE 38
+#   views.py  -  app grafo, VERSIONE 39
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: server
@@ -90,6 +90,9 @@
 #   [36] Quando l'archivio non è utilizzabile la chat risponde che l'analisi di rete non è
 #        disponibile e che non dipende dalla domanda; il motivo tecnico segue come dettaglio per
 #        l'amministratore.
+#   [39] La mappa di rete si può chiedere anche da una pagina dell'applicativo: nuovo indirizzo
+#        /grafo/mappe/nuova/ (views.nuova_mappa) e mappa_dalla_pagina() in servizio_mcp.py, con
+#        la richiesta nel registro come per la chat.
 #
 # <<< NOVITA
 """
@@ -111,7 +114,8 @@ import pathlib
 from django.conf import settings
 from django.contrib.auth.decorators import login_required, permission_required
 from django.http import Http404, HttpResponse, JsonResponse
-from django.shortcuts import render
+from django.contrib import messages
+from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
@@ -288,6 +292,31 @@ def mappa(request, numero):
         registro.warning("Mappa %s: il file %s non è nella cartella %s", numero, percorso.name, percorso.parent)
         return render(request, "grafo/mappa_non_disponibile.html", {"motivo": "file_mancante"}, status=404)
     return HttpResponse(percorso.read_bytes(), content_type="text/html; charset=utf-8")
+
+
+@login_required
+@permission_required("grafo.usa_chat", raise_exception=True)
+@require_http_methods(["POST"])
+def nuova_mappa(request):
+    """
+    Produce la mappa di rete di una società dell'anagrafica (campo "soggetto": il suo numero) e la
+    apre. È lo stesso disegno che dà la chat, chiesto dalla scheda "Società e analisi": la mappa
+    appartiene a chi la chiede. Se non si può produrre, torna alla scheda dicendo perché.
+    """
+    from .models import Soggetto
+
+    numero = request.POST.get("soggetto", "")
+    ritorno = reverse("home") + (f"?societa={request.POST.get('cercata', '')[:120]}" if request.POST.get("cercata") else "") + "#societa"
+    nel_grafo = Soggetto.objects.filter(riferimento=f"ANAG-{numero}").first() if numero.isdigit() else None
+    if nel_grafo is None:
+        messages.error(request, "Questa società non è ancora nei dati dell'analisi di rete: serve «Aggiorna il grafo e calcola gli indici».")
+        return redirect(ritorno)
+    sessione = sessioni.sessione_della_pagina(request.user, request.META.get("REMOTE_ADDR"))
+    riga, messaggio = servizio_mcp.mappa_dalla_pagina(sessione, nel_grafo.pk)
+    if riga is None:
+        messages.error(request, messaggio)
+        return redirect(ritorno)
+    return redirect("grafo:mappa", numero=riga.pk)
 
 
 # =====================================================================

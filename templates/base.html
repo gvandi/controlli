@@ -41,7 +41,7 @@
     {% endif %}
   </header>
   <main>
-    {% for messaggio in messages %}<p class="esito">{{ messaggio }}</p>{% endfor %}
+    {% for messaggio in messages %}<p class="{% if messaggio.level >= 40 %}errore{% else %}esito{% endif %}"{% if messaggio.level >= 40 %} role="alert"{% endif %}>{{ messaggio }}</p>{% endfor %}
     {% block contenuto %}{% endblock %}
   </main>
 </body>

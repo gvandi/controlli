@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   servizio_mcp.py  -  app grafo, VERSIONE 38
+#   servizio_mcp.py  -  app grafo, VERSIONE 39
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: server
@@ -90,6 +90,9 @@
 #   [36] Quando l'archivio non è utilizzabile la chat risponde che l'analisi di rete non è
 #        disponibile e che non dipende dalla domanda; il motivo tecnico segue come dettaglio per
 #        l'amministratore.
+#   [39] La mappa di rete si può chiedere anche da una pagina dell'applicativo: nuovo indirizzo
+#        /grafo/mappe/nuova/ (views.nuova_mappa) e mappa_dalla_pagina() in servizio_mcp.py, con
+#        la richiesta nel registro come per la chat.
 #
 # <<< NOVITA
 """
@@ -354,6 +357,43 @@ def esegui_strumento(nome, parametri, domanda="", sessione=None, indirizzo_mappa
         coppia = ("", None) if nome in contratto.STRUMENTI_SENZA_ARCHIVIO else _coppia_in_uso()
         sessioni.chiudi_richiesta(richiesta, esito, int((time.monotonic() - inizio) * 1000), *coppia)
     return testo, esito != "ok"
+
+
+def mappa_dalla_pagina(sessione, soggetto):
+    """
+    La mappa di rete chiesta da una pagina dell'applicativo (non dalla chat) per un soggetto del
+    grafo già noto: restituisce (riga della mappa, "") oppure (None, che cosa dire all'utente).
+    Come per la chat la richiesta è scritta nel registro della sessione, e nessun errore esce da qui.
+    """
+    richiesta = sessioni.registra_richiesta(sessione, "mappa", {"societa": soggetto}, "[dalla pagina] mappa di rete")
+    inizio, riga, messaggio, esito = time.monotonic(), None, "", "ok"
+    try:
+        prodotta = modulo_mappa.produci(calcolo_cartella.cartella_dati(), soggetto, sessione.pk)
+        if prodotta is None:
+            messaggio, esito = "Per questa società non c'è nulla da disegnare nei dati in uso.", "errore"
+        else:
+            esecuzione = interrogazione.leggi_esecuzione()
+            riga = sessioni.registra_mappa(
+                sessione, richiesta, prodotta["soggetto"], prodotta["nome_file"],
+                esecuzione["versione_calcolo"], esecuzione["numero_dati"],
+            )
+    except ModuleNotFoundError as errore:
+        messaggio, esito = (
+            f"La mappa non può essere prodotta: sul server manca la libreria '{errore.name}' "
+            "(servono networkx e pyvis). Segnalalo all'amministratore."
+        ), "errore"
+    except contratto.ArchivioIncompatibile as errore:
+        messaggio, esito = (
+            f"L'analisi di rete non è disponibile in questo momento. Avvisa l'amministratore riportando questo dettaglio: {errore}"
+        ), "archivio"
+    except Exception:
+        registro.exception("Errore nella mappa chiesta dalla pagina per il soggetto %s", soggetto)
+        messaggio, esito = (
+            "La mappa non è stata prodotta. La causa più frequente: la società non è ancora nei dati in uso "
+            "(serve «Aggiorna il grafo e calcola gli indici»). Se non è così, segnalalo all'amministratore."
+        ), "errore"
+    sessioni.chiudi_richiesta(richiesta, esito, int((time.monotonic() - inizio) * 1000), *_coppia_in_uso())
+    return riga, messaggio
 
 
 def _coppia_in_uso():

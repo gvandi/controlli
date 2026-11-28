@@ -1,6 +1,6 @@
 # >>> NOVITA (generato da aggiorna_intestazioni.py da NOVITA.md: non modificare a mano)
 #
-#   contratto.py  -  app grafo, VERSIONE 38
+#   contratto.py  -  app grafo, VERSIONE 39
 #
 #   NOVITÀ RISPETTO ALLA VERSIONE 12  ([NN] = versione che ha introdotto la novità)
 #   Parte del registro: contratto
@@ -71,6 +71,7 @@
 #   [37] Nuova costante SEGNO_NON_VERIFICATO: in coda al nome del documento di una relazione
 #        dice che viene da un documento non ancora confermato da una persona. Lo schema non
 #        cambia.
+#   [39] Nuova costante ACCESSO_PAGINA.
 #
 # <<< NOVITA
 """
@@ -98,7 +99,7 @@ from packaging.version import InvalidVersion, Version
 # 1) PROGETTO: quale rilascio è installato. Solo provenienza: non blocca nulla.
 #    Dalla versione 20 è un numero intero (20, 21...): non essendo mai confrontato
 #    con un intervallo, un secondo numero non serviva.
-VERSIONE_CODICE = "38"
+VERSIONE_CODICE = "39"
 
 # 2) SCHEMA del database: decide se un lettore può aprire l'archivio.
 #    Secondo numero: modifiche che AGGIUNGONO (tabella, colonna facoltativa, indice).
@@ -248,6 +249,8 @@ STRUMENTI_SENZA_ARCHIVIO = ("calcola", "scheda", "spazio")
 # Come una sessione ha dimostrato chi è l'utente
 ACCESSO_TOKEN = "token"  # token personale copiato a mano (versione 20)
 ACCESSO_OAUTH = "oauth"  # accesso dal browser con OAuth 2.0 (versione 21)
+# La mappa chiesta da una pagina dell'applicativo, senza chat: la sessione ha questo tipo di accesso
+ACCESSO_PAGINA = "pagina"
 # Ambito OAuth richiesto dal servizio MCP: lo stesso nome è in config/settings.py
 AMBITO_OAUTH = "grafo"
 

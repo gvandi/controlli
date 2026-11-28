@@ -102,10 +102,14 @@ def home(request):
         # La sequenza di elaborazioni e calcoli con i pulsanti per lanciarli (solo per chi può)
         "lavori": lavori.per_le_pagine() if puo_lanciare else None,
         "ritorno_lavori": reverse("home") + "#aggiornamento",
+        # Lo storico accanto alla sequenza, senza cambiare pagina
+        "storico": None, "lavori_in_attivita": False,
         "da_fare": _da_fare(utente) if puo_vedere_l_archivio else None,
         "societa": _societa(cercata, utente) if cercata and puo_vedere_le_schede else None,
         "cercata": cercata,
     }
+    if contesto["puo_vedere_i_lavori"]:
+        contesto["storico"], contesto["lavori_in_attivita"] = lavori.storico(20)
     # L'avviso "dati non aggiornati", la ricerca "che cosa vuoi fare?" e i suggerimenti (n. 102)
     from grafo import dati_reali
 

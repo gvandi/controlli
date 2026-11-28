@@ -293,6 +293,17 @@ def tipi_serviti():
 # ---------------------------------------------------------------------
 # Per le pagine
 # ---------------------------------------------------------------------
+def storico(massimo=40):
+    """
+    Gli ultimi lavori, il più recente per primo, con il titolo leggibile: (lavori, in_attivita).
+    in_attivita: ce n'è almeno uno richiesto o in corso (la pagina si aggiorna da sola).
+    """
+    lavori = list(Lavoro.objects.select_related("richiesto_da").order_by("-richiesto_il", "-pk")[:massimo])
+    for lavoro in lavori:
+        lavoro.titolo = TIPI[lavoro.tipo].titolo if lavoro.tipo in TIPI else lavoro.tipo
+    return lavori, any(lavoro.stato in APERTI for lavoro in lavori)
+
+
 def per_le_pagine():
     """
     La sequenza dei lavori con il loro ultimo stato, per le pagine:

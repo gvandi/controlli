@@ -6,14 +6,6 @@
   main { max-width: 120rem; }
   .affiancati.due { display: grid; grid-template-columns: minmax(0, 3fr) minmax(22rem, 2fr); gap: 1rem; align-items: start; }
   .affiancati .scheda { margin-bottom: 0; min-width: 0; overflow-x: auto; }
-  .scheda.storico { position: sticky; top: 0.5rem; max-height: calc(100vh - 1rem); overflow-y: auto; }
-  ul.storico { list-style: none; margin: 0; padding: 0; }
-  ul.storico li { border-top: 1px solid var(--bordo); padding: 0.5rem 0; }
-  ul.storico p { margin: 0 0 0.2rem; }
-  ul.storico .stato { float: right; font-size: 0.85rem; border: 1px solid var(--bordo); border-radius: 1rem; padding: 0 0.5rem; }
-  ul.storico .stato.finito { color: #1e6b3a; border-color: #b9d8c4; }
-  ul.storico .stato.errore { border-color: #e3b7b5; }
-  ul.storico .esito-lavoro { white-space: pre-line; font-size: 0.92rem; }
   @media (max-width: 80rem) {
     .affiancati.due { display: block; }
     .affiancati .scheda { margin-bottom: 1rem; }
@@ -36,25 +28,7 @@
   </div>
 {% endif %}
 
-<div class="scheda storico">
-  <h2>{% translate "Storico" %}</h2>
-  <ul class="storico">
-    {% for lavoro in lavori %}
-      <li>
-        <p class="testa">
-          <span class="tenue">n. {{ lavoro.pk }}</span> <strong>{{ lavoro.titolo }}</strong>
-          {% if lavoro.stato == "fallito" %}<span class="stato errore">{{ lavoro.stato }}</span>{% else %}<span class="stato {{ lavoro.stato|slugify }}">{{ lavoro.stato }}</span>{% endif %}
-        </p>
-        <p class="tenue">
-          {{ lavoro.richiesto_il|date:"Y-m-d H:i" }}{% if lavoro.richiesto_da %} &middot; {{ lavoro.richiesto_da }}{% endif %}{% if lavoro.durata %} &middot; {{ lavoro.durata.total_seconds|floatformat:0 }} s{% endif %}{% if lavoro.nome_ingresso %} &middot; {{ lavoro.nome_ingresso }}{% endif %}
-        </p>
-        {% if lavoro.esito %}<p class="esito-lavoro">{{ lavoro.esito }}</p>{% endif %}
-      </li>
-    {% empty %}
-      <li class="tenue">{% translate "Nessun lavoro ancora." %}</li>
-    {% endfor %}
-  </ul>
-</div>
+{% include "lavori/_storico.html" %}
 </div>
 {% if in_attivita %}
   {# c'è un lavoro richiesto o in corso: la pagina si aggiorna da sola #}
